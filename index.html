@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Интерактивные 3D-тренажёры по физике · Нейрум</title>
+<meta name="description" content="Бесплатные интерактивные 3D-тренажёры по физике: амперметр, вольтметр, динамометр. Цена деления, снятие показаний, подготовка к ОГЭ (задание 1).">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+<style>
+  :root{
+    --bg:#0b1130; --card:#141b40; --card2:#1a2350; --line:rgba(255,255,255,.09);
+    --text:#eef1fb; --muted:#9aa3c7; --accent:#ffd166; --accent2:#6c9bff;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    background:radial-gradient(1100px 600px at 50% -10%, #1d2856 0%, var(--bg) 62%) var(--bg);
+    color:var(--text); line-height:1.5; min-height:100vh;
+  }
+  header{text-align:center; padding:44px 16px 10px;}
+  h1{margin:0; font-size:clamp(26px,5vw,42px);}
+  .sub{color:var(--muted); margin:10px auto 0; max-width:680px; font-size:16px;}
+  main{max-width:1080px; margin:26px auto 60px; padding:0 16px;
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px;}
+  .card{
+    display:block; text-decoration:none; color:var(--text);
+    background:linear-gradient(180deg,var(--card),var(--card2));
+    border:1px solid var(--line); border-radius:20px; padding:24px; transition:.18s;
+  }
+  .card:hover{transform:translateY(-4px); border-color:rgba(255,209,102,.5);}
+  .card .emoji{font-size:44px;}
+  .card h2{margin:12px 0 6px; font-size:21px;}
+  .card p{margin:0; color:var(--muted); font-size:14px;}
+  .badges{margin-top:12px; display:flex; gap:6px; flex-wrap:wrap;}
+  .badge{
+    font-size:12px; padding:4px 10px; border-radius:999px;
+    background:rgba(108,155,255,.14); border:1px solid rgba(108,155,255,.3);
+  }
+  .badge.oge{background:rgba(255,209,102,.12); border-color:rgba(255,209,102,.4); color:var(--accent);}
+  footer{text-align:center; color:var(--muted); font-size:13px; padding:0 16px 40px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>⚡ Интерактивные 3D-тренажёры по физике</h1>
+  <p class="sub">Покрути настоящий школьный прибор, найди цену деления и научись снимать показания — как в задании 1 ОГЭ. Бесплатно, без регистрации, работает на телефоне.</p>
+</header>
+<main>
+  <a class="card" href="https://vladimir4123-cyber.github.io/ampermeter-trainer/">
+    <div class="emoji">⚡</div>
+    <h2>Амперметр</h2>
+    <p>Сила тока, две шкалы (А и мА), закон Ома и живая электрическая цепь с бегущим током.</p>
+    <div class="badges"><span class="badge">8 класс</span><span class="badge oge">ОГЭ задание 1</span><span class="badge">3D</span></div>
+  </a>
+  <a class="card" href="voltmeter/">
+    <div class="emoji">🔋</div>
+    <h2>Вольтметр</h2>
+    <p>Напряжение, диапазоны 6 В и 3 В, параллельное подключение и делитель напряжения на реостате.</p>
+    <div class="badges"><span class="badge">8 класс</span><span class="badge oge">ОГЭ задание 1</span><span class="badge">3D</span></div>
+  </a>
+  <a class="card" href="dynamometer/">
+    <div class="emoji">🪝</div>
+    <h2>Динамометр</h2>
+    <p>Сила и вес, пружина по закону Гука, грузики на крючке — и проверка прибора на Луне.</p>
+    <div class="badges"><span class="badge">7 класс</span><span class="badge oge">ОГЭ задание 1</span><span class="badge">3D</span></div>
+  </a>
+</main>
+<footer>Сделано для уроков физики · каждый тренажёр: изучение → цена деления → показания → о приборе</footer>
+</body>
+</html>
