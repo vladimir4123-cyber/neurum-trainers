@@ -3,8 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Интерактивные тренажёры по физике · Нейрум</title>
-<meta name="description" content="Бесплатные интерактивные тренажёры по физике: амперметр, вольтметр и динамометр в 3D, звуковые волны со звуком. Цена деления, показания приборов, подготовка к ОГЭ.">
+<title>Интерактивные тренажёры по физике и математике · Нейрум</title>
+<meta name="description" content="Бесплатные интерактивные тренажёры: 3D-приборы (амперметр, вольтметр, динамометр), живые симуляции (звук, плавление, электризация), математические игры (дроби, устный счёт, тригонометрия). ОГЭ, 5–11 класс.">
+<meta property="og:title" content="⚡ Интерактивные тренажёры · Нейрум">
+<meta property="og:description" content="3D-приборы, живые симуляции и математические игры — бесплатно, без регистрации, работает на телефоне.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 <style>
   :root{
@@ -20,8 +22,13 @@
   header{text-align:center; padding:44px 16px 10px;}
   h1{margin:0; font-size:clamp(26px,5vw,42px);}
   .sub{color:var(--muted); margin:10px auto 0; max-width:680px; font-size:16px;}
-  main{max-width:1080px; margin:26px auto 60px; padding:0 16px;
-    display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px;}
+  .wrap{max-width:1080px; margin:10px auto 60px; padding:0 16px;}
+  .section{margin-top:34px;}
+  .section h2{
+    font-size:20px; margin:0 0 4px; display:flex; align-items:center; gap:10px;
+  }
+  .section .sdesc{color:var(--muted); font-size:14px; margin:0 0 16px;}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px;}
   .card{
     display:block; text-decoration:none; color:var(--text);
     background:linear-gradient(180deg,var(--card),var(--card2));
@@ -29,7 +36,7 @@
   }
   .card:hover{transform:translateY(-4px); border-color:rgba(255,209,102,.5);}
   .card .emoji{font-size:44px;}
-  .card h2{margin:12px 0 6px; font-size:21px;}
+  .card h3{margin:12px 0 6px; font-size:21px;}
   .card p{margin:0; color:var(--muted); font-size:14px;}
   .badges{margin-top:12px; display:flex; gap:6px; flex-wrap:wrap;}
   .badge{
@@ -37,40 +44,93 @@
     background:rgba(108,155,255,.14); border:1px solid rgba(108,155,255,.3);
   }
   .badge.oge{background:rgba(255,209,102,.12); border-color:rgba(255,209,102,.4); color:var(--accent);}
+  .badge.new{background:rgba(61,220,132,.12); border-color:rgba(61,220,132,.4); color:#3ddc84;}
   footer{text-align:center; color:var(--muted); font-size:13px; padding:0 16px 40px;}
 </style>
 </head>
 <body>
 <header>
-  <h1>⚡ Интерактивные тренажёры по физике</h1>
-  <p class="sub">Крути 3D-приборы, снимай показания как в задании 1 ОГЭ, слушай звуковые волны. Бесплатно, без регистрации, работает на телефоне.</p>
+  <h1>⚡ Интерактивные тренажёры</h1>
+  <p class="sub">Крути 3D-приборы, запускай живые симуляции, играй в математику. Бесплатно, без регистрации, работает на телефоне — просто отправь ссылку ученику.</p>
 </header>
-<main>
-  <a class="card" href="https://vladimir4123-cyber.github.io/ampermeter-trainer/">
-    <div class="emoji">⚡</div>
-    <h2>Амперметр</h2>
-    <p>Сила тока, две шкалы (А и мА), закон Ома и живая электрическая цепь с бегущим током.</p>
-    <div class="badges"><span class="badge">8 класс</span><span class="badge oge">ОГЭ задание 1</span><span class="badge">3D</span></div>
-  </a>
-  <a class="card" href="voltmeter/">
-    <div class="emoji">🔋</div>
-    <h2>Вольтметр</h2>
-    <p>Напряжение, диапазоны 6 В и 3 В, параллельное подключение и делитель напряжения на реостате.</p>
-    <div class="badges"><span class="badge">8 класс</span><span class="badge oge">ОГЭ задание 1</span><span class="badge">3D</span></div>
-  </a>
-  <a class="card" href="dynamometer/">
-    <div class="emoji">🪝</div>
-    <h2>Динамометр</h2>
-    <p>Сила и вес, пружина по закону Гука, грузики на крючке — и проверка прибора на Луне.</p>
-    <div class="badges"><span class="badge">7 класс</span><span class="badge oge">ОГЭ задание 1</span><span class="badge">3D</span></div>
-  </a>
-  <a class="card" href="sound/">
-    <div class="emoji">🔊</div>
-    <h2>Звуковые волны</h2>
-    <p>Частота, амплитуда, интерференция и биения — волны, которые видно и слышно. 7 минут — и тема понятна.</p>
-    <div class="badges"><span class="badge">9 класс</span><span class="badge">со звуком</span><span class="badge">симуляция</span></div>
-  </a>
-</main>
-<footer>Сделано для уроков физики · каждый тренажёр: изучение → цена деления → показания → о приборе</footer>
+<div class="wrap">
+
+  <div class="section">
+    <h2>🔬 Измерительные приборы в 3D</h2>
+    <p class="sdesc">Покрути настоящий школьный прибор, найди цену деления, сними показания — как в задании 1 ОГЭ по физике.</p>
+    <div class="grid">
+      <a class="card" href="https://vladimir4123-cyber.github.io/ampermeter-trainer/">
+        <div class="emoji">⚡</div>
+        <h3>Амперметр</h3>
+        <p>Сила тока, две шкалы (А и мА), закон Ома и живая электрическая цепь с бегущим током.</p>
+        <div class="badges"><span class="badge">8 класс</span><span class="badge oge">ОГЭ задание 1</span><span class="badge">3D</span></div>
+      </a>
+      <a class="card" href="voltmeter/">
+        <div class="emoji">🔋</div>
+        <h3>Вольтметр</h3>
+        <p>Напряжение, диапазоны 6 В и 3 В — плюс практика «Мастерская электрика»: почини гирлянду и не спали прибор!</p>
+        <div class="badges"><span class="badge">8 класс</span><span class="badge oge">ОГЭ задание 1</span><span class="badge">3D</span><span class="badge new">🛠️ практика</span></div>
+      </a>
+      <a class="card" href="dynamometer/">
+        <div class="emoji">🪝</div>
+        <h3>Динамометр</h3>
+        <p>Сила и вес, пружина по закону Гука, грузики на крючке — и проверка прибора на Луне.</p>
+        <div class="badges"><span class="badge">7 класс</span><span class="badge oge">ОГЭ задание 1</span><span class="badge">3D</span></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>🧪 Живые симуляции</h2>
+    <p class="sdesc">Микроуроки на ~7 минут: явление на экране, эксперименты руками, игра и проверка. Идеально показывать у доски.</p>
+    <div class="grid">
+      <a class="card" href="sound/">
+        <div class="emoji">🔊</div>
+        <h3>Звуковые волны</h3>
+        <p>Частота, амплитуда, интерференция и биения — волны, которые видно и слышно.</p>
+        <div class="badges"><span class="badge">9 класс</span><span class="badge">со звуком</span></div>
+      </a>
+      <a class="card" href="melting/">
+        <div class="emoji">🔥</div>
+        <h3>Нагревание и плавление</h3>
+        <p>Живой график с «полочкой» плавления, молекулы и решётка, чтение графиков — как в ОГЭ.</p>
+        <div class="badges"><span class="badge">8 класс</span><span class="badge oge">графики ОГЭ</span><span class="badge new">новый</span></div>
+      </a>
+      <a class="card" href="electrostatics/">
+        <div class="emoji">⚡</div>
+        <h3>Электризация</h3>
+        <p>Шарик и волосы, перелетающие электроны, электроскоп и игра «Зарядовый детектив».</p>
+        <div class="badges"><span class="badge">8 класс</span><span class="badge new">новый</span></div>
+      </a>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>📐 Математика в игре</h2>
+    <p class="sdesc">Три разных формата: бродилка, интерактивный урок и жизненный сценарий. Математика — руками, а не по учебнику.</p>
+    <div class="grid">
+      <a class="card" href="math-dungeon/">
+        <div class="emoji">🧙</div>
+        <h3>Числовое подземелье</h3>
+        <p>Бродилка: открывай двери примерами, собирай монеты, победи дракона на время. От счёта до 20 до отрицательных чисел.</p>
+        <div class="badges"><span class="badge">5–6 класс</span><span class="badge">игра</span><span class="badge new">новый</span></div>
+      </a>
+      <a class="card" href="fraction-pizza/">
+        <div class="emoji">🍕</div>
+        <h3>Пиццерия дробей</h3>
+        <p>Смена повара: режь пиццу, выдавай порции и пойми руками, почему 2 ÷ ¼ = 8. Чаевые за точность!</p>
+        <div class="badges"><span class="badge">5–6 класс</span><span class="badge">жизненный сценарий</span><span class="badge new">новый</span></div>
+      </a>
+      <a class="card" href="trig-circle/">
+        <div class="emoji">🎯</div>
+        <h3>Тригонометрический круг</h3>
+        <p>Тащи точку по кругу — sin и cos живут на глазах. Собери таблицу углов и пройди челлендж. Формат Brilliant.</p>
+        <div class="badges"><span class="badge">9–11 класс</span><span class="badge oge">база ЕГЭ</span><span class="badge new">новый</span></div>
+      </a>
+    </div>
+  </div>
+
+</div>
+<footer>Сделано для уроков физики и математики · каждый тренажёр открывается по прямой ссылке — делись с классом</footer>
 </body>
 </html>

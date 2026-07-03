@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Тригонометрический круг — интерактивный тренажёр</title>
+<style>
+  :root{
+    --bg:#0b1130; --panel:#141b40; --panel2:#1a2250;
+    --accent:#ffd166; --blue:#6c9bff; --green:#3ddc84; --err:#ff6b81;
+    --text:#eef1fb; --muted:#8b93b8; --line:#2a3565;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-tap-highlight-color:transparent;}
+  body{min-height:100vh;}
+
+  header{max-width:1020px; margin:0 auto; padding:14px 16px 4px; display:flex; flex-direction:column; gap:10px; align-items:center;}
+  header h1{font-size:17px; font-weight:700; letter-spacing:.3px;}
+  header h1 span{color:var(--accent);}
+  #dots{display:flex; gap:8px;}
+  #dots i{width:11px; height:11px; border-radius:50%; background:var(--line); transition:all .3s;}
+  #dots i.cur{background:var(--accent); transform:scale(1.35); box-shadow:0 0 8px rgba(255,209,102,.6);}
+  #dots i.done{background:var(--green);}
+
+  .layout{max-width:1020px; margin:0 auto; padding:10px 12px 40px; display:grid; gap:14px; grid-template-columns:1fr;}
+  @media(min-width:900px){
+    .layout{grid-template-columns:minmax(0,1fr) 290px; align-items:start;}
+    .instr{grid-column:1 / -1;}
+  }
+
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px 18px;}
+
+  /* instruction */
+  .stepLabel{font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin-bottom:6px;}
+  #stepText{font-size:17px; line-height:1.45;}
+  #stepText b{color:var(--accent);}
+  #choices{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
+  #choices:empty{margin-top:0;}
+  .choice{background:var(--panel2); color:var(--text); border:2px solid var(--line); border-radius:12px;
+    padding:10px 20px; font-size:17px; cursor:pointer; transition:all .15s; font-family:inherit;}
+  .choice:hover{border-color:var(--blue);}
+  .choice.right{border-color:var(--green); background:rgba(61,220,132,.15);}
+  .choice.wrong{border-color:var(--err); background:rgba(255,107,129,.12); animation:shake .3s;}
+  @keyframes shake{25%{transform:translateX(-4px);}75%{transform:translateX(4px);}}
+
+  .feedback{margin-top:10px; font-size:15px; min-height:22px; transition:color .2s;}
+  .feedback.ok{color:var(--green);}
+  .feedback.err{color:var(--err);}
+  .feedback.note{color:var(--muted);}
+
+  .instrFooter{display:flex; justify-content:space-between; align-items:center; margin-top:12px; gap:12px;}
+  .stars{font-size:20px; color:var(--accent); letter-spacing:3px;}
+  #nextBtn{margin-left:auto; background:var(--accent); color:#1a1a2e; border:none; border-radius:12px;
+    padding:11px 26px; font-size:16px; font-weight:700; cursor:pointer; transition:all .2s; font-family:inherit;}
+  #nextBtn:disabled{background:var(--line); color:var(--muted); cursor:default;}
+  #nextBtn:not(:disabled):hover{transform:translateY(-1px); box-shadow:0 4px 14px rgba(255,209,102,.35);}
+
+  /* stage */
+  .stage{display:flex; justify-content:center;}
+  svg{width:100%; max-width:500px; touch-action:none; user-select:none; -webkit-user-select:none; display:block;}
+  .mainCircle{fill:none; stroke:#3a4573; stroke-width:2.5;}
+  .axis{stroke:#3a4573; stroke-width:1.5;}
+  .tick{stroke:var(--line); stroke-width:1.5;}
+  .svgLabel{fill:var(--muted); font-size:11px;}
+  .degLbl{fill:var(--muted); font-size:12px; font-weight:600;}
+  .radLbl{fill:var(--green); font-size:12px; font-weight:600;}
+  .quadLbl{fill:var(--text); opacity:.13; font-size:34px; font-weight:800;}
+  #sector{fill:var(--accent); opacity:.14; stroke:none;}
+  #radius{stroke:var(--accent); stroke-width:2; opacity:.85;}
+  #angLabel{fill:var(--text); font-size:15px; font-weight:700; text-anchor:middle;
+    paint-order:stroke; stroke:var(--bg); stroke-width:4px;}
+  .magnet{fill:var(--panel); stroke:var(--accent); stroke-width:2;}
+  .magnet.hit{fill:var(--green); stroke:var(--green);}
+  .magLbl{fill:var(--accent); font-size:11px; font-weight:700; text-anchor:middle;}
+  #sinProj .dash,#cosProj .dash{stroke-dasharray:4 4; stroke-width:1.5; opacity:.8;}
+  #sinProj .seg,#cosProj .seg{stroke-width:5; stroke-linecap:round;}
+  #sinProj .dash,#sinProj .seg{stroke:var(--accent);}
+  #cosProj .dash,#cosProj .seg{stroke:var(--blue);}
+  #sinDot{fill:var(--accent);} #cosDot{fill:var(--blue);}
+  #knob{fill:var(--accent); stroke:#fff; stroke-width:2.5; cursor:grab; transition:fill .3s;
+    filter:drop-shadow(0 0 6px rgba(255,209,102,.7));}
+  #knob.flash{fill:var(--green); filter:drop-shadow(0 0 10px rgba(61,220,132,.9));}
+  #knob.pulse{animation:pulse 1.4s ease-in-out infinite;}
+  @keyframes pulse{50%{r:16;}}
+  #hit{fill:transparent; cursor:grab;}
+  .hidden{display:none !important;}
+
+  /* values panel */
+  .panel .vrow{display:flex; justify-content:space-between; align-items:center; padding:8px 2px; border-bottom:1px solid var(--line); font-size:15px;}
+  .panel .vrow:last-of-type{border-bottom:none;}
+  .panel .k{color:var(--muted); display:flex; align-items:center; gap:8px;}
+  .panel .v{font-weight:700; font-variant-numeric:tabular-nums; font-size:17px;}
+  .swatch{width:10px; height:10px; border-radius:3px; display:inline-block;}
+  .swatch.y{background:var(--accent);} .swatch.b{background:var(--blue);}
+  #vSin{color:var(--accent);} #vCos{color:var(--blue);}
+
+  #trigTable{margin-top:14px;}
+  #trigTable .tHead{font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:8px;}
+  #trigTable table{width:100%; border-collapse:collapse; font-size:15px;}
+  #trigTable th{color:var(--muted); font-size:12px; font-weight:600; padding:4px; border-bottom:1px solid var(--line);}
+  #trigTable th.ys{color:var(--accent);} #trigTable th.bs{color:var(--blue);}
+  #trigTable td{text-align:center; padding:7px 4px; border-bottom:1px solid rgba(42,53,101,.5); color:var(--muted);}
+  #trigTable tr.filled td{color:var(--text); font-weight:600;}
+  #trigTable tr.filled{animation:rowIn .5s;}
+  @keyframes rowIn{from{background:rgba(61,220,132,.3);}to{background:transparent;}}
+
+  /* final overlay */
+  .overlay{position:fixed; inset:0; background:rgba(11,17,48,.85); backdrop-filter:blur(4px);
+    display:flex; align-items:center; justify-content:center; z-index:40; padding:20px;}
+  .finalCard{background:var(--panel); border:1px solid var(--accent); border-radius:22px;
+    padding:34px 30px; text-align:center; max-width:380px; width:100%; box-shadow:0 10px 50px rgba(0,0,0,.5);}
+  .finalEmoji{font-size:52px; margin-bottom:10px;}
+  .finalCard h2{font-size:23px; margin-bottom:10px; color:var(--accent);}
+  .finalCard p{color:var(--text); font-size:16px; margin-bottom:8px;}
+  .finalNote{color:var(--muted) !important; font-size:14px !important; margin-bottom:20px !important;}
+  #restartBtn{background:var(--accent); color:#1a1a2e; border:none; border-radius:12px;
+    padding:12px 28px; font-size:16px; font-weight:700; cursor:pointer; font-family:inherit;}
+  #restartBtn:hover{transform:translateY(-1px); box-shadow:0 4px 14px rgba(255,209,102,.35);}
+
+  .conf{position:fixed; top:-40px; z-index:60; pointer-events:none; animation:fall var(--dur) linear forwards;}
+  @keyframes fall{to{transform:translateY(115vh) rotate(720deg); opacity:.7;}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Тригонометрический <span>круг</span></h1>
+  <div id="dots"></div>
+</header>
+
+<div class="layout">
+  <section class="card instr">
+    <div class="stepLabel" id="stepLabel">Шаг 1 из 9</div>
+    <div id="stepText"></div>
+    <div id="choices"></div>
+    <div id="feedback" class="feedback"></div>
+    <div class="instrFooter">
+      <div id="stars" class="stars hidden"></div>
+      <button id="nextBtn" disabled>Дальше →</button>
+    </div>
+  </section>
+
+  <div class="stage card">
+    <svg id="wheel" viewBox="-135 -135 270 270" xmlns="http://www.w3.org/2000/svg">
+      <g id="quadLabels" class="hidden">
+        <text class="quadLbl" x="58" y="-48" text-anchor="middle">I</text>
+        <text class="quadLbl" x="-58" y="-48" text-anchor="middle">II</text>
+        <text class="quadLbl" x="-58" y="70" text-anchor="middle">III</text>
+        <text class="quadLbl" x="58" y="70" text-anchor="middle">IV</text>
+      </g>
+      <path id="sector" d=""></path>
+      <line class="axis" x1="-122" y1="0" x2="122" y2="0"></line>
+      <line class="axis" x1="0" y1="-122" x2="0" y2="122"></line>
+      <text class="svgLabel" x="126" y="-5">x</text>
+      <text class="svgLabel" x="7" y="-124">y</text>
+      <circle class="mainCircle" r="100"></circle>
+      <g id="ticks"></g>
+      <g id="degLabels">
+        <text class="degLbl" x="107" y="-7" text-anchor="start">0°</text>
+        <text class="degLbl" x="10" y="-108" text-anchor="start">90°</text>
+        <text class="degLbl" x="-107" y="-7" text-anchor="end">180°</text>
+        <text class="degLbl" x="10" y="116" text-anchor="start">270°</text>
+      </g>
+      <g id="radLabels" class="hidden">
+        <text class="radLbl" x="70" y="16" text-anchor="middle">0 · 2π</text>
+        <text class="radLbl" x="0" y="-72" text-anchor="middle">π⁄2</text>
+        <text class="radLbl" x="-74" y="16" text-anchor="middle">π</text>
+        <text class="radLbl" x="0" y="84" text-anchor="middle">3π⁄2</text>
+      </g>
+      <g id="magnets" class="hidden"></g>
+      <g id="cosProj" class="hidden">
+        <line class="dash" id="cosDrop"></line>
+        <line class="seg" id="cosSeg" x1="0" y1="0"></line>
+        <circle id="cosDot" r="4.5" cy="0"></circle>
+      </g>
+      <g id="sinProj" class="hidden">
+        <line class="dash" id="sinDrop"></line>
+        <line class="seg" id="sinSeg" x1="0" y1="0" x2="0"></line>
+        <circle id="sinDot" r="4.5" cx="0"></circle>
+      </g>
+      <line id="radius" x1="0" y1="0"></line>
+      <text id="angLabel" x="0" y="0"></text>
+      <g id="handle">
+        <circle id="knob" r="13" class="pulse"></circle>
+        <circle id="hit" r="30"></circle>
+      </g>
+    </svg>
+  </div>
+
+  <aside class="panel card">
+    <div class="vrow"><span class="k">Угол</span><span class="v" id="vDeg">0°</span></div>
+    <div class="vrow"><span class="k">Радианы</span><span class="v" id="vRad">0</span></div>
+    <div class="vrow"><span class="k"><i class="swatch y"></i>sin — высота</span><span class="v" id="vSin">0</span></div>
+    <div class="vrow"><span class="k"><i class="swatch b"></i>cos — «тень»</span><span class="v" id="vCos">1</span></div>
+    <div id="trigTable" class="hidden">
+      <div class="tHead">Главные углы</div>
+      <table>
+        <thead><tr><th>угол</th><th class="ys">sin</th><th class="bs">cos</th></tr></thead>
+        <tbody>
+          <tr data-d="0"><td>0°</td><td>·</td><td>·</td></tr>
+          <tr data-d="30"><td>30°</td><td>·</td><td>·</td></tr>
+          <tr data-d="45"><td>45°</td><td>·</td><td>·</td></tr>
+          <tr data-d="60"><td>60°</td><td>·</td><td>·</td></tr>
+          <tr data-d="90"><td>90°</td><td>·</td><td>·</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </aside>
+</div>
+
+<div id="finalOverlay" class="overlay hidden">
+  <div class="finalCard">
+    <div class="finalEmoji">🏆</div>
+    <h2 id="finalTitle"></h2>
+    <p id="finalScore"></p>
+    <p class="finalNote">sin — высота точки, cos — её «тень». Теперь этот круг твой.</p>
+    <button id="restartBtn">Пройти ещё раз</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ---------- базовые утилиты ---------- */
+const $ = id => document.getElementById(id);
+const SVGNS = 'http://www.w3.org/2000/svg';
+const R = 100;
+const D2R = Math.PI / 180;
+
+function svgEl(tag, attrs){
+  const el = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+function angDiff(a, b){
+  let d = a - b;
+  while (d > 180) d -= 360;
+  while (d < -180) d += 360;
+  return d;
+}
+function near(a, target, tol){ return Math.abs(angDiff(a, target)) <= tol; }
+function fmt(v){
+  if (Math.abs(v) < 0.005) v = 0;
+  return (v < 0 ? '−' : '') + Math.abs(v).toFixed(2);
+}
+
+/* точные значения для «красивых» углов */
+const SPECIAL = {
+  0:  {sin:'0', cos:'1', rad:'0'},
+  30: {sin:'½', cos:'√3⁄2', rad:'π⁄6'},
+  45: {sin:'√2⁄2', cos:'√2⁄2', rad:'π⁄4'},
+  60: {sin:'√3⁄2', cos:'½', rad:'π⁄3'},
+  90: {sin:'1', cos:'0', rad:'π⁄2'},
+  120:{sin:'√3⁄2', cos:'−½', rad:'2π⁄3'},
+  135:{sin:'√2⁄2', cos:'−√2⁄2', rad:'3π⁄4'},
+  150:{sin:'½', cos:'−√3⁄2', rad:'5π⁄6'},
+  180:{sin:'0', cos:'−1', rad:'π'},
+  210:{sin:'−½', cos:'−√3⁄2', rad:'7π⁄6'},
+  225:{sin:'−√2⁄2', cos:'−√2⁄2', rad:'5π⁄4'},
+  240:{sin:'−√3⁄2', cos:'−½', rad:'4π⁄3'},
+  270:{sin:'−1', cos:'0', rad:'3π⁄2'},
+  300:{sin:'−√3⁄2', cos:'½', rad:'5π⁄3'},
+  315:{sin:'−√2⁄2', cos:'√2⁄2', rad:'7π⁄4'},
+  330:{sin:'−½', cos:'√3⁄2', rad:'11π⁄6'}
+};
+function getSpecial(a){
+  const k = Math.round(a);
+  if (Math.abs(a - k) < 0.35 && SPECIAL[k % 360]) return SPECIAL[k % 360];
+  return null;
+}
+
+/* ---------- состояние ---------- */
+let angle = 0;                 // градусы, [0..360)
+let cfg = { snap: [] };        // текущая конфигурация шага
+let stepIndex = 0;
+let challengeStars = 0;
+
+/* ---------- статичная разметка SVG (тики, магниты) ---------- */
+(function buildTicks(){
+  const g = $('ticks');
+  for (let d = 0; d < 360; d += 15){
+    const r1 = (d % 90 === 0) ? 91 : (d % 45 === 0) ? 93 : 95;
+    const c = Math.cos(d * D2R), s = -Math.sin(d * D2R);
+    g.appendChild(svgEl('line', {
+      class:'tick', x1:r1 * c, y1:r1 * s, x2:R * c, y2:R * s
+    }));
+  }
+})();
+
+const MAGNET_ANGLES = [0, 30, 45, 60, 90];
+const magEls = {};
+(function buildMagnets(){
+  const g = $('magnets');
+  MAGNET_ANGLES.forEach(d => {
+    const c = Math.cos(d * D2R), s = -Math.sin(d * D2R);
+    const dot = svgEl('circle', {class:'magnet', cx:R * c, cy:R * s, r:5});
+    const lbl = svgEl('text', {class:'magLbl', x:(R + 17) * c, y:(R + 17) * s + 4});
+    lbl.textContent = d + '°';
+    g.appendChild(dot); g.appendChild(lbl);
+    magEls[d] = dot;
+  });
+})();
+
+/* ---------- рендер ---------- */
+const handle = $('handle'), knob = $('knob');
+const sector = $('sector'), radiusLine = $('radius'), angLabel = $('angLabel');
+
+function render(){
+  const rad = angle * D2R;
+  const x = R * Math.cos(rad), y = -R * Math.sin(rad);
+
+  handle.setAttribute('transform', 'translate(' + x.toFixed(2) + ',' + y.toFixed(2) + ')');
+  radiusLine.setAttribute('x2', x.toFixed(2));
+  radiusLine.setAttribute('y2', y.toFixed(2));
+
+  if (angle < 0.6){
+    sector.setAttribute('d', '');
+    angLabel.textContent = '0°';
+    angLabel.setAttribute('x', 50); angLabel.setAttribute('y', -10);
+  } else {
+    const large = angle > 180 ? 1 : 0;
+    sector.setAttribute('d',
+      'M0 0 L' + R + ' 0 A' + R + ' ' + R + ' 0 ' + large + ' 0 ' +
+      x.toFixed(2) + ' ' + y.toFixed(2) + ' Z');
+    const mid = (angle / 2) * D2R;
+    angLabel.setAttribute('x', (48 * Math.cos(mid)).toFixed(1));
+    angLabel.setAttribute('y', (-48 * Math.sin(mid) + 5).toFixed(1));
+    angLabel.textContent = Math.round(angle) + '°';
+  }
+
+  /* проекции */
+  $('sinDrop').setAttribute('x1', x); $('sinDrop').setAttribute('y1', y);
+  $('sinDrop').setAttribute('x2', 0); $('sinDrop').setAttribute('y2', y);
+  $('sinSeg').setAttribute('y2', y);
+  $('sinDot').setAttribute('cy', y);
+  $('cosDrop').setAttribute('x1', x); $('cosDrop').setAttribute('y1', y);
+  $('cosDrop').setAttribute('x2', x); $('cosDrop').setAttribute('y2', 0);
+  $('cosSeg').setAttribute('x2', x);
+  $('cosDot').setAttribute('cx', x);
+
+  /* панель значений */
+  const sp = getSpecial(angle);
+  $('vDeg').textContent = Math.round(angle) + '°';
+  $('vRad').textContent = sp ? sp.rad : (angle / 180).toFixed(2) + 'π';
+  $('vSin').textContent = sp ? sp.sin : fmt(Math.sin(rad));
+  $('vCos').textContent = sp ? sp.cos : fmt(Math.cos(rad));
+}
+
+function setAngle(a){
+  a = ((a % 360) + 360) % 360;
+  if (cfg.snap && cfg.snap.length){
+    for (const s of cfg.snap){
+      if (Math.abs(angDiff(a, s)) <= 7){ a = s; break; }
+    }
+  }
+  angle = a;
+  render();
+}
+
+/* ---------- конфигурация видимости по шагам ---------- */
+function toggle(id, on){ $(id).classList.toggle('hidden', !on); }
+function applyCfg(o){
+  o = o || {};
+  cfg = { snap: o.snap || [] };
+  toggle('sinProj', o.sin);
+  toggle('cosProj', o.cos);
+  toggle('magnets', o.magnets);
+  toggle('radLabels', o.rad);
+  toggle('quadLabels', o.quads);
+  toggle('trigTable', o.table);
+  toggle('degLabels', o.deg !== 0);
+  render();
+}
+
+/* ---------- UI-хелперы ---------- */
+const fb = $('feedback'), nextBtn = $('nextBtn'), choicesEl = $('choices');
+
+function feedback(ok, msg){
+  fb.className = 'feedback ' + (ok ? 'ok' : 'err');
+  fb.innerHTML = msg;
+}
+function note(msg){ fb.className = 'feedback note'; fb.innerHTML = msg; }
+function clearFeedback(){ fb.className = 'feedback'; fb.innerHTML = ''; }
+function setText(html){ $('stepText').innerHTML = html; }
+function clearChoices(){ choicesEl.innerHTML = ''; }
+function setChoices(opts, cb){
+  clearChoices();
+  opts.forEach((o, i) => {
+    const b = document.createElement('button');
+    b.className = 'choice';
+    b.innerHTML = o;
+    b.addEventListener('click', () => cb(i, b));
+    choicesEl.appendChild(b);
+  });
+}
+function flashKnob(){
+  knob.classList.add('flash');
+  setTimeout(() => knob.classList.remove('flash'), 900);
+}
+function starsShow(n){
+  const el = $('stars');
+  el.classList.remove('hidden');
+  el.textContent = '★'.repeat(n) + '☆'.repeat(5 - n);
+}
+
+function complete(msg){
+  const s = steps[stepIndex];
+  if (s.done) return;
+  s.done = true;
+  feedback(true, msg || 'Отлично!');
+  nextBtn.disabled = false;
+  flashKnob();
+  updateDots();
+}
+
+/* ---------- прогресс-точки ---------- */
+(function buildDots(){
+  const d = $('dots');
+  for (let i = 0; i < 9; i++) d.appendChild(document.createElement('i'));
+})();
+function updateDots(){
+  const dots = $('dots').children;
+  for (let i = 0; i < dots.length; i++){
+    dots[i].className = i < stepIndex ? 'done'
+      : (i === stepIndex ? (steps[i].done ? 'done cur' : 'cur') : '');
+  }
+}
+
+/* ---------- таблица главных углов ---------- */
+function fillRow(d){
+  const row = document.querySelector('#trigTable tr[data-d="' + d + '"]');
+  if (!row || row.classList.contains('filled')) return;
+  row.cells[1].innerHTML = SPECIAL[d].sin;
+  row.cells[2].innerHTML = SPECIAL[d].cos;
+  row.classList.add('filled');
+}
+
+/* ---------- задания челленджа ---------- */
+const CH = [
+  { type:'place', text:'Поставь точку там, где <b>cos = 0</b> и <b>sin = −1</b>.',
+    targets:[270], tol:6,
+    hint:'cos = 0 — точка на вертикальной оси. sin = −1 — она ещё и в самом низу.' },
+  { type:'choice', text:'<b>sin 30°</b> = ?',
+    options:['½', '√3⁄2', '1'], correct:0,
+    hint:'30° — самый «низкий» из главных углов. Высота там небольшая.' },
+  { type:'place', text:'Найди точку, где <b>sin = cos</b> (подойдут два места!).',
+    targets:[45, 225], tol:6,
+    hint:'Нужно место, где высота точки равна её «тени» — ровно посередине четверти.' },
+  { type:'choice', text:'<b>cos 180°</b> = ?',
+    options:['−1', '0', '1'], correct:0,
+    hint:'180° — точка на горизонтальной оси слева. Какая у неё координата x?' },
+  { type:'choice', text:'В какой четверти <b>sin &gt; 0</b>, а <b>cos &lt; 0</b>?',
+    options:['I', 'II', 'III', 'IV'], correct:1,
+    hint:'sin &gt; 0 — верхняя половина круга. cos &lt; 0 — левая.' }
+];
+
+/* ---------- шаги ---------- */
+const steps = [
+
+  /* 1. знакомство: полный оборот */
+  {
+    enter(){
+      applyCfg({});
+      setText('Перед тобой <b>единичная окружность</b> — весь секрет тригонометрии прячется в ней. Схвати жёлтую точку и <b>сделай полный оборот</b>!');
+      note('Тяни точку по кругу — пальцем или мышью.');
+      this.accum = 0;
+    },
+    onMove(a, d){
+      if (this.done) return;
+      this.accum += d;
+      const p = Math.min(100, Math.round(Math.abs(this.accum) / 360 * 100));
+      note('Оборот: <b>' + p + '%</b>');
+      if (Math.abs(this.accum) >= 352){
+        complete('Полный оборот — 360°! Точка вернулась домой, а угол «обнулился».');
+      }
+    }
+  },
+
+  /* 2. угол 90° */
+  {
+    enter(){
+      applyCfg({});
+      setText('Угол отсчитывают от правой части оси X, <b>против часовой стрелки</b>. Поставь точку ровно на <b>90°</b>.');
+    },
+    onRelease(a){
+      if (this.done) return;
+      if (near(a, 90, 4)){
+        setAngle(90);
+        complete('Точно! 90° — четверть оборота, точка на самом верху.');
+      } else {
+        feedback(false, 'Сейчас ' + Math.round(angle) + '°. Следи за счётчиком угла — нужна ровно четверть круга.');
+      }
+    }
+  },
+
+  /* 3. sin = 1 */
+  {
+    enter(){
+      applyCfg({sin:1});
+      setText('Включили жёлтую линию: <b>sin — это высота точки</b> над горизонтом. Подвигай точку и почувствуй. Потом поставь её туда, где <b>sin = 1</b>.');
+    },
+    onRelease(a){
+      if (this.done) return;
+      if (near(a, 90, 5)){
+        setAngle(90);
+        complete('Да! sin = 1 только там, где точка поднялась выше некуда.');
+      } else {
+        feedback(false, 'Сейчас sin = ' + fmt(Math.sin(angle * D2R)) + '. Ищи место, где точка <i>выше всего</i>.');
+      }
+    }
+  },
+
+  /* 4. cos = −1 */
+  {
+    enter(){
+      applyCfg({sin:1, cos:1});
+      setText('Синяя линия — <b>cos: «тень» точки</b> на горизонтальной оси. Поставь точку туда, где <b>cos = −1</b>.');
+    },
+    onRelease(a){
+      if (this.done) return;
+      if (near(a, 180, 5)){
+        setAngle(180);
+        complete('Верно! Тень максимально ушла влево — cos = −1.');
+      } else {
+        feedback(false, 'Сейчас cos = ' + fmt(Math.cos(angle * D2R)) + '. Тень должна целиком «уехать» влево.');
+      }
+    }
+  },
+
+  /* 5. четверти и знаки */
+  {
+    sub: 0,
+    enter(){
+      this.sub = 0;
+      applyCfg({sin:1, cos:1, quads:1});
+      setText('У круга четыре четверти. Перетащи точку в ту, где <b>sin &lt; 0</b>, а <b>cos &gt; 0</b>.');
+    },
+    onRelease(a){
+      if (this.done || this.sub === 1) return;
+      const s = Math.sin(a * D2R), c = Math.cos(a * D2R);
+      if (s < -0.08 && c > 0.08){
+        this.sub = 1;
+        feedback(true, 'Это IV четверть: точка внизу (sin &lt; 0), но справа (cos &gt; 0).');
+        setText('А теперь без перетаскивания: в какой четверти <b>оба</b> — и sin, и cos — отрицательны?');
+        setChoices(['I', 'II', 'III', 'IV'], (i, b) => {
+          if (this.done) return;
+          if (i === 2){
+            b.classList.add('right');
+            complete('III четверть: слева и снизу — и высота, и тень «в минусе».');
+          } else {
+            b.classList.add('wrong');
+            feedback(false, 'Не то. sin — высота, cos — тень. Где обе одновременно отрицательные?');
+          }
+        });
+      } else {
+        feedback(false, 'Сейчас sin = ' + fmt(s) + ', cos = ' + fmt(c) + '. Проверь знаки!');
+      }
+    }
+  },
+
+  /* 6. главные углы + таблица */
+  {
+    enter(){
+      applyCfg({sin:1, cos:1, magnets:1, snap:MAGNET_ANGLES, table:1, deg:0});
+      setText('<b>Главные углы!</b> Точка теперь примагничивается к меткам. Посети все пять — <b>0°, 30°, 45°, 60°, 90°</b> — и собери таблицу sin/cos.');
+      this.visited = new Set();
+      note('Собрано: 0/5');
+    },
+    onMove(a){
+      if (this.done) return;
+      if (MAGNET_ANGLES.includes(a) && !this.visited.has(a)){
+        this.visited.add(a);
+        fillRow(a);
+        magEls[a].classList.add('hit');
+        if (this.visited.size === 5){
+          complete('Вся таблица твоя! Заметь: sin растёт (0 → 1), а cos убывает (1 → 0).');
+        } else {
+          note('Собрано: ' + this.visited.size + '/5 — ' + a + '° в копилке!');
+        }
+      }
+    }
+  },
+
+  /* 7. радианы */
+  {
+    sub: 0,
+    enter(){
+      this.sub = 0;
+      applyCfg({sin:1, cos:1, rad:1, snap:[0, 90, 180, 270], table:1});
+      setText('Вторая шкала — <b>радианы</b> (зелёные метки внутри). Запомни главное: <b>π — это пол-оборота</b>. Поставь точку на <b>π⁄2</b>.');
+    },
+    onRelease(a){
+      if (this.done) return;
+      if (this.sub === 0){
+        if (near(a, 90, 5)){
+          setAngle(90);
+          this.sub = 1;
+          feedback(true, 'Да! π⁄2 = 90° — половина пол-оборота.');
+          setText('Отлично! А теперь поставь точку на <b>π</b>.');
+        } else {
+          feedback(false, 'π⁄2 — это половина от пол-оборота. Смотри на зелёную шкалу.');
+        }
+      } else {
+        if (near(a, 180, 5)){
+          setAngle(180);
+          complete('π = 180°. Радианы приручены!');
+        } else {
+          feedback(false, 'π — ровно пол-оборота: точка должна оказаться напротив старта.');
+        }
+      }
+    }
+  },
+
+  /* 8. челлендж */
+  {
+    ti: 0, stars: 0,
+    enter(){
+      applyCfg({sin:1, cos:1, rad:1});
+      this.ti = 0; this.stars = 0;
+      CH.forEach(t => { t.tried = false; t.solved = false; });
+      starsShow(0);
+      this.load();
+    },
+    load(){
+      const t = CH[this.ti];
+      setText('<b>Челлендж ' + (this.ti + 1) + '/5.</b> ' + t.text);
+      clearFeedback();
+      if (t.type === 'choice'){
+        setChoices(t.options, (i, b) => this.answer(i === t.correct, b));
+        note('Ответ с первой попытки = ⭐');
+      } else {
+        clearChoices();
+        note('Ответь действием: перетащи точку. Первая попытка = ⭐');
+      }
+    },
+    answer(ok, btn){
+      const t = CH[this.ti];
+      if (t.solved || this.done) return;
+      if (ok){
+        t.solved = true;
+        const first = !t.tried;
+        t.tried = true;
+        if (first) this.stars++;
+        starsShow(this.stars);
+        if (btn) btn.classList.add('right');
+        flashKnob();
+        feedback(true, first ? '⭐ С первой попытки!' : 'Верно!');
+        setTimeout(() => this.advance(), 950);
+      } else {
+        t.tried = true;
+        if (btn) btn.classList.add('wrong');
+        feedback(false, t.hint);
+      }
+    },
+    advance(){
+      if (this.done) return;
+      this.ti++;
+      if (this.ti >= CH.length){
+        challengeStars = this.stars;
+        clearChoices();
+        setText('<b>Челлендж пройден!</b> Ты собрал ' + this.stars + ' из 5 звёзд.');
+        complete('Жми «Дальше» — там награда.');
+      } else {
+        this.load();
+      }
+    },
+    onRelease(a){
+      if (this.done) return;
+      const t = CH[this.ti];
+      if (!t || t.type !== 'place' || t.solved) return;
+      this.answer(t.targets.some(tg => near(a, tg, t.tol)), null);
+    }
+  },
+
+  /* 9. финал */
+  {
+    enter(){
+      applyCfg({sin:1, cos:1, rad:1});
+      const n = challengeStars;
+      $('finalTitle').textContent =
+        n >= 5 ? '🎯 Повелитель круга' :
+        n >= 3 ? '⭐ Укротитель синусов' :
+                 '💪 Круг почти покорён';
+      $('finalScore').textContent = 'Твой результат: ' + n + ' из 5 ⭐';
+      $('finalOverlay').classList.remove('hidden');
+      nextBtn.classList.add('hidden');
+      this.done = true;
+      updateDots();
+      confetti();
+    }
+  }
+];
+
+/* ---------- переключение шагов ---------- */
+function enterStep(i){
+  stepIndex = i;
+  const s = steps[i];
+  $('stepLabel').textContent = (i === 8) ? 'Финал' : 'Шаг ' + (i + 1) + ' из 9';
+  clearChoices();
+  clearFeedback();
+  $('stars').classList.add('hidden');
+  nextBtn.disabled = true;
+  s.enter();
+  updateDots();
+}
+nextBtn.addEventListener('click', () => {
+  if (!steps[stepIndex].done) return;
+  if (stepIndex < steps.length - 1) enterStep(stepIndex + 1);
+});
+$('restartBtn').addEventListener('click', () => location.reload());
+
+/* ---------- drag: pointer events ---------- */
+const svg = $('wheel');
+let dragging = false, lastRaw = 0, moved = 0;
+
+function pointerAngle(e){
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return angle;
+  const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+  const a = Math.atan2(-p.y, p.x) * 180 / Math.PI;
+  return (a + 360) % 360;
+}
+
+handle.addEventListener('pointerdown', e => {
+  dragging = true;
+  moved = 0;
+  lastRaw = pointerAngle(e);
+  knob.classList.remove('pulse');
+  try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+  e.preventDefault();
+});
+handle.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  const a = pointerAngle(e);
+  const d = angDiff(a, lastRaw);
+  lastRaw = a;
+  moved += Math.abs(d);
+  setAngle(a);
+  const s = steps[stepIndex];
+  if (s.onMove) s.onMove(angle, d);
+});
+function endDrag(){
+  if (!dragging) return;
+  dragging = false;
+  const s = steps[stepIndex];
+  if (moved > 2.5 && s.onRelease) s.onRelease(angle);
+}
+handle.addEventListener('pointerup', endDrag);
+handle.addEventListener('pointercancel', () => { dragging = false; });
+
+/* ---------- конфетти ---------- */
+function confetti(){
+  const em = ['🎉', '✨', '⭐', '🎊', '💛', '💙'];
+  for (let i = 0; i < 70; i++){
+    const s = document.createElement('span');
+    s.className = 'conf';
+    s.textContent = em[i % em.length];
+    s.style.left = (Math.random() * 100) + 'vw';
+    s.style.fontSize = (14 + Math.random() * 20) + 'px';
+    s.style.animationDelay = (Math.random() * 1.6) + 's';
+    s.style.setProperty('--dur', (2.6 + Math.random() * 2.2) + 's');
+    document.body.appendChild(s);
+    setTimeout(() => s.remove(), 6500);
+  }
+}
+
+/* ---------- старт ---------- */
+render();
+enterStep(0);
+</script>
+</body>
+</html>

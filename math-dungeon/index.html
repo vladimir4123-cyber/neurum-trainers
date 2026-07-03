@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Числовое подземелье — тренажёр устного счёта</title>
+<style>
+:root{
+  --bg:#0b1130;
+  --panel:#141b40;
+  --accent:#ffd166;
+  --accent2:#6c9bff;
+  --text:#eef1fb;
+  --muted:#aab4e8;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  background:radial-gradient(1100px 700px at 50% -10%, #182153 0%, var(--bg) 60%);
+  color:var(--text);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  display:flex;justify-content:center;
+  padding:14px;
+  user-select:none;-webkit-user-select:none;
+}
+#app{width:100%;max-width:620px;display:flex;flex-direction:column;gap:12px;}
+#hud{
+  background:var(--panel);border-radius:20px;
+  padding:12px 18px;
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+  font-weight:700;font-size:17px;
+  box-shadow:0 8px 24px rgba(0,0,0,.3);
+}
+#hudHearts{letter-spacing:1px;white-space:nowrap;}
+#hudLevel{color:var(--muted);font-size:13px;text-align:center;flex:1;line-height:1.3;}
+#hudCoins{color:var(--accent);white-space:nowrap;}
+#stage{
+  position:relative;
+  background:var(--panel);border-radius:20px;
+  padding:12px;
+  display:flex;justify-content:center;
+  box-shadow:0 12px 34px rgba(0,0,0,.35);
+}
+canvas{display:block;border-radius:14px;touch-action:none;cursor:pointer;}
+#hint{color:#6b76a8;font-size:12px;text-align:center;}
+
+/* всплывашка с названием этажа */
+#toast{
+  position:absolute;top:16px;left:50%;transform:translateX(-50%);
+  background:#0f1638;border:1px solid #2b3670;
+  color:var(--accent);
+  padding:9px 18px;border-radius:14px;
+  font-weight:700;font-size:14px;text-align:center;
+  max-width:88%;
+  opacity:0;transition:opacity .35s;
+  pointer-events:none;z-index:6;line-height:1.4;
+}
+#toast span{color:var(--muted);font-weight:500;font-size:12px;}
+
+/* модалка с примером */
+#modal{
+  position:absolute;inset:0;
+  background:rgba(11,17,48,.82);
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+  border-radius:20px;
+  display:flex;align-items:center;justify-content:center;
+  padding:16px;z-index:5;
+}
+#mCard{
+  background:var(--panel);
+  border:1px solid #2a3572;border-radius:20px;
+  padding:20px;width:100%;max-width:390px;text-align:center;
+  animation:pop .18s ease-out;
+  box-shadow:0 18px 50px rgba(0,0,0,.55);
+}
+@keyframes pop{from{transform:scale(.85);opacity:0;}}
+#mHead{color:var(--muted);font-size:15px;min-height:22px;line-height:1.35;}
+#mTimer{height:10px;background:#0d1334;border-radius:6px;overflow:hidden;margin:12px 0 2px;}
+#mTimerBar{height:100%;width:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:6px;}
+#mQ{font-size:36px;font-weight:800;margin:12px 0 4px;letter-spacing:1px;}
+#mMsg{min-height:22px;font-size:14px;margin-bottom:12px;color:var(--muted);}
+#mMsg.good{color:#7dffa8;}
+#mMsg.bad{color:#ff8a9b;}
+#mOpts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.opt{
+  background:#1b2452;border:2px solid #2b3670;color:var(--text);
+  font-size:26px;font-weight:800;
+  padding:16px 6px;border-radius:14px;cursor:pointer;
+  min-height:60px;
+  transition:transform .08s, background .15s;
+  font-family:inherit;
+}
+.opt:hover{background:#232d63;transform:translateY(-2px);}
+.opt.good{background:#1c5c3a;border-color:#37d67e;}
+.opt.bad{background:#5c1c2c;border-color:#ff5f7a;animation:shake .3s;}
+@keyframes shake{25%{transform:translateX(-6px);}75%{transform:translateX(6px);}}
+#mProg{margin-top:14px;font-size:17px;letter-spacing:2px;}
+.linky{
+  background:none;border:none;color:#8f9bd8;margin-top:14px;cursor:pointer;
+  font-size:13px;text-decoration:underline;font-family:inherit;
+}
+.linky:hover{color:var(--text);}
+
+/* стартовый и финальный экраны */
+.screen{
+  position:fixed;inset:0;
+  background:rgba(7,10,30,.93);
+  display:flex;align-items:center;justify-content:center;
+  z-index:20;padding:16px;
+}
+.card{
+  background:var(--panel);border-radius:24px;
+  padding:32px 26px;max-width:460px;width:100%;text-align:center;
+  border:1px solid #2a3572;
+  box-shadow:0 24px 70px rgba(0,0,0,.55);
+  animation:pop .22s ease-out;
+}
+.big{font-size:58px;line-height:1.15;margin-bottom:8px;}
+.card h1{font-size:26px;margin-bottom:6px;}
+.sub{color:var(--muted);font-size:14px;margin-bottom:18px;line-height:1.5;}
+.rules{
+  text-align:left;font-size:15px;line-height:1.65;
+  background:#0f1638;border-radius:16px;
+  padding:14px 18px;margin-bottom:22px;
+}
+.stats{font-size:19px;font-weight:800;margin-bottom:16px;letter-spacing:1px;}
+.btn{
+  background:var(--accent);color:#231a02;border:none;
+  font-size:18px;font-weight:800;font-family:inherit;
+  padding:15px 30px;border-radius:16px;cursor:pointer;
+  box-shadow:0 6px 0 #bd9330;
+  transition:transform .06s, box-shadow .06s;
+}
+.btn:hover{filter:brightness(1.06);}
+.btn:active{transform:translateY(4px);box-shadow:0 2px 0 #bd9330;}
+.hidden{display:none !important;}
+
+/* конфетти */
+#confetti{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:30;}
+.cf{position:absolute;top:-50px;animation:fall linear forwards;}
+@keyframes fall{to{transform:translateY(112vh) rotate(720deg);opacity:.5;}}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="hud">
+    <div id="hudHearts">❤️❤️❤️</div>
+    <div id="hudLevel">Этаж 1/5</div>
+    <div id="hudCoins">🪙 0</div>
+  </div>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="toast"></div>
+    <div id="modal" class="hidden">
+      <div id="mCard">
+        <div id="mHead"></div>
+        <div id="mTimer" class="hidden"><div id="mTimerBar"></div></div>
+        <div id="mQ"></div>
+        <div id="mMsg"></div>
+        <div id="mOpts"></div>
+        <div id="mProg" class="hidden"></div>
+        <button id="mBack" class="linky">↩ Отойти (двери не убегут)</button>
+      </div>
+    </div>
+  </div>
+  <div id="hint">Стрелки / WASD · свайп · тап по соседней клетке · цифры 1–3 — ответ</div>
+</div>
+
+<div id="startScreen" class="screen">
+  <div class="card">
+    <div class="big">🧙🚪🐉</div>
+    <h1>Числовое подземелье</h1>
+    <p class="sub">Устный счёт для смелых искателей приключений · 5–6 класс</p>
+    <div class="rules">
+      🚶 Ходи стрелками, свайпами или тапай соседнюю клетку.<br>
+      🚪 Двери открываются верным ответом. Ошибка — минус ❤️ (их всего три).<br>
+      🪙 Собирай монеты, вскрывай сундуки — и одолей дракона на 5-м этаже!
+    </div>
+    <button class="btn" id="startBtn">В подземелье →</button>
+  </div>
+</div>
+
+<div id="endScreen" class="screen hidden">
+  <div class="card" id="endCard"></div>
+</div>
+
+<div id="confetti"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ============================================================
+   QGEN START — чистая логика: утилиты + генераторы примеров
+   ============================================================ */
+const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+function shuffle(a){
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+const fmt = (n) => String(n).replace('-', '−');
+
+// 2 умных дистрактора: ±1, ±2, ±10, перепутанный знак, «соседние» результаты.
+// Гарантия: оба отличаются от правильного ответа и друг от друга.
+function makeOptions(ans, extras, allowNeg){
+  const cand = shuffle([ans + 1, ans - 1, ans + 2, ans - 2, ans + 10, ans - 10, -ans].concat(extras || []));
+  const out = [];
+  for(const c of cand){
+    if(!Number.isFinite(c) || c === ans || out.indexOf(c) >= 0) continue;
+    if(!allowNeg && c < 0) continue;
+    out.push(c);
+    if(out.length === 2) break;
+  }
+  let f = 3;
+  while(out.length < 2){ // страховка, почти недостижима
+    const c = ans + f; f++;
+    if(c !== ans && out.indexOf(c) < 0 && (allowNeg || c >= 0)) out.push(c);
+  }
+  return shuffle([ans, out[0], out[1]]);
+}
+function mkq(text, ans, extras, allowNeg){
+  return { t: text, a: ans, opts: makeOptions(ans, extras, allowNeg) };
+}
+
+// Этаж 1: сложение/вычитание до 20
+function genL1(){
+  if(Math.random() < 0.5){
+    const a = ri(3, 17), b = ri(2, 20 - a);
+    return mkq(a + ' + ' + b + ' = ?', a + b, [a - b]);
+  }
+  const a = ri(6, 20), b = ri(2, a - 2);
+  return mkq(a + ' − ' + b + ' = ?', a - b, [a + b]);
+}
+// Этаж 2: до 100
+function genL2(){
+  if(Math.random() < 0.5){
+    const a = ri(15, 79), b = ri(11, 100 - a);
+    return mkq(a + ' + ' + b + ' = ?', a + b, [a - b]);
+  }
+  const a = ri(30, 99), b = ri(11, a - 9);
+  return mkq(a + ' − ' + b + ' = ?', a - b, [a + b]);
+}
+// Этаж 3: таблица умножения
+function genL3(){
+  const a = ri(2, 9), b = ri(2, 9);
+  return mkq(a + ' × ' + b + ' = ?', a * b, [a * (b + 1), (a + 1) * b, a + b]);
+}
+// Этаж 4: отрицательные числа
+function genL4(){
+  const k = ri(0, 2);
+  if(k === 0){
+    const a = ri(2, 12), b = ri(a + 2, a + 15);
+    return mkq(a + ' − ' + b + ' = ?', a - b, [b - a, -(a + b)], true);
+  }
+  if(k === 1){
+    const a = ri(2, 15), b = ri(2, 18);
+    return mkq('−' + a + ' + ' + b + ' = ?', b - a, [a + b, -(a + b), a - b], true);
+  }
+  const a = ri(2, 12), b = ri(2, 12);
+  return mkq('−' + a + ' − ' + b + ' = ?', -a - b, [a + b, b - a], true);
+}
+// Сундук этажа 3: два действия
+function genMix2(){
+  const a = ri(3, 9), b = ri(3, 9), c = ri(2, a * b - 2);
+  return mkq(a + ' × ' + b + ' − ' + c + ' = ?', a * b - c, [a * b + c, a * b, (a - 1) * b - c]);
+}
+// Сундук этажа 4: цепочка с минусами
+function genNeg2(){
+  const a = ri(3, 12), b = ri(4, 15), c = ri(2, 10);
+  return mkq('−' + a + ' + ' + b + ' − ' + c + ' = ?', -a + b - c, [a + b - c, -a - b + c, -(a + b + c)], true);
+}
+// Босс: всего понемногу, посерьёзнее
+function genBoss(){
+  return pick([genL2, genL3, genL4, genMix2])();
+}
+/* ============================================================
+   QGEN END
+   ============================================================ */
+
+/* ============================================================
+   MAPS START — 9×7, # стена · . пол · H герой · D дверь
+   c монета · X сундук · E выход · B босс
+   ============================================================ */
+const MAPS = [
+  [ // 1. Каменный вход
+    '#########',
+    '#H..#..c#',
+    '#.c.D.X.#',
+    '#...##D##',
+    '#.c.#..c#',
+    '#...D..E#',
+    '#########'
+  ],
+  [ // 2. Зал сотен
+    '#########',
+    '#H.#c..c#',
+    '#..D....#',
+    '#c.#.####',
+    '#..#.#.X#',
+    '#c.D.D.E#',
+    '#########'
+  ],
+  [ // 3. Логово таблицы
+    '#########',
+    '#c.#c..c#',
+    '#..#.##.#',
+    '#.cD.#X.#',
+    '#..#.##D#',
+    '#H.#.D.E#',
+    '#########'
+  ],
+  [ // 4. Ледяная пещера
+    '#########',
+    '#H..#..c#',
+    '#.c.D.#.#',
+    '##.##.###',
+    '#c.X#.Dc#',
+    '#...#D.E#',
+    '#########'
+  ],
+  [ // 5. Тронный зал дракона
+    '#########',
+    '#..c#c..#',
+    '#.#...#.#',
+    '#H..B...#',
+    '#.#...#.#',
+    '#..c#c..#',
+    '#########'
+  ]
+];
+/* ============================================================
+   MAPS END
+   ============================================================ */
+
+const COLS = 9, ROWS = 7;
+const T = { FLOOR:0, WALL:1, DOOR:2, CHEST:3, EXIT:4, BOSS:5, COIN:6 };
+const BOSS_MS = 10000;
+const BOSS_NEED = 5;
+const BOSS_MAX_MISS = 3;
+
+const LEVELS = [
+  { name:'Каменный вход',        intro:'Разминка: плюс и минус до 20.',        gen:genL1, chestGen:genL2,  floorA:'#1a2350', floorB:'#171f49', deco:'' },
+  { name:'Зал сотен',            intro:'Числа подросли — счёт до 100!',        gen:genL2, chestGen:genL3,  floorA:'#1b2350', floorB:'#181f4a', deco:'' },
+  { name:'Логово таблицы',       intro:'Стены шепчут таблицу умножения…',      gen:genL3, chestGen:genMix2, floorA:'#1d2148', floorB:'#191d42', deco:'' },
+  { name:'Ледяная пещера',       intro:'Брр! Мороз в минус — и числа тоже.',   gen:genL4, chestGen:genNeg2, floorA:'#16305c', floorB:'#132a52', deco:'❄️' },
+  { name:'Тронный зал дракона',  intro:'Тс-с… Слышишь? Здесь дышит дракон.',   gen:genBoss, chestGen:genBoss, floorA:'#2a1a3f', floorB:'#231637', deco:'🔥' }
+];
+const WALL_COLOR = '#0d1334';
+
+const DOOR_FLAVOR = [
+  'Дверь заперта! Замок хочет ответ:',
+  'Тук-тук! Пропуск — только верный ответ.',
+  'На двери светится пример…',
+  'Замок скрипит: «Сначала посчитай!»'
+];
+const CHEST_FLAVOR = [
+  'Сундук хитрый: задачка посложнее, зато монеты ×2!',
+  'Ого, сундук! Бонус-пример — двойная награда:'
+];
+const WRONG_MSGS = [
+  'Ай, не то! −1 ❤️ Вот новый пример:',
+  'Мимо! −1 ❤️ Попробуй этот:',
+  'Эх! −1 ❤️ Ну-ка, ещё разок:'
+];
+const BOSS_FLAVOR = [
+  'Дракон выдыхает пример прямо в тебя!',
+  '«А это посчитаешь?» — рычит дракон.',
+  'Хвост бьёт по полу — цифры разлетаются!',
+  'Дракон щурится: «Ну-ка, ну-ка…»',
+  'Пламя! Уворачивайся и считай!'
+];
+
+/* ---------- звук (крошечные бипы, WebAudio) ---------- */
+let AC = null;
+function beep(freq, dur, type, vol, delay){
+  try{
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if(AC.state === 'suspended') AC.resume();
+    const t = AC.currentTime + (delay || 0);
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type || 'sine';
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(vol || 0.12, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); g.connect(AC.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+  }catch(e){ /* без звука тоже можно жить */ }
+}
+const sfx = {
+  coin(){ beep(880, .09, 'triangle', .12); beep(1318, .12, 'triangle', .1, .06); },
+  ok(){ beep(523, .1, 'sine', .12); beep(659, .1, 'sine', .12, .08); beep(784, .18, 'sine', .12, .16); },
+  no(){ beep(196, .22, 'sawtooth', .07); beep(147, .28, 'sawtooth', .07, .09); },
+  door(){ beep(330, .1, 'square', .045); beep(415, .14, 'square', .045, .09); },
+  bump(){ beep(92, .06, 'square', .05); },
+  hurt(){ beep(220, .18, 'square', .08); beep(175, .2, 'square', .08, .07); },
+  win(){ [523, 659, 784, 1047, 1319].forEach((f, i) => beep(f, .24, 'triangle', .12, i * .12)); }
+};
+
+/* ---------- DOM ---------- */
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const hudHearts = document.getElementById('hudHearts');
+const hudLevel = document.getElementById('hudLevel');
+const hudCoins = document.getElementById('hudCoins');
+const modalEl = document.getElementById('modal');
+const mHead = document.getElementById('mHead');
+const mTimer = document.getElementById('mTimer');
+const mTimerBar = document.getElementById('mTimerBar');
+const mQ = document.getElementById('mQ');
+const mMsg = document.getElementById('mMsg');
+const mOpts = document.getElementById('mOpts');
+const mProg = document.getElementById('mProg');
+const mBack = document.getElementById('mBack');
+const toastEl = document.getElementById('toast');
+const startScreen = document.getElementById('startScreen');
+const endScreen = document.getElementById('endScreen');
+const endCard = document.getElementById('endCard');
+const stageEl = document.getElementById('stage');
+
+/* ---------- состояние ---------- */
+const S = {
+  screen: 'start',       // start | game | over | end
+  lvl: 0,
+  grid: [],
+  hero: { x:1, y:1, px:0, py:0 },
+  hearts: 3,
+  coins: 0,
+  lvlStartCoins: 0,
+  moving: false,
+  buf: null,             // буфер направления
+  modal: null,           // {kind:'door'|'chest'|'boss', cx, cy, q}
+  boss: null,            // {got, miss, q, deadline}
+  lock: false,           // блокировка кнопок на время фидбэка
+  bump: null,
+  effects: [],
+  toastTimer: null
+};
+
+let cell = 48, W = COLS * cell, H = ROWS * cell, dpr = 1;
+
+/* ---------- рендер-хелперы ---------- */
+function rr(x, y, w, h, r){
+  ctx.beginPath();
+  if(ctx.roundRect){ ctx.roundRect(x, y, w, h, r); return; }
+  const rad = Math.min(r, w / 2, h / 2);
+  ctx.moveTo(x + rad, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rad);
+  ctx.arcTo(x + w, y + h, x, y + h, rad);
+  ctx.arcTo(x, y + h, x, y, rad);
+  ctx.arcTo(x, y, x + w, y, rad);
+  ctx.closePath();
+}
+function em(ch, x, y, s, alpha, rot){
+  ctx.save();
+  ctx.globalAlpha = alpha == null ? 1 : alpha;
+  ctx.translate(x, y);
+  if(rot) ctx.rotate(rot);
+  ctx.font = s + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(ch, 0, s * 0.05);
+  ctx.restore();
+}
+function fx(txt, x, y){
+  S.effects.push({ txt, x, y, t0: performance.now() });
+}
+
+function resize(){
+  const avail = Math.max(200, stageEl.clientWidth - 24);
+  const maxH = Math.max(240, Math.min(window.innerHeight - 190, 540));
+  cell = Math.max(28, Math.floor(Math.min(avail / COLS, maxH / ROWS)));
+  W = cell * COLS; H = cell * ROWS;
+  dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(W * dpr);
+  cv.height = Math.round(H * dpr);
+  cv.style.width = W + 'px';
+  cv.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  S.hero.px = S.hero.x * cell;
+  S.hero.py = S.hero.y * cell;
+  S.moving = false;
+}
+
+/* ---------- уровни ---------- */
+function loadLevel(i){
+  S.lvl = i;
+  S.lvlStartCoins = S.coins;
+  S.buf = null; S.moving = false; S.bump = null; S.effects = [];
+  S.modal = null; S.boss = null; S.lock = false;
+  modalEl.classList.add('hidden');
+  const rows = MAPS[i];
+  S.grid = [];
+  for(let y = 0; y < ROWS; y++){
+    const line = rows[y], gr = [];
+    for(let x = 0; x < COLS; x++){
+      const ch = line[x];
+      if(ch === '#') gr.push(T.WALL);
+      else if(ch === 'D') gr.push(T.DOOR);
+      else if(ch === 'X') gr.push(T.CHEST);
+      else if(ch === 'E') gr.push(T.EXIT);
+      else if(ch === 'B') gr.push(T.BOSS);
+      else if(ch === 'c') gr.push(T.COIN);
+      else gr.push(T.FLOOR);
+      if(ch === 'H'){ S.hero.x = x; S.hero.y = y; }
+    }
+    S.grid.push(gr);
+  }
+  S.hero.px = S.hero.x * cell;
+  S.hero.py = S.hero.y * cell;
+  updateHUD();
+  toast('Этаж ' + (i + 1) + ' · ' + LEVELS[i].name, LEVELS[i].intro);
+}
+
+function updateHUD(){
+  const h = Math.max(0, S.hearts);
+  hudHearts.textContent = '❤️'.repeat(h) + '🖤'.repeat(3 - h);
+  hudCoins.textContent = '🪙 ' + S.coins;
+  hudLevel.textContent = 'Этаж ' + (S.lvl + 1) + '/5 · ' + LEVELS[S.lvl].name;
+}
+
+function toast(title, sub){
+  toastEl.innerHTML = '<b></b>' + (sub ? '<br><span></span>' : '');
+  toastEl.querySelector('b').textContent = title;
+  if(sub) toastEl.querySelector('span').textContent = sub;
+  toastEl.style.opacity = '1';
+  clearTimeout(S.toastTimer);
+  S.toastTimer = setTimeout(() => { toastEl.style.opacity = '0'; }, 2400);
+}
+
+/* ---------- движение ---------- */
+function tryMove(dx, dy){
+  if(S.screen !== 'game' || S.modal) return;
+  if(S.moving){ S.buf = [dx, dy]; return; }
+  const nx = S.hero.x + dx, ny = S.hero.y + dy;
+  if(nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) return;
+  const t = S.grid[ny][nx];
+  if(t === T.WALL){ S.bump = { dx, dy, t0: performance.now() }; sfx.bump(); return; }
+  if(t === T.DOOR){ openQuestion('door', nx, ny); return; }
+  if(t === T.CHEST){ openQuestion('chest', nx, ny); return; }
+  if(t === T.BOSS){ startBoss(); return; }
+  S.hero.x = nx; S.hero.y = ny;
+  S.moving = true;
+}
+
+function onArrive(){
+  const h = S.hero, t = S.grid[h.y][h.x];
+  if(t === T.COIN){
+    S.grid[h.y][h.x] = T.FLOOR;
+    S.coins += 5;
+    sfx.coin();
+    fx('+5', h.x, h.y);
+    updateHUD();
+  } else if(t === T.EXIT){
+    if(S.lvl < LEVELS.length - 1){ loadLevel(S.lvl + 1); }
+    return;
+  }
+  if(S.buf){ const b = S.buf; S.buf = null; tryMove(b[0], b[1]); }
+}
+
+/* ---------- вопросы: двери и сундуки ---------- */
+function setMsg(text, cls){
+  mMsg.textContent = text || '';
+  mMsg.className = cls || '';
+}
+function renderQ(qq){
+  mQ.textContent = qq.t;
+  mOpts.innerHTML = '';
+  qq.opts.forEach((v) => {
+    const b = document.createElement('button');
+    b.className = 'opt';
+    b.textContent = fmt(v);
+    b.addEventListener('click', () => answer(b, v));
+    mOpts.appendChild(b);
+  });
+}
+function openQuestion(kind, cx, cy){
+  const L = LEVELS[S.lvl];
+  S.modal = { kind, cx, cy, q: (kind === 'chest' ? L.chestGen : L.gen)() };
+  mTimer.classList.add('hidden');
+  mProg.classList.add('hidden');
+  mBack.classList.remove('hidden');
+  mHead.textContent = pick(kind === 'chest' ? CHEST_FLAVOR : DOOR_FLAVOR);
+  setMsg(kind === 'chest' ? 'Верно — +20 🪙 · ошибка — −1 ❤️' : 'Верно — +10 🪙 · ошибка — −1 ❤️', '');
+  renderQ(S.modal.q);
+  modalEl.classList.remove('hidden');
+  sfx.door();
+}
+function closeModal(){
+  S.modal = null;
+  S.boss = null;
+  S.lock = false;
+  modalEl.classList.add('hidden');
+}
+
+function answer(btn, val){
+  if(S.lock || !S.modal) return;
+  const m = S.modal, ok = val === m.q.a;
+  S.lock = true;
+  btn.classList.add(ok ? 'good' : 'bad');
+  if(ok) sfx.ok(); else sfx.no();
+  setTimeout(() => {
+    S.lock = false;
+    if(!S.modal) return;
+    if(m.kind === 'boss') bossAfter(ok);
+    else doorAfter(ok);
+  }, 450);
+}
+
+function doorAfter(ok){
+  const m = S.modal;
+  if(ok){
+    const reward = m.kind === 'chest' ? 20 : 10;
+    S.coins += reward;
+    S.grid[m.cy][m.cx] = T.FLOOR;
+    fx(m.kind === 'chest' ? '✨+' + reward : '+' + reward, m.cx, m.cy);
+    updateHUD();
+    closeModal();
+    S.hero.x = m.cx; S.hero.y = m.cy; // герой сам шагает в проём
+    S.moving = true;
+  } else {
+    S.hearts--;
+    sfx.hurt();
+    updateHUD();
+    if(S.hearts <= 0){ closeModal(); showDefeat('hearts'); return; }
+    const L = LEVELS[S.lvl];
+    m.q = (m.kind === 'chest' ? L.chestGen : L.gen)();
+    setMsg(pick(WRONG_MSGS), 'bad');
+    renderQ(m.q);
+  }
+}
+
+/* ---------- босс ---------- */
+function startBoss(){
+  S.boss = { got: 0, miss: 0, q: genBoss(), deadline: performance.now() + BOSS_MS };
+  S.modal = { kind: 'boss', q: S.boss.q };
+  mTimer.classList.remove('hidden');
+  mProg.classList.remove('hidden');
+  mBack.classList.add('hidden'); // от дракона не отойдёшь
+  mHead.textContent = '🐉 ' + pick(BOSS_FLAVOR);
+  setMsg(BOSS_NEED + ' верных ответов — и дракон побеждён. 10 секунд на пример!', '');
+  bossProg();
+  renderQ(S.boss.q);
+  modalEl.classList.remove('hidden');
+}
+function bossProg(){
+  const b = S.boss;
+  mProg.textContent = '⚔️ ' + '✅'.repeat(b.got) + '⬜'.repeat(BOSS_NEED - b.got) + '  💥 ' + b.miss + '/' + BOSS_MAX_MISS;
+}
+function nextBossQ(msg, cls){
+  const b = S.boss;
+  b.q = genBoss();
+  if(S.modal) S.modal.q = b.q; // ответы сверяются с S.modal.q
+  b.deadline = performance.now() + BOSS_MS;
+  mHead.textContent = '🐉 ' + pick(BOSS_FLAVOR);
+  setMsg(msg, cls);
+  bossProg();
+  renderQ(b.q);
+}
+function bossAfter(ok){
+  const b = S.boss;
+  if(!b) return;
+  if(ok){
+    b.got++;
+    S.coins += 15;
+    updateHUD();
+    if(b.got >= BOSS_NEED){ bossWin(); return; }
+    nextBossQ(pick(['Есть! Дракон пошатнулся!', 'Отлично! Чешуя трещит!', 'Точно в цель!']), 'good');
+  } else {
+    b.miss++;
+    if(b.miss >= BOSS_MAX_MISS){ closeModal(); showDefeat('boss'); return; }
+    nextBossQ('Дракон хохочет! Ошибки: ' + b.miss + ' из ' + BOSS_MAX_MISS, 'bad');
+  }
+}
+function bossTimeout(){
+  if(S.lock || !S.boss) return;
+  S.lock = true;
+  setMsg('⏰ Время вышло!', 'bad');
+  sfx.no();
+  setTimeout(() => {
+    S.lock = false;
+    if(S.modal && S.modal.kind === 'boss') bossAfter(false);
+  }, 600);
+}
+function bossWin(){
+  closeModal();
+  for(let y = 0; y < ROWS; y++)
+    for(let x = 0; x < COLS; x++)
+      if(S.grid[y][x] === T.BOSS){ S.grid[y][x] = T.FLOOR; fx('💥', x, y); }
+  sfx.win();
+  setTimeout(showVictory, 900);
+}
+
+/* ---------- экраны финала ---------- */
+function showDefeat(type){
+  S.screen = 'over';
+  const isBoss = type === 'boss';
+  endCard.innerHTML =
+    '<div class="big">' + (isBoss ? '🐉' : '💔') + '</div>' +
+    '<h1>' + (isBoss ? 'Дракон оказался хитрее!' : 'Сердца закончились!') + '</h1>' +
+    '<p class="sub">' + (isBoss
+      ? 'Ничего, драконы всегда важничают перед поражением. Отдышись — и реванш с этого же этажа!'
+      : 'Подземелье хихикает, но герои не сдаются. Эта комната ждёт тебя снова — с новыми примерами!') + '</p>' +
+    '<button class="btn" id="btnRetry">' + (isBoss ? 'Реванш! ⚔️' : 'Попробовать ещё 💪') + '</button>';
+  endScreen.classList.remove('hidden');
+  document.getElementById('btnRetry').addEventListener('click', () => {
+    endScreen.classList.add('hidden');
+    if(!isBoss) S.hearts = 3;
+    S.coins = S.lvlStartCoins;
+    loadLevel(S.lvl);
+    S.screen = 'game';
+  });
+}
+
+function rankOf(){
+  if(S.hearts >= 3) return ['🏆', 'Герой Арифметики', 'Все три сердца целы — легенда подземелья!'];
+  if(S.hearts === 2) return ['⚔️', 'Рыцарь Устного Счёта', 'Пара царапин — но дракон повержен!'];
+  return ['🛡️', 'Стойкий Оруженосец', 'Было жарко, но ты дошёл до конца!'];
+}
+function showVictory(){
+  S.screen = 'end';
+  const r = rankOf();
+  endCard.innerHTML =
+    '<div class="big">' + r[0] + '</div>' +
+    '<h1>' + r[1] + '</h1>' +
+    '<p class="sub">' + r[2] + '</p>' +
+    '<div class="stats">🪙 ' + S.coins + ' монет · ' + '❤️'.repeat(Math.max(0, S.hearts)) + '🖤'.repeat(3 - Math.max(0, S.hearts)) + '</div>' +
+    (S.coins >= 300 ? '<p class="sub">💰 И ещё ты — настоящий охотник за сокровищами!</p>' : '') +
+    '<button class="btn" id="btnAgain">Играть ещё 🔁</button>';
+  endScreen.classList.remove('hidden');
+  document.getElementById('btnAgain').addEventListener('click', startGame);
+  confetti();
+}
+
+function confetti(){
+  const box = document.getElementById('confetti');
+  box.innerHTML = '';
+  const ems = ['🎉', '✨', '🪙', '⭐', '💛', '🔷'];
+  for(let i = 0; i < 80; i++){
+    const s = document.createElement('span');
+    s.className = 'cf';
+    s.textContent = pick(ems);
+    s.style.left = (Math.random() * 100) + 'vw';
+    s.style.fontSize = (14 + Math.random() * 16) + 'px';
+    s.style.animationDuration = (2.4 + Math.random() * 2.4) + 's';
+    s.style.animationDelay = (Math.random() * 0.9) + 's';
+    box.appendChild(s);
+  }
+  setTimeout(() => { box.innerHTML = ''; }, 7000);
+}
+
+function startGame(){
+  S.hearts = 3;
+  S.coins = 0;
+  startScreen.classList.add('hidden');
+  endScreen.classList.add('hidden');
+  S.screen = 'game';
+  resize();
+  loadLevel(0);
+}
+
+/* ---------- отрисовка ---------- */
+function draw(now){
+  ctx.clearRect(0, 0, W, H);
+  if(!S.grid.length) return;
+  const L = LEVELS[S.lvl];
+  ctx.fillStyle = '#0a0f2a';
+  rr(0, 0, W, H, 14);
+  ctx.fill();
+
+  for(let y = 0; y < ROWS; y++){
+    for(let x = 0; x < COLS; x++){
+      const t = S.grid[y][x], px = x * cell, py = y * cell;
+      if(t === T.WALL){
+        ctx.fillStyle = WALL_COLOR;
+        rr(px + 1.5, py + 1.5, cell - 3, cell - 3, cell * 0.18);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = (x + y) % 2 ? L.floorA : L.floorB;
+        rr(px + 2, py + 2, cell - 4, cell - 4, cell * 0.2);
+        ctx.fill();
+        if(L.deco && (x * 7 + y * 13) % 6 === 0){
+          em(L.deco, px + cell / 2, py + cell / 2, cell * 0.3, 0.22);
+        }
+      }
+      const cx2 = px + cell / 2, cy2 = py + cell / 2;
+      if(t === T.COIN) em('🪙', cx2, cy2 + Math.sin(now / 280 + (x + y) * 1.3) * cell * 0.05, cell * 0.5);
+      else if(t === T.DOOR) em('🚪', cx2, cy2, cell * 0.72);
+      else if(t === T.CHEST) em('🎁', cx2, cy2, cell * 0.66);
+      else if(t === T.EXIT) em('🌀', cx2, cy2, cell * 0.68, 1, now / 700);
+      else if(t === T.BOSS) em('🐉', cx2, cy2, cell * (0.84 + Math.sin(now / 350) * 0.05));
+    }
+  }
+
+  // герой
+  let hx = S.hero.px + cell / 2, hy = S.hero.py + cell / 2;
+  if(S.bump){
+    const a = (now - S.bump.t0) / 150;
+    if(a >= 1) S.bump = null;
+    else { const o = Math.sin(a * Math.PI) * cell * 0.2; hx += S.bump.dx * o; hy += S.bump.dy * o; }
+  }
+  const bob = S.moving ? Math.abs(Math.sin(now / 70)) * cell * 0.05 : 0;
+  em('🧙', hx, hy - bob, cell * 0.8);
+
+  // всплывающие "+5" и прочее
+  S.effects = S.effects.filter((f) => now - f.t0 < 900);
+  for(const f of S.effects){
+    const a = (now - f.t0) / 900;
+    ctx.save();
+    ctx.globalAlpha = 1 - a;
+    ctx.font = '800 ' + Math.round(cell * 0.34) + 'px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffd166';
+    ctx.fillText(f.txt, f.x * cell + cell / 2, f.y * cell + cell / 2 - a * cell * 0.8);
+    ctx.restore();
+  }
+}
+
+/* ---------- главный цикл ---------- */
+function clampStep(d, sp){ return Math.abs(d) <= sp ? d : Math.sign(d) * sp; }
+let lastT = performance.now();
+function loop(now){
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+
+  if(S.moving){
+    const h = S.hero, tx = h.x * cell, ty = h.y * cell, sp = cell * 9 * dt;
+    h.px += clampStep(tx - h.px, sp);
+    h.py += clampStep(ty - h.py, sp);
+    if(h.px === tx && h.py === ty){ S.moving = false; onArrive(); }
+  }
+
+  if(S.modal && S.modal.kind === 'boss' && S.boss){
+    const remain = S.boss.deadline - now;
+    mTimerBar.style.width = Math.max(0, remain / BOSS_MS * 100) + '%';
+    if(remain <= 0 && !S.lock) bossTimeout();
+  }
+
+  draw(now);
+  requestAnimationFrame(loop);
+}
+
+/* ---------- управление ---------- */
+const KEYS = {
+  arrowup:[0,-1],   w:[0,-1], 'ц':[0,-1],
+  arrowdown:[0,1],  s:[0,1],  'ы':[0,1],
+  arrowleft:[-1,0], a:[-1,0], 'ф':[-1,0],
+  arrowright:[1,0], d:[1,0],  'в':[1,0]
+};
+window.addEventListener('keydown', (e) => {
+  if(S.modal){
+    const i = '123'.indexOf(e.key);
+    if(i >= 0){
+      const btns = mOpts.querySelectorAll('.opt');
+      if(btns[i]){ e.preventDefault(); btns[i].click(); }
+    }
+    return;
+  }
+  const k = KEYS[e.key.toLowerCase()];
+  if(k){ e.preventDefault(); tryMove(k[0], k[1]); }
+});
+
+function cellFromPoint(clientX, clientY){
+  const r = cv.getBoundingClientRect();
+  return [
+    Math.floor((clientX - r.left) / r.width * COLS),
+    Math.floor((clientY - r.top) / r.height * ROWS)
+  ];
+}
+function tapTo(x, y){
+  if(x < 0 || x >= COLS || y < 0 || y >= ROWS) return;
+  const dx = x - S.hero.x, dy = y - S.hero.y;
+  if(dx === 0 && dy === 0) return;
+  if(Math.abs(dx) + Math.abs(dy) === 1){ tryMove(dx, dy); return; }
+  // тап подальше — делаем шаг в ту сторону
+  if(Math.abs(dx) >= Math.abs(dy)) tryMove(Math.sign(dx), 0);
+  else tryMove(0, Math.sign(dy));
+}
+cv.addEventListener('click', (e) => {
+  const c = cellFromPoint(e.clientX, e.clientY);
+  tapTo(c[0], c[1]);
+});
+let touchStart = null;
+cv.addEventListener('touchstart', (e) => {
+  touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}, { passive: true });
+cv.addEventListener('touchend', (e) => {
+  if(!touchStart) return;
+  e.preventDefault(); // чтобы не прилетал синтетический click
+  const t = e.changedTouches[0];
+  const dx = t.clientX - touchStart.x, dy = t.clientY - touchStart.y;
+  if(Math.hypot(dx, dy) < 14){
+    const c = cellFromPoint(touchStart.x, touchStart.y);
+    tapTo(c[0], c[1]);
+  } else if(Math.abs(dx) > Math.abs(dy)) tryMove(Math.sign(dx), 0);
+  else tryMove(0, Math.sign(dy));
+  touchStart = null;
+}, { passive: false });
+
+mBack.addEventListener('click', () => {
+  if(S.modal && S.modal.kind !== 'boss') closeModal();
+});
+document.getElementById('startBtn').addEventListener('click', startGame);
+window.addEventListener('resize', resize);
+if(window.ResizeObserver) new ResizeObserver(resize).observe(stageEl);
+
+/* ---------- поехали ---------- */
+resize();
+requestAnimationFrame(loop);
+
+// маленький хук для отладки/тестов
+window.__md = { S, tryMove, tapTo, startGame, loadLevel };
+
+})();
+</script>
+</body>
+</html>
