@@ -179,6 +179,26 @@
     opacity:0; transition:.3s; pointer-events:none; z-index:50;
   }
   #toast.show{opacity:1; transform:translateX(-50%);}
+  /* ---------- практика ---------- */
+  #panelPractice{position:relative;}
+  .prhint{color:var(--muted); font-size:14px; margin:0 0 10px;}
+  .prsvgwrap{
+    border:1px solid var(--line); border-radius:14px; overflow:hidden;
+    background:radial-gradient(circle at 50% 30%, #1d2856, #0d1334 80%);
+  }
+  .prmeas{
+    margin-top:10px; padding:10px 14px; border-radius:12px; font-size:15px; font-weight:700;
+    background:rgba(255,209,102,.1); border:1px solid rgba(255,209,102,.35);
+    font-variant-numeric:tabular-nums;
+  }
+  .probe-chip{
+    font-size:13px; padding:5px 11px; border-radius:999px; border:1px solid var(--line);
+    background:rgba(255,255,255,.05); opacity:.55;
+  }
+  .probe-chip.armed{opacity:1; border-color:var(--accent); background:rgba(255,209,102,.12);}
+  .contact{cursor:pointer;}
+  .contact:hover circle{stroke:#ffd166;}
+  .lampclick{cursor:pointer;}
 </style>
 </head>
 <body>
@@ -203,6 +223,7 @@
       <button class="tab active" data-mode="study">🔍 Изучаем</button>
       <button class="tab" data-mode="division">📏 Цена деления</button>
       <button class="tab" data-mode="reading">🎯 Показания</button>
+      <button class="tab" data-mode="practice">🛠️ Практика</button>
       <button class="tab" data-mode="about">📖 О приборе</button>
     </div>
 
@@ -302,6 +323,34 @@
         <h3>💡 Важные правила подключения</h3>
         <p><b>1. Параллельно!</b> Вольтметр подключают <b>рядом</b> с участком, на котором меряют напряжение (параллельно лампе, резистору). У него большое внутреннее сопротивление, поэтому он почти не забирает ток. Помни: амперметр — последовательно, вольтметр — параллельно, и никак иначе.</p>
         <p><b>2. Соблюдай полярность.</b> «+» источника соединяют с клеммой «+» вольтметра, а «−» — с «−». Перепутаешь — стрелка пойдёт в обратную сторону, за ноль.</p>
+      </div>
+    </div>
+
+    <!-- ---- режим: практика (мастерская электрика) ---- -->
+    <div id="panelPractice" hidden>
+      <div class="taskhead">
+        <span class="roundlbl" id="prRound"></span>
+        <span class="stars" id="prStars"></span>
+      </div>
+      <div class="question" id="prTitle"></div>
+      <p class="prhint" id="prHint"></p>
+      <div class="prsvgwrap"><svg id="prSvg" viewBox="0 0 420 250"></svg></div>
+      <div class="prmeas" id="prMeas">Поставь оба щупа, чтобы измерить напряжение</div>
+      <div class="row" id="prProbes">
+        <span style="color:var(--muted);font-size:14px;">Щупы:</span>
+        <span class="probe-chip red" id="chipRed">🔴 красный</span>
+        <span class="probe-chip" id="chipBlack">⚫ чёрный</span>
+        <span style="flex:1"></span>
+        <button class="btn" id="prReset">↩︎ Снять щупы</button>
+      </div>
+      <div class="opts" id="prOpts" style="margin-top:12px;"></div>
+      <div class="expl" id="prExpl" hidden></div>
+      <button class="nextbtn" id="prNext" hidden>Дальше →</button>
+      <div id="prResult" hidden style="text-align:center; padding:18px 6px;">
+        <div style="font-size:52px;" id="prResEmoji"></div>
+        <h3 id="prResTitle" style="font-size:22px; margin:10px 0 6px;"></h3>
+        <p id="prResText" style="color:var(--muted); margin:0 0 16px;"></p>
+        <button class="nextbtn" id="prAgain">🔄 Пройти ещё раз</button>
       </div>
     </div>
   </section>
@@ -822,12 +871,21 @@ function setMode(m) {
   $('panelStudy').hidden = m !== 'study';
   $('panelTask').hidden = !(m === 'division' || m === 'reading');
   $('panelAbout').hidden = m !== 'about';
+  $('panelPractice').hidden = m !== 'practice';
   $('priceChip').style.display = m === 'study' ? '' : 'none';
   if (m === 'study' || m === 'about') {
     const spec = JSON.parse(JSON.stringify(DEFAULT_SPEC));
     spec.active = range === 'A' ? 'top' : 'bottom';
     applyDial(spec);
     updateStudy();
+  } else if (m === 'practice') {
+    const spec = JSON.parse(JSON.stringify(DEFAULT_SPEC));
+    spec.active = 'top';
+    applyDial(spec);
+    setNeedle(0, spec.top.max);
+    $('readVal').textContent = '—'; $('readUnit').textContent = 'В';
+    $('readingBox').classList.remove('over');
+    startPractice();
   } else {
     $('readVal').textContent = '?'; $('readUnit').textContent = '';
     $('readingBox').classList.remove('over');
@@ -837,6 +895,320 @@ function setMode(m) {
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setMode(t.dataset.mode)));
 $('nextBtn').addEventListener('click', () => nextTask(false));
 $('againBtn').addEventListener('click', () => startTasks(task.kind));
+
+/* ================== ПРАКТИКА: мастерская электрика ==================
+   3 миссии: батарейки → гирлянда → правильное подключение.
+   Щупы ставятся кликами по контактам; показание дублируется стрелкой
+   3D-прибора сверху. Право на ошибку — с последствиями. */
+const PNS = 'http://www.w3.org/2000/svg';
+const PR = { mission: 0, stars: 0, red: null, black: null, nodes: {}, broken: 1, measured: new Set(), attempts: 0, lampsFixed: false };
+
+function pel(tag, attrs, parent) {
+  const e = document.createElementNS(PNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  parent.appendChild(e); return e;
+}
+function prClear() {
+  $('prSvg').innerHTML = '';
+  $('prOpts').innerHTML = '';
+  $('prExpl').hidden = true; $('prNext').hidden = true;
+  $('prResult').hidden = true;
+  PR.red = null; PR.black = null; PR.nodes = {}; PR.measured = new Set();
+  updateProbeChips(); showMeasurement();
+}
+function updateProbeChips() {
+  $('chipRed').classList.toggle('armed', PR.red === null);
+  $('chipBlack').classList.toggle('armed', PR.red !== null && PR.black === null);
+}
+function probeMark(nodeEl, color) {
+  const ring = pel('circle', { cx: nodeEl.dataset.x, cy: nodeEl.dataset.y, r: 13, fill: 'none', stroke: color, 'stroke-width': 3.5, class: 'probe-ring' }, $('prSvg'));
+  return ring;
+}
+function redrawProbes() {
+  $('prSvg').querySelectorAll('.probe-ring').forEach(e => e.remove());
+  if (PR.red) probeMark(PR.red, '#ff5d73');
+  if (PR.black) probeMark(PR.black, '#dfe3f0');
+  updateProbeChips(); showMeasurement();
+}
+function contactClick(elm) {
+  if (PR.red === elm) { PR.red = null; }
+  else if (PR.black === elm) { PR.black = null; }
+  else if (PR.red === null) { PR.red = elm; }
+  else if (PR.black === null) { PR.black = elm; }
+  else { PR.red = elm; PR.black = null; } // всё занято — переносим красный
+  redrawProbes();
+}
+function makeContact(x, y, node, parent) {
+  const g = pel('g', { class: 'contact' }, parent);
+  pel('circle', { cx: x, cy: y, r: 8, fill: '#1c2452', stroke: '#8893c4', 'stroke-width': 2.5 }, g);
+  pel('circle', { cx: x, cy: y, r: 3, fill: '#8893c4' }, g);
+  g.dataset.x = x; g.dataset.y = y; g.dataset.node = node;
+  g.addEventListener('click', () => contactClick(g));
+  return g;
+}
+function measureU() {
+  if (!PR.red || !PR.black) return null;
+  const rn = PR.red.dataset.node, bn = PR.black.dataset.node;
+  const a = PR.nodes[rn], b = PR.nodes[bn];
+  if (a === undefined || b === undefined) return null;
+  // миссия 1: батарейки не соединены между собой — между ними цепи нет
+  if (PR.mission === 1 && rn[0] !== bn[0]) return 'apart';
+  return Math.round((a - b) * 100) / 100;
+}
+function showMeasurement() {
+  const U = measureU();
+  const box = $('prMeas');
+  if (U === null) {
+    box.textContent = PR.red ? 'Теперь поставь чёрный щуп ⚫' : 'Поставь красный щуп 🔴 на контакт';
+    setNeedle(0, 6); $('readVal').textContent = '—'; $('readUnit').textContent = 'В';
+    return;
+  }
+  if (U === 'apart') {
+    box.textContent = '⚠️ Щупы стоят на разных предметах — цепи между ними нет';
+    setNeedle(0, 6); $('readVal').textContent = '—';
+    return;
+  }
+  if (U < 0) {
+    box.textContent = `U = ${fmt(U)} В — стрелка ушла за ноль! Перепутана полярность: поменяй щупы местами`;
+    targetAngle = deg(START - 5); overload = false;
+    $('readVal').textContent = fmt(U);
+    return;
+  }
+  box.textContent = `U = ${fmt(U)} В`;
+  setNeedle(U, 6);
+  $('readVal').textContent = fmt(U); $('readUnit').textContent = 'В';
+  onMeasured(U);
+}
+$('prReset').addEventListener('click', () => { PR.red = null; PR.black = null; redrawProbes(); });
+
+/* ---------- миссия 1: батарейки ---------- */
+function mission1() {
+  PR.mission = 1; prClear();
+  $('prRound').textContent = 'Миссия 1 из 3';
+  $('prTitle').textContent = '🔦 Фонарик сел. Какая из батареек ещё живая?';
+  $('prHint').textContent = 'На вид они одинаковые! Измерь напряжение каждой: красный щуп на «+», чёрный на «−». Свежая батарейка на 4,5 В держит близко к 4,5. Севшая — сильно меньше.';
+  $('prProbes').style.display = '';
+  PR.freshIsA = Math.random() < 0.5;
+  const svg = $('prSvg');
+  const drawBatt = (x, label, key) => {
+    pel('rect', { x, y: 70, width: 130, height: 90, rx: 12, fill: '#1c2452', stroke: '#8893c4', 'stroke-width': 2.5 }, svg);
+    pel('rect', { x: x + 8, y: 78, width: 114, height: 30, rx: 6, fill: 'rgba(255,209,102,.15)' }, svg);
+    const t = pel('text', { x: x + 65, y: 140, 'text-anchor': 'middle', fill: '#eef1fb', 'font-size': 30, 'font-weight': 800 }, svg);
+    t.textContent = label;
+    const tp = pel('text', { x: x + 108, y: 60, 'text-anchor': 'middle', fill: '#ff5d73', 'font-size': 16, 'font-weight': 800 }, svg); tp.textContent = '+';
+    const tm = pel('text', { x: x + 22, y: 60, 'text-anchor': 'middle', fill: '#9aa3c7', 'font-size': 16, 'font-weight': 800 }, svg); tm.textContent = '−';
+    makeContact(x + 108, 70, key + '+', svg);
+    makeContact(x + 22, 70, key + '-', svg);
+  };
+  drawBatt(45, 'А', 'A'); drawBatt(245, 'Б', 'B');
+  const uA = PR.freshIsA ? 4.5 : 1.1, uB = PR.freshIsA ? 1.2 : 4.4;
+  PR.nodes = { 'A+': uA, 'A-': 0, 'B+': uB, 'B-': 0 };
+  // варианты ответа
+  const opts = $('prOpts');
+  [['Батарейка А', 'A'], ['Батарейка Б', 'B']].forEach(([label, key]) => {
+    const b = document.createElement('button');
+    b.className = 'opt'; b.textContent = label;
+    b.addEventListener('click', () => {
+      const correct = (key === 'A') === PR.freshIsA;
+      if (correct) {
+        b.classList.add('right'); sndOk(); confettiPr();
+        if (PR.measured.has('A') && PR.measured.has('B')) PR.stars++;
+        $('prStars').textContent = '⭐'.repeat(PR.stars);
+        $('prExpl').innerHTML = `✅ Верно! ${PR.freshIsA ? 'А' : 'Б'} держит ~4,5 В — свежая. Вторая просела до ~1 В — на помойку (точнее, в пункт приёма батареек ♻️).` + (PR.measured.size < 2 ? '<br>⚠️ Но ты угадал, а не измерил — электрик так не делает! Звезда за это не даётся.' : '');
+        $('prExpl').hidden = false;
+        opts.querySelectorAll('.opt').forEach(x => x.disabled = true);
+        $('prNext').hidden = false;
+      } else {
+        b.classList.add('wrong'); b.disabled = true; sndNo();
+      }
+    });
+    opts.appendChild(b);
+  });
+}
+
+/* ---------- миссия 2: гирлянда ---------- */
+function mission2() {
+  PR.mission = 2; prClear();
+  $('prRound').textContent = 'Миссия 2 из 3';
+  $('prTitle').textContent = '🎄 Гирлянда погасла! Найди перегоревшую лампочку';
+  $('prHint').textContent = 'Три лампочки соединены последовательно, одна перегорела — и погасли все. Секрет электрика: в разорванной цепи на ЦЕЛЫХ лампах вольтметр покажет 0, а на ПЕРЕГОРЕВШЕЙ — всё напряжение батареи (6 В). Измерь каждую и замени сгоревшую!';
+  $('prProbes').style.display = '';
+  PR.broken = 1 + Math.floor(Math.random() * 3);
+  PR.lampsFixed = false; PR.attempts = 0;
+  const svg = $('prSvg');
+  // батарея слева
+  pel('rect', { x: 18, y: 95, width: 44, height: 60, rx: 8, fill: '#1c2452', stroke: '#8893c4', 'stroke-width': 2.5 }, svg);
+  const bt = pel('text', { x: 40, y: 132, 'text-anchor': 'middle', fill: '#ffd166', 'font-size': 15, 'font-weight': 800 }, svg); bt.textContent = '6 В';
+  // провода
+  pel('path', { d: 'M40,95 V60 H380 V190 H40 V155', fill: 'none', stroke: '#8893c4', 'stroke-width': 2.5 }, svg);
+  // лампы и контакты: K0 L1 K1 L2 K2 L3 K3
+  const lampX = [140, 235, 330];
+  const contX = [95, 187, 282, 372];
+  PR.lampEls = [];
+  contX.forEach((x, i) => makeContact(x, 60, 'K' + i, svg));
+  lampX.forEach((x, i) => {
+    const g = pel('g', { class: 'lampclick' }, svg);
+    const glow = pel('circle', { cx: x, cy: 60, r: 24, fill: '#ffd166', opacity: 0 }, g);
+    pel('circle', { cx: x, cy: 60, r: 14, fill: '#12183a', stroke: '#8893c4', 'stroke-width': 2.2 }, g);
+    pel('path', { d: `M${x - 9},51 L${x + 9},69 M${x + 9},51 L${x - 9},69`, stroke: '#8893c4', 'stroke-width': 1.8 }, g);
+    const lbl = pel('text', { x, y: 98, 'text-anchor': 'middle', fill: '#9aa3c7', 'font-size': 13 }, g); lbl.textContent = 'Л' + (i + 1);
+    g.addEventListener('click', () => replaceLamp(i + 1));
+    PR.lampEls.push({ g, glow });
+  });
+  // потенциалы: до сгоревшей — 6, после — 0
+  PR.nodes = {};
+  for (let i = 0; i <= 3; i++) PR.nodes['K' + i] = i < PR.broken ? 6 : 0;
+  $('prMeas').textContent = 'Поставь красный щуп 🔴 на контакт';
+}
+function replaceLamp(n) {
+  if (PR.mission !== 2 || PR.lampsFixed) return;
+  PR.attempts++;
+  if (n === PR.broken) {
+    PR.lampsFixed = true;
+    sndOk(); confettiPr();
+    // гирлянда загорается
+    PR.lampEls.forEach(({ glow }) => glow.setAttribute('opacity', 0.55));
+    for (let i = 0; i <= 3; i++) PR.nodes['K' + i] = 6 - i * 2; // ток пошёл, на лампах по 2 В
+    redrawProbes();
+    const clean = PR.attempts === 1;
+    if (clean) PR.stars++;
+    $('prStars').textContent = '⭐'.repeat(PR.stars);
+    $('prExpl').innerHTML = `✅ Лампа Л${n} заменена — гирлянда горит! 🎉 ${clean ? 'С первой попытки — настоящая диагностика, а не перебор!' : 'Сработало, но были лишние замены — в жизни каждая лампа стоит денег 😉'}<br>Кстати, теперь ток идёт — измерь любую лампу: на каждой ровно по 2 В (6 В поделились на троих).`;
+    $('prExpl').hidden = false;
+    $('prNext').hidden = false;
+  } else {
+    sndNo();
+    $('prMeas').textContent = `⚠️ Лампа Л${n} была исправна! Гирлянда всё ещё не горит. Сначала измерь напряжение на лампах.`;
+  }
+}
+
+/* ---------- миссия 3: как подключать ---------- */
+function mission3() {
+  PR.mission = 3; prClear();
+  $('prRound').textContent = 'Миссия 3 из 3';
+  $('prTitle').textContent = '🔌 Подключи вольтметр к лампе правильно';
+  $('prHint').textContent = 'Перед тобой два способа подключить вольтметр. Один правильный, другой — типичная ошибка. Выбери схему!';
+  $('prProbes').style.display = 'none';
+  const svg = $('prSvg');
+  const drawScheme = (ox, parallel) => {
+    const g = pel('g', { class: 'lampclick' }, svg);
+    pel('rect', { x: ox, y: 20, width: 185, height: 200, rx: 14, fill: 'rgba(255,255,255,.03)', stroke: '#2a3568', 'stroke-width': 2 }, g);
+    const title = pel('text', { x: ox + 92, y: 44, 'text-anchor': 'middle', fill: '#9aa3c7', 'font-size': 14, 'font-weight': 700 }, g);
+    title.textContent = parallel ? 'Схема А' : 'Схема Б';
+    // контур цепи
+    pel('path', { d: `M${ox + 30},70 H${ox + 155} V${parallel ? 170 : 140} M${ox + 30},70 V170 H${ox + 155} ${parallel ? 'V170' : ''}`, fill: 'none', stroke: '#8893c4', 'stroke-width': 2 }, g);
+    // батарейка
+    pel('rect', { x: ox + 20, y: 108, width: 20, height: 28, rx: 4, fill: '#1c2452', stroke: '#8893c4', 'stroke-width': 2 }, g);
+    // лампа на правой ветви
+    const lampY = parallel ? 115 : 105;
+    const glow = pel('circle', { cx: ox + 155, cy: lampY, r: 18, fill: '#ffd166', opacity: parallel ? 0.5 : 0 }, g);
+    pel('circle', { cx: ox + 155, cy: lampY, r: 11, fill: '#12183a', stroke: '#8893c4', 'stroke-width': 2 }, g);
+    pel('path', { d: `M${ox + 148},${lampY - 7} L${ox + 162},${lampY + 7} M${ox + 162},${lampY - 7} L${ox + 148},${lampY + 7}`, stroke: '#8893c4', 'stroke-width': 1.5 }, g);
+    // вольтметр
+    let vx, vy;
+    if (parallel) { vx = ox + 108; vy = 115; pel('path', { d: `M${ox + 155},95 H${vx} M${ox + 155},138 H${vx}`, fill: 'none', stroke: '#8893c4', 'stroke-width': 2 }, g); pel('path', { d: `M${vx},95 V${vy - 14} M${vx},138 V${vy + 14}`, fill: 'none', stroke: '#8893c4', 'stroke-width': 2 }, g); }
+    else { vx = ox + 155; vy = 168; }
+    pel('circle', { cx: vx, cy: vy, r: 15, fill: '#fbfaf4', stroke: '#3a3d46', 'stroke-width': 2.5 }, g);
+    const vt = pel('text', { x: vx, y: vy + 5, 'text-anchor': 'middle', fill: '#15161d', 'font-size': 14, 'font-weight': 800, 'font-family': 'Georgia,serif' }, g);
+    vt.textContent = 'V';
+    g.addEventListener('click', () => chooseScheme(parallel, glow));
+    return g;
+  };
+  drawScheme(15, true);
+  drawScheme(220, false);
+  PR.m3done = false;
+}
+function chooseScheme(parallel, glow) {
+  if (PR.mission !== 3 || PR.m3done) return;
+  if (parallel) {
+    PR.m3done = true;
+    sndOk(); confettiPr(); PR.stars++;
+    $('prStars').textContent = '⭐'.repeat(PR.stars);
+    setNeedle(4.5, 6); $('readVal').textContent = '4,5'; $('readUnit').textContent = 'В';
+    $('prMeas').textContent = 'U = 4,5 В — лампа горит, вольтметр меряет. Всё как надо!';
+    $('prExpl').innerHTML = '✅ Схема А — <b>параллельно лампе</b>. У вольтметра огромное внутреннее сопротивление: подключённый рядом, он почти не забирает ток.<br><br>А на схеме Б вольтметр стоит <b>в разрыв цепи</b> — из-за его сопротивления ток почти исчезает и лампа гаснет. А теперь бонус-вопрос ⬇️';
+    $('prExpl').hidden = false;
+    bonusQuestion();
+  } else {
+    sndNo();
+    setNeedle(4.4, 6);
+    $('prMeas').textContent = '💡 Лампа погасла! Вольтметр в разрыве цепи почти не пропускает ток. Попробуй другую схему.';
+  }
+}
+function bonusQuestion() {
+  const opts = $('prOpts'); opts.innerHTML = '';
+  const q = document.createElement('div');
+  q.className = 'question';
+  q.textContent = '💣 А что будет, если АМПЕРМЕТР подключить параллельно лампе (как вольтметр)?';
+  opts.appendChild(q);
+  [
+    ['Ничего страшного, покажет ток', false],
+    ['Короткое замыкание — прибор сгорит 💥', true],
+    ['Лампа станет ярче', false],
+  ].forEach(([label, correct]) => {
+    const b = document.createElement('button');
+    b.className = 'opt'; b.style.fontSize = '15px'; b.textContent = label;
+    b.addEventListener('click', () => {
+      if (correct) {
+        b.classList.add('right'); sndOk();
+        opts.querySelectorAll('.opt').forEach(x => x.disabled = true);
+        $('prExpl').innerHTML = '💥 Именно! У амперметра сопротивление почти нулевое — параллельное подключение это короткое замыкание: огромный ток, дым, прибор на выброс. Поэтому железное правило: <b>амперметр — последовательно, вольтметр — параллельно</b>.';
+        $('prExpl').hidden = false;
+        $('prNext').hidden = false;
+        $('prNext').textContent = 'К результату 🏁';
+      } else {
+        b.classList.add('wrong'); b.disabled = true; sndNo();
+      }
+    });
+    opts.appendChild(b);
+  });
+}
+
+/* ---------- движок миссий ---------- */
+function onMeasured(U) {
+  if (PR.mission === 1 && PR.red && PR.black) {
+    const rn = PR.red.dataset.node, bn = PR.black.dataset.node;
+    if (rn[0] === bn[0] && rn !== bn) PR.measured.add(rn[0]);
+  }
+}
+function startPractice() {
+  PR.stars = 0;
+  $('prStars').textContent = '';
+  mission1();
+}
+$('prNext').addEventListener('click', () => {
+  if (PR.mission === 1) mission2();
+  else if (PR.mission === 2) mission3();
+  else showPrResult();
+});
+$('prAgain').addEventListener('click', startPractice);
+function showPrResult() {
+  prClear();
+  $('prProbes').style.display = 'none';
+  $('prTitle').textContent = ''; $('prHint').textContent = '';
+  $('prMeas').textContent = '';
+  $('prResult').hidden = false;
+  const s = PR.stars;
+  $('prResEmoji').textContent = s === 3 ? '👨‍🔧' : s === 2 ? '🔧' : '🔩';
+  $('prResTitle').textContent = s === 3 ? 'Мастер-электрик 3-го разряда!' : s === 2 ? 'Электрик-стажёр!' : 'Подмастерье!';
+  $('prResText').textContent = `${s} ⭐ из 3. ${s === 3 ? 'Батарейки проверил, гирлянду починил, приборы не сжёг. Можно доверить проводку!' : 'Пройди ещё раз и собери все звёзды: измеряй, прежде чем менять!'}`;
+  if (s >= 2) confettiPr();
+}
+function confettiPr() {
+  const hostEl = $('panelPractice');
+  const E = ['🎉', '⭐', '✨', '💡', '⚡'];
+  for (let i = 0; i < 26; i++) {
+    const s = document.createElement('span');
+    s.className = 'cf'; s.textContent = E[i % E.length];
+    const a = Math.random() * 2 * Math.PI, d = 70 + Math.random() * 150;
+    s.style.setProperty('--dx', Math.cos(a) * d + 'px');
+    s.style.setProperty('--dy', (Math.sin(a) * d - 110) + 'px');
+    s.style.setProperty('--rt', (Math.random() * 720 - 360) + 'deg');
+    s.style.animationDelay = (Math.random() * 0.12) + 's';
+    hostEl.appendChild(s);
+    setTimeout(() => s.remove(), 1400);
+  }
+}
 
 /* ================== управление (изучение) ================== */
 $('swBtn').addEventListener('click', () => {
