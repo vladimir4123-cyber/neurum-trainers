@@ -3,6 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>
+  // Прямой заход на /voltmeter/ → новый хаб /voltmeter/demo/.
+  // Iframe-эмбеды (уроки, «Показать прибор») используют ?embed=1 — их пропускаем.
+  if (!/([?&])embed=1/.test(location.search)) {
+    location.replace('demo/');
+  }
+</script>
 <title>Вольтметр · 3D-тренажёр по физике · ОГЭ задание 1</title>
 <meta name="description" content="Интерактивный 3D-вольтметр: крути прибор, находи цену деления, снимай показания. Физика 8 класс + подготовка к ОГЭ (задание 1 — снятие показаний приборов).">
 <meta property="og:title" content="🔋 Вольтметр — 3D-тренажёр">
