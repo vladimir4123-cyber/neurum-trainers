@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Тест по теории · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css">
+<style>
+  body{ --mascot-bottom: 108px; }
+
+  main.q-stage{
+    max-width: 720px; margin: 0 auto;
+    padding: 24px 20px 170px;
+    display: flex; flex-direction: column; align-items: center; gap: 20px;
+    text-align: center;
+  }
+  .q-title{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(22px, 4vw, 30px); line-height: 1.16;
+    color: var(--fg-1); letter-spacing: -0.01em; text-wrap: balance;
+    max-width: 26ch;
+  }
+  .q-hint{ font-size: 16px; color: var(--fg-3); text-wrap: pretty; margin-top: -6px; }
+  .q-feedback{ min-height: 22px; font-size: 17px; line-height: 1.4; text-wrap: pretty; }
+  .q-feedback.ok{ color: var(--success); font-weight: 500; }
+  .q-feedback.err{ color: var(--danger); }
+
+  /* ---------- соединить пары ---------- */
+  .match{ display: flex; gap: 16px; justify-content: center; width: 100%; max-width: 600px; }
+  .match-col{ display: flex; flex-direction: column; gap: 12px; flex: 1; min-width: 0; }
+  .match-item{
+    display: flex; align-items: center; gap: 10px; text-align: left;
+    padding: 15px 14px; border-radius: var(--radius-xl);
+    background: #fff; border: 2px solid var(--border-2); cursor: pointer;
+    font-family: var(--font-sans); font-size: 16px; font-weight: 500; color: var(--fg-1);
+    transition: border-color 120ms var(--ease-standard), background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .match-item:active:not(:disabled){ transform: scale(0.97); }
+  .match-item.active{ border-color: var(--purple-1); background: var(--purple-3); }
+  .match-item.correct{ border-color: var(--green-1); background: var(--green-2); color: var(--green-1); }
+  .match-item.wrong{ border-color: var(--red-1); background: var(--red-2); color: var(--red-1); }
+  .match-item:disabled{ cursor: default; }
+  .match-dot{
+    width: 16px; height: 16px; border-radius: 50%; flex: none;
+    box-shadow: inset 0 0 0 2px var(--border-2); background: transparent;
+    transition: background-color 120ms var(--ease-standard), box-shadow 120ms;
+  }
+
+  /* ---------- поставить по порядку ---------- */
+  .order{ display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 480px; }
+  .order-item{
+    display: flex; align-items: center; gap: 14px; text-align: left;
+    padding: 16px; border-radius: var(--radius-xl);
+    background: #fff; border: 2px solid var(--border-2); cursor: pointer;
+    font-family: var(--font-sans); font-size: 17px; font-weight: 500; color: var(--fg-1);
+    transition: border-color 120ms var(--ease-standard), background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .order-item:active:not(:disabled){ transform: scale(0.98); }
+  .order-item.picked{ border-color: var(--purple-1); background: var(--purple-3); }
+  .order-item.correct{ border-color: var(--green-1); background: var(--green-2); color: var(--green-1); }
+  .order-item.wrong{ border-color: var(--red-1); background: var(--red-2); color: var(--red-1); }
+  .order-item:disabled{ cursor: default; }
+  .order-num{
+    width: 30px; height: 30px; border-radius: 50%; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-weight: 500; font-size: 16px;
+    font-variant-numeric: tabular-nums;
+    background: var(--purple-4); color: var(--purple-1);
+    box-shadow: inset 0 0 0 2px transparent;
+  }
+  .order-num:empty{ background: transparent; box-shadow: inset 0 0 0 2px var(--border-2); }
+
+  /* ---------- финал ---------- */
+  .q-badge{ width: clamp(120px, 30vw, 160px); height: auto; }
+  .q-h1{ font-family: var(--font-display); font-weight: 500; font-size: clamp(26px, 5vw, 38px); color: var(--fg-1); letter-spacing: -0.02em; text-wrap: balance; }
+  .q-lead{ font-size: var(--t-md); color: var(--fg-2); max-width: 30ch; text-wrap: pretty; }
+  .m-stats{ display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+  .m-stat{ background: #fff; border-radius: var(--radius-xl); box-shadow: 0 4px 14px rgba(24,12,34,.06); padding: 16px 22px; min-width: 120px; }
+  .m-stat__val{ font-family: var(--font-display); font-weight: 500; font-size: 32px; color: var(--purple-1); font-variant-numeric: tabular-nums; }
+  .m-stat__lbl{ font-size: 15px; color: var(--fg-3); margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main class="q-stage" id="stage"></main>
+
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+
+/* ============================================================
+   ПРАКТИКА «Тест по теории» — проверка всей темы вольтметра
+   заданиями РАЗНЫХ типов: выбор ответа, соединить пары,
+   поставить по порядку. Всё на кликах (без drag-n-drop).
+   ============================================================ */
+
+const QUESTIONS = [
+  {
+    type: 'mcq',
+    q: 'Как вольтметр подключают к участку цепи?',
+    options: [
+      { t: 'Параллельно участку', ok: true },
+      { t: 'Последовательно, в разрыв', ok: false },
+      { t: 'Через ключ', ok: false },
+      { t: 'Всё равно как', ok: false },
+    ],
+    right: 'Верно! Вольтметр включают параллельно участку.',
+    wrong: 'Параллельно. Последовательно (в разрыв) включают амперметр.',
+  },
+  {
+    type: 'match',
+    q: 'Соедини часть прибора с её назначением',
+    hint: 'Нажми слева, потом справа — так появится пара.',
+    pairs: [
+      { l: 'Стрелка', r: 'показывает значение' },
+      { l: 'Шкала',   r: 'деления и числа' },
+      { l: 'Клеммы',  r: 'подключение к цепи' },
+    ],
+    right: 'Отлично! Все пары верные.',
+    wrong: 'Не все пары совпали — посмотри, где ошибка.',
+  },
+  {
+    type: 'order',
+    q: 'Поставь по порядку: как снять показания',
+    hint: 'Нажимай карточки в правильном порядке — они получат номера.',
+    items: [
+      'Определить цену деления',
+      'Посчитать деления до стрелки',
+      'Умножить деления на цену деления',
+    ],
+    right: 'Точно! Цена деления → считаем деления → умножаем.',
+    wrong: 'Порядок такой: сначала цена деления, потом деления, потом умножаем.',
+  },
+  {
+    type: 'mcq',
+    q: 'Между 0 и 1 В на шкале 5 делений. Чему равна цена деления?',
+    options: [
+      { t: '0,2 В', ok: true },
+      { t: '0,5 В', ok: false },
+      { t: '1 В',   ok: false },
+      { t: '5 В',   ok: false },
+    ],
+    right: 'Верно! (1 − 0) ÷ 5 = 0,2 В.',
+    wrong: 'Считаем: (1 − 0) ÷ 5 = 0,2 В на одно деление.',
+  },
+];
+
+const STORAGE_KEY = 'voltmeter-progress';
+const XP = 40;
+const TOTAL = QUESTIONS.length;
+
+// Помощник-маскот на практике убран — остаётся только в уроках.
+const mascot = { say(){}, setEmotion(){}, hide(){} };
+const stageEl = document.getElementById('stage');
+const bottomEl = document.getElementById('bottom');
+const progressFill = document.getElementById('progressFill');
+const stepNow = document.getElementById('stepNow');
+document.getElementById('stepTotal').textContent = TOTAL;
+
+let qIdx = 0;
+let mistakes = 0;
+
+function setProgress(i) {
+  progressFill.style.width = (i / TOTAL) * 100 + '%';
+  stepNow.textContent = Math.min(i + 1, TOTAL);
+}
+
+/* перемешать копию массива (индексы) */
+function shuffled(n) {
+  const a = Array.from({ length: n }, (_, i) => i);
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* =================== РЕНДЕР ВОПРОСА =================== */
+function renderQuestion() {
+  setProgress(qIdx);
+  const q = QUESTIONS[qIdx];
+  if (q.type === 'mcq') renderMCQ(q);
+  else if (q.type === 'match') renderMatch(q);
+  else if (q.type === 'order') renderOrder(q);
+}
+
+function feedbackBar() {
+  return `<div class="q-feedback" id="qfb"></div>`;
+}
+function setFb(text, ok) {
+  const el = document.getElementById('qfb');
+  el.className = 'q-feedback ' + (ok ? 'ok' : 'err');
+  el.textContent = text;
+}
+function bottomCheck(onCheck) {
+  bottomEl.innerHTML = `<button class="btn-continue" id="checkBtn" disabled>Проверить</button>`;
+  document.getElementById('checkBtn').onclick = onCheck;
+}
+function toNextButton() {
+  const b = document.getElementById('checkBtn');
+  b.textContent = qIdx + 1 < TOTAL ? 'Дальше →' : 'Показать результат →';
+  b.disabled = false;
+  b.onclick = () => { qIdx++; if (qIdx < TOTAL) renderQuestion(); else renderFinale(); };
+}
+function enableCheck() { document.getElementById('checkBtn').disabled = false; }
+
+/* ---------- MCQ ---------- */
+function renderMCQ(q) {
+  stageEl.innerHTML = `
+    <div class="q-title">${q.q}</div>
+    <div class="options" id="opts">
+      ${q.options.map((o, i) => `<button class="opt-btn" data-i="${i}">${o.t}</button>`).join('')}
+    </div>
+    ${feedbackBar()}`;
+  bottomCheck(checkMCQ);
+  let sel = null;
+  stageEl.querySelectorAll('.opt-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      sel = parseInt(b.dataset.i, 10);
+      stageEl.querySelectorAll('.opt-btn').forEach(x => x.classList.remove('selected'));
+      b.classList.add('selected');
+      enableCheck();
+    });
+  });
+  function checkMCQ() {
+    if (sel === null) return;
+    const ok = q.options[sel].ok;
+    stageEl.querySelectorAll('.opt-btn').forEach((b, i) => {
+      b.disabled = true;
+      b.classList.remove('selected');
+      if (q.options[i].ok) b.classList.add('correct');
+      else if (i === sel) b.classList.add('wrong');
+    });
+    finishQuestion(ok, q);
+  }
+}
+
+/* ---------- соединить пары ---------- */
+function renderMatch(q) {
+  const rOrder = shuffled(q.pairs.length);   // порядок правых
+  stageEl.innerHTML = `
+    <div class="q-title">${q.q}</div>
+    <div class="q-hint">${q.hint}</div>
+    <div class="match" id="match">
+      <div class="match-col" id="leftCol">
+        ${q.pairs.map((p, i) => `<button class="match-item" data-side="l" data-i="${i}"><span class="match-dot"></span><span>${p.l}</span></button>`).join('')}
+      </div>
+      <div class="match-col" id="rightCol">
+        ${rOrder.map(rid => `<button class="match-item" data-side="r" data-i="${rid}"><span class="match-dot"></span><span>${q.pairs[rid].r}</span></button>`).join('')}
+      </div>
+    </div>
+    ${feedbackBar()}`;
+  bottomCheck(checkMatch);
+
+  const colors = ['#6240FF', '#F76B15', '#149ECA'];
+  const pairs = {};        // leftIndex -> rightId
+  let sel = null;          // { side, i } — выбранный элемент
+
+  const el = (side, i) => stageEl.querySelector(`.match-item[data-side="${side}"][data-i="${i}"]`);
+  const dot = (side, i) => el(side, i).querySelector('.match-dot');
+  const rightOf = rid => Object.keys(pairs).find(li => pairs[li] === rid); // leftIndex, у кого этот right
+
+  function clearActive() {
+    stageEl.querySelectorAll('.match-item.active').forEach(x => x.classList.remove('active'));
+  }
+  function paint(li) {
+    const c = colors[li % colors.length];
+    dot('l', li).style.background = c; dot('l', li).style.boxShadow = 'none';
+    const rid = pairs[li];
+    dot('r', rid).style.background = c; dot('r', rid).style.boxShadow = 'none';
+  }
+  function unpaint(li) {
+    const rid = pairs[li];
+    dot('l', li).style.background = ''; dot('l', li).style.boxShadow = '';
+    if (rid != null && dot('r', rid)) { dot('r', rid).style.background = ''; dot('r', rid).style.boxShadow = ''; }
+  }
+  function isPaired(side, i) {
+    if (side === 'l') return pairs[i] != null;
+    return rightOf(i) != null;
+  }
+  function unpair(side, i) {
+    const li = side === 'l' ? i : rightOf(i);
+    if (li == null) return;
+    unpaint(li);
+    delete pairs[li];
+    updateCheck();
+  }
+  function updateCheck() {
+    document.getElementById('checkBtn').disabled = Object.keys(pairs).length !== q.pairs.length;
+  }
+
+  stageEl.querySelectorAll('.match-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const side = btn.dataset.side, i = parseInt(btn.dataset.i, 10);
+      if (isPaired(side, i)) { unpair(side, i); sel = null; clearActive(); return; }
+      if (!sel) { sel = { side, i }; clearActive(); btn.classList.add('active'); return; }
+      if (sel.side === side) { clearActive(); sel = { side, i }; btn.classList.add('active'); return; }
+      // разные стороны — создаём пару
+      const li = side === 'l' ? i : sel.i;
+      const rid = side === 'r' ? i : sel.i;
+      pairs[li] = rid;
+      paint(li);
+      sel = null; clearActive();
+      updateCheck();
+    });
+  });
+
+  function checkMatch() {
+    let allOk = true;
+    q.pairs.forEach((_, li) => {
+      const ok = pairs[li] === li;
+      if (!ok) allOk = false;
+      el('l', li).classList.add(ok ? 'correct' : 'wrong');
+      const rid = pairs[li];
+      if (rid != null) el('r', rid).classList.add(ok ? 'correct' : 'wrong');
+    });
+    stageEl.querySelectorAll('.match-item').forEach(b => b.disabled = true);
+    finishQuestion(allOk, q);
+  }
+}
+
+/* ---------- поставить по порядку ---------- */
+function renderOrder(q) {
+  const order = shuffled(q.items.length);   // порядок показа (id = правильная позиция)
+  stageEl.innerHTML = `
+    <div class="q-title">${q.q}</div>
+    <div class="q-hint">${q.hint}</div>
+    <div class="order" id="order">
+      ${order.map(id => `<button class="order-item" data-id="${id}"><span class="order-num"></span><span>${q.items[id]}</span></button>`).join('')}
+    </div>
+    ${feedbackBar()}`;
+  bottomCheck(checkOrder);
+
+  let seq = [];   // id в порядке нажатия
+  const items = [...stageEl.querySelectorAll('.order-item')];
+
+  function repaint() {
+    items.forEach(el => {
+      const id = parseInt(el.dataset.id, 10);
+      const pos = seq.indexOf(id);
+      const num = el.querySelector('.order-num');
+      if (pos === -1) { num.textContent = ''; el.classList.remove('picked'); }
+      else { num.textContent = pos + 1; el.classList.add('picked'); }
+    });
+    document.getElementById('checkBtn').disabled = seq.length !== q.items.length;
+  }
+
+  items.forEach(el => {
+    el.addEventListener('click', () => {
+      const id = parseInt(el.dataset.id, 10);
+      if (seq.includes(id)) seq = [];          // клик по пронумерованному — сброс
+      else seq.push(id);
+      repaint();
+    });
+  });
+
+  function checkOrder() {
+    let allOk = true;
+    items.forEach(el => {
+      const id = parseInt(el.dataset.id, 10);
+      const ok = seq.indexOf(id) === id;       // правильная позиция = id
+      if (!ok) allOk = false;
+      el.disabled = true;
+      el.classList.remove('picked');
+      el.classList.add(ok ? 'correct' : 'wrong');
+    });
+    finishQuestion(allOk, q);
+  }
+}
+
+/* общий финал ответа: показать feedback, переключить кнопку */
+function finishQuestion(ok, q) {
+  if (!ok) mistakes++;
+  setFb(ok ? q.right : q.wrong, ok);
+  mascot.say(ok ? 'Верно!' : 'Не совсем — запомни правильный вариант.', { emotion: ok ? 'happy' : 'think', duration: 3500 });
+  toNextButton();
+}
+
+/* =================== ФИНАЛ =================== */
+function renderFinale() {
+  progressFill.style.width = '100%';
+  stepNow.textContent = TOTAL;
+  const correct = TOTAL - mistakes;
+  saveProgress();
+  fireConfetti();
+
+  const medal = mistakes === 0 ? '🥇' : mistakes === 1 ? '🥈' : '🥉';
+  const sub = mistakes === 0
+    ? 'Идеально — вся теория усвоена!'
+    : `Верных ответов: ${correct} из ${TOTAL}. Что-то стоит повторить.`;
+  mascot.say(mistakes === 0 ? 'Блестяще! Всё верно!' : 'Хорошая работа! Разберём ошибки — и будет идеально.', { emotion: 'wow', duration: 6000 });
+
+  stageEl.innerHTML = `
+    <div style="font-size:88px;line-height:1;">${medal}</div>
+    <h1 class="q-h1">Тест пройден!</h1>
+    <p class="q-lead">${sub}</p>
+    <div class="m-stats">
+      <div class="m-stat"><div class="m-stat__val">${correct}<small style="font-size:20px;color:var(--fg-3);">/${TOTAL}</small></div><div class="m-stat__lbl">верных</div></div>
+      <div class="m-stat"><div class="m-stat__val">+${XP}</div><div class="m-stat__lbl">XP за тест</div></div>
+    </div>`;
+  bottomEl.innerHTML = `<button class="btn-continue" id="toHub">К темам →</button>`;
+  document.getElementById('toHub').onclick = () => { location.href = '../demo/'; };
+}
+
+/* ---------- прогресс + конфетти ---------- */
+function saveProgress() {
+  // ⏸ Сохранение прогресса временно отключено (сбрасывается при обновлении).
+  //    Чтобы вернуть — раскомментировать блок ниже.
+  // const st = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  // if (typeof st.xp !== 'number') st.xp = 0;
+  // if (!st.completed) st.completed = [];
+  // if (!st.completed.includes('quiz')) { st.completed.push('quiz'); st.xp += XP; }
+  // localStorage.setItem(STORAGE_KEY, JSON.stringify(st));
+}
+function fireConfetti() {
+  const box = document.createElement('div');
+  box.className = 'confetti';
+  const colors = ['#6240FF', '#CDFE00', '#FFD769', '#07BE7E', '#FF6B9D', '#149ECA'];
+  for (let i = 0; i < 70; i++) {
+    const p = document.createElement('span');
+    p.style.left = Math.random() * 100 + '%';
+    p.style.background = colors[i % colors.length];
+    p.style.animationDuration = (2.4 + Math.random() * 1.8) + 's';
+    p.style.animationDelay = (Math.random() * 0.5) + 's';
+    box.appendChild(p);
+  }
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 5000);
+}
+
+/* ---------- старт ---------- */
+mascot.say('Проверим теорию! Задания разные — выбирай, соединяй, ставь по порядку.', { emotion: 'idle', duration: 5000 });
+renderQuestion();
+</script>
+
+</body>
+</html>

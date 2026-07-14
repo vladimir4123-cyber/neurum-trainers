@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Новогодняя гирлянда · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💡</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css">
+<style>
+  body{ --mascot-bottom: 108px; }
+
+  .hint-link{
+    border: 0; background: none; cursor: pointer;
+    font-family: var(--font-sans); font-size: 16px; font-weight: 500;
+    color: var(--purple-1); padding: 6px 10px; border-radius: 9999px;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: background-color 120ms var(--ease-standard);
+  }
+  .hint-link:hover{ background: var(--purple-4); }
+  .hint-link:active{ transform: scale(0.96); }
+
+  main.m-stage{
+    max-width: 720px; margin: 0 auto;
+    padding: 8px 20px 160px;
+    display: flex; flex-direction: column; align-items: center; gap: 20px;
+    text-align: center;
+  }
+  .m-illus{ width: 100%; max-width: 600px; height: auto; }
+  .m-h1{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(26px, 5vw, 38px); line-height: 1.12;
+    color: var(--fg-1); letter-spacing: -0.02em; text-wrap: balance;
+  }
+  .m-lead{
+    font-size: var(--t-md); line-height: 1.45; color: var(--fg-2);
+    max-width: 32ch; text-wrap: pretty;
+  }
+  .m-lead b{ color: var(--purple-1); font-weight: 500; }
+
+  /* ---------- сцена измерения ---------- */
+  .lab-wrap{ width: 100%; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .garland-svg{ width: 100%; max-width: 620px; height: auto; }
+
+  .lab-row2{
+    display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: center;
+    gap: 22px; width: 100%;
+  }
+  .lab-row2 .meter-frame{ max-width: 300px; margin: 0; }
+
+  /* карточка ввода показаний */
+  .meas-card{
+    flex: 1; min-width: 260px; max-width: 340px;
+    background: #fff; border-radius: var(--radius-2xl);
+    box-shadow: 0 6px 20px rgba(24,12,34,.08);
+    padding: 18px 20px; text-align: left;
+  }
+  .meas-q{ font-size: 18px; line-height: 1.35; color: var(--fg-1); margin-bottom: 14px; text-wrap: pretty; }
+  .meas-q b{ color: var(--purple-1); font-weight: 500; }
+  .meas-row{ display: flex; gap: 10px; align-items: center; }
+  .meas-input{
+    flex: 1; min-width: 0; width: 100%;
+    font-family: var(--font-display); font-size: 26px; font-weight: 500;
+    color: var(--fg-1); text-align: center; font-variant-numeric: tabular-nums;
+    border: 2px solid var(--purple-4); border-radius: 14px; padding: 8px 10px;
+    outline: none; transition: border-color 120ms var(--ease-standard);
+  }
+  .meas-input:focus{ border-color: var(--purple-1); }
+  .meas-input:disabled{ opacity: .45; }
+  .meas-unit{ font-family: var(--font-display); font-size: 22px; color: var(--fg-3); flex: none; }
+  .meas-check{
+    flex: none; font-family: var(--font-sans); font-size: 16px; font-weight: 500;
+    color: #fff; background: var(--purple-1); border: 0; border-radius: 12px;
+    padding: 10px 18px; cursor: pointer;
+    transition: transform 120ms var(--ease-standard), opacity 150ms;
+  }
+  .meas-check:active{ transform: scale(0.95); }
+  .meas-check:disabled{ opacity: .45; cursor: default; }
+  .meas-fb{ margin-top: 12px; font-size: 15.5px; line-height: 1.4; min-height: 20px; text-wrap: pretty; }
+  .meas-fb.ok{ color: var(--success); font-weight: 500; }
+  .meas-fb.err{ color: var(--danger); }
+  .meas-fb.hint{ color: var(--warning-ink); }
+  .meas-note{ margin-top: 10px; font-size: 13px; color: var(--fg-3); }
+
+  /* таблица-протокол */
+  .lab-table{
+    min-width: 250px; flex: 1; max-width: 320px;
+    background: #fff; border-radius: var(--radius-2xl);
+    box-shadow: 0 6px 20px rgba(24,12,34,.08);
+    padding: 12px 18px; text-align: left;
+  }
+  .lab-tr{
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 4px; gap: 12px; font-size: 17px; color: var(--fg-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .lab-tr + .lab-tr{ border-top: 1px solid var(--purple-4); }
+  .lab-tr__name{ display: inline-flex; align-items: center; gap: 8px; }
+  .lab-dot{ width: 12px; height: 12px; border-radius: 50%; background: var(--c, #ccc); flex: none; }
+  .lab-tr__val{ font-family: var(--font-display); font-weight: 500; font-size: 19px; color: var(--fg-3); }
+  .lab-tr.done .lab-tr__val{ color: var(--purple-1); }
+  .lab-tr.done .lab-tr__name{ color: var(--fg-1); }
+  .lab-sum{ border-top: 2px solid var(--fg-1) !important; margin-top: 2px; font-weight: 500; }
+  .lab-whole{ font-weight: 500; }
+  .lab-sum .lab-tr__name, .lab-whole .lab-tr__name{ color: var(--fg-1); }
+  .lab-tr.match{ background: var(--success-surface); border-radius: 12px; }
+  .lab-tr.match .lab-tr__val{ color: var(--success); }
+
+  /* ---------- лампочки ---------- */
+  .bulb{ cursor: pointer; }
+  .bulb .halo{ opacity: 0; transition: opacity .4s var(--ease-standard); }
+  .bulb .fil{ opacity: .4; transition: opacity .35s; }
+  .bulb.lit .halo{ opacity: calc(.32 + .5 * var(--glow, .6)); animation: twinkle 2.6s ease-in-out infinite; }
+  .bulb.lit .fil{ opacity: 1; }
+  .bulb .sel-ring{ opacity: 0; transition: opacity .2s; }
+  .bulb.sel .sel-ring{ opacity: 1; }
+  .bulb .checkmark{ opacity: 0; transition: opacity .25s; }
+  .bulb.checked .checkmark{ opacity: 1; }
+  @keyframes twinkle{ 0%,100%{ opacity: calc(.32 + .5 * var(--glow, .6)) } 50%{ opacity: calc(.18 + .3 * var(--glow, .6)) } }
+
+  .src{ cursor: pointer; }
+  .src .src-ring{ opacity: 0; transition: opacity .2s; }
+  .src.sel .src-ring{ opacity: 1; }
+  .src .checkmark{ opacity: 0; transition: opacity .25s; }
+  .src.checked .checkmark{ opacity: 1; }
+
+  #probes{ opacity: 0; transition: opacity .18s; pointer-events: none; }
+  #probes.on{ opacity: 1; }
+  .probe-lead{ fill: none; stroke-width: 5; stroke-linecap: round; }
+
+  /* ---------- финал ---------- */
+  .law-card{
+    width: 100%; max-width: 460px;
+    background: linear-gradient(160deg, #fff, var(--purple-4));
+    border-radius: var(--radius-2xl); box-shadow: 0 8px 26px rgba(101,31,255,.14);
+    padding: 26px 20px;
+  }
+  .law-eq{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(30px, 6vw, 44px); line-height: 1;
+    color: var(--purple-1); font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+  }
+  .law-nums{ margin-top: 12px; font-size: 20px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+  .law-nums b{ color: var(--success); font-weight: 500; }
+  .m-stats{ display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+  .m-stat{ background: #fff; border-radius: var(--radius-xl); box-shadow: 0 4px 14px rgba(24,12,34,.06); padding: 16px 22px; min-width: 120px; }
+  .m-stat__val{ font-family: var(--font-display); font-weight: 500; font-size: 32px; color: var(--purple-1); font-variant-numeric: tabular-nums; }
+  .m-stat__lbl{ font-size: 15px; color: var(--fg-3); margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">3</span></span>
+</div>
+
+<main class="m-stage" id="stage"></main>
+
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+
+/* ============================================================
+   ПРАКТИКА-ЛАБОРАТОРНАЯ «Измерение напряжения на участках цепи».
+   Настоящая практика: ученик САМ снимает показания со шкалы
+   вольтметра и ВПИСЫВАЕТ их. Можно ошибиться — тогда подсказки
+   и новая попытка. В конце сам складывает U₁+U₂+U₃ и открывает
+   закон U = U₁ + U₂ + U₃ = U(источника).
+   Цена деления шкалы 0,2 В. Напряжения на лампах в сумме = 6 В.
+   ============================================================ */
+
+const SOURCE = 6;
+const VOLTS = [1.4, 2.0, 2.6];           // сумма = 6,0 В; читаются по шкале
+const N = VOLTS.length;
+const COLORS = ['#E5484D', '#F76B15', '#30A46C'];
+const STORAGE_KEY = 'voltmeter-progress';
+const XP = 50;
+const TOL = 0.11;                          // допуск: одно деление 0,2 В — уже мимо
+
+const VB_W = 600, VB_H = 320;
+const xs = [165, 300, 435];
+const topY = x => 60 + 26 * (1 - ((x - 300) / 300) ** 2);
+const END_L = { x: 30, y: 60 }, END_R = { x: 570, y: 60 };
+
+// Помощник-маскот на практике убран — остаётся только в уроках.
+const mascot = { say(){}, setEmotion(){}, hide(){} };
+const stageEl = document.getElementById('stage');
+const bottomEl = document.getElementById('bottom');
+const progressFill = document.getElementById('progressFill');
+const stepNow = document.getElementById('stepNow');
+
+const STEP_TOTAL = 3;
+function setProgress(i) {
+  progressFill.style.width = (i / STEP_TOTAL) * 100 + '%';
+  stepNow.textContent = Math.min(i + 1, STEP_TOTAL);
+}
+
+const fmt = v => (Math.round(v * 10) / 10).toFixed(1).replace('.', ',');
+const parseNum = s => parseFloat(String(s).replace(',', '.').trim());
+
+let hintIdx = 0;
+const HINTS = [
+  'Тыкни в лампочку — стрелка встанет на её напряжение. Прочитай по шкале.',
+  'Цена деления 0,2 В. Считай деления от нуля до стрелки и умножай на 0,2.',
+  'Когда измеришь все три лампы — тыкни в батарейку, это напряжение всей гирлянды.',
+];
+function showHint() {
+  mascot.say(HINTS[hintIdx % HINTS.length], { emotion: 'think', duration: 5000 });
+  hintIdx++;
+}
+
+/* ---------- SVG лампочки ---------- */
+function bulbSVG(i) {
+  const c = COLORS[i];
+  const glow = (VOLTS[i] / Math.max(...VOLTS)).toFixed(2);
+  return `
+    <g class="bulb lit" data-i="${i}" style="--c:${c};--glow:${glow}">
+      <line x1="0" y1="0" x2="0" y2="17" stroke="#2E5D3A" stroke-width="3.5" stroke-linecap="round"/>
+      <rect x="-9" y="16" width="18" height="12" rx="2.5" fill="url(#capGrad)"/>
+      <line x1="-9" y1="21" x2="9" y2="21" stroke="#7C7C86" stroke-width="1"/>
+      <line x1="-9" y1="24.5" x2="9" y2="24.5" stroke="#7C7C86" stroke-width="1"/>
+      <circle class="halo" cx="0" cy="54" r="42" fill="url(#halo${i})"/>
+      <path d="M-10 28 C-24 42,-22 78,0 82 C22 78,24 42,10 28 Z" fill="var(--c)"/>
+      <path class="fil" d="M-6 40 q3 8 0 14 q-3 6 0 12 q3 5 6 0" fill="none"
+            stroke="#FFF3C9" stroke-width="2.4" stroke-linecap="round"/>
+      <ellipse cx="-5" cy="46" rx="4.5" ry="9" fill="#fff" opacity=".55"/>
+      <g class="checkmark" transform="translate(14,20)">
+        <circle r="9.5" fill="var(--success)"/>
+        <path d="M-4 0 L-1 3 L4.5 -3.5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+      <ellipse class="sel-ring" cx="0" cy="55" rx="26" ry="34" fill="none" stroke="var(--purple-1)" stroke-width="3" stroke-dasharray="5 6"/>
+    </g>`;
+}
+
+function garlandSVG() {
+  const festoon = `M30 60 ` + xs.map(x => `L${x.toFixed(0)} ${topY(x).toFixed(0)}`).join(' ') + ` L570 60`;
+  const bulbs = xs.map((x, i) =>
+    `<g transform="translate(${x.toFixed(1)},${topY(x).toFixed(1)})">${bulbSVG(i)}</g>`).join('');
+  return `
+    <svg class="garland-svg" viewBox="0 0 ${VB_W} ${VB_H}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="capGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#CBced6"/><stop offset="1" stop-color="#8A8E99"/>
+        </linearGradient>
+        ${COLORS.map((c, i) => `
+          <radialGradient id="halo${i}" cx=".5" cy=".5" r=".5">
+            <stop offset="0" stop-color="${c}" stop-opacity=".9"/>
+            <stop offset="1" stop-color="${c}" stop-opacity="0"/>
+          </radialGradient>`).join('')}
+        <linearGradient id="battGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#3B3F4A"/><stop offset="1" stop-color="#20242E"/>
+        </linearGradient>
+      </defs>
+      <path d="M30 60 L30 286 L570 286 L570 60" fill="none" stroke="#2E5D3A" stroke-width="4" stroke-linecap="round"/>
+      <path d="${festoon}" fill="none" stroke="#2E5D3A" stroke-width="4"/>
+      <g class="src" transform="translate(250,266)">
+        <rect x="0" y="0" width="100" height="40" rx="9" fill="url(#battGrad)"/>
+        <rect x="8" y="9" width="84" height="10" rx="5" fill="#5B6070"/>
+        <circle cx="18" cy="30" r="4.5" fill="#E5484D"/>
+        <circle cx="82" cy="30" r="4.5" fill="#3E63DD"/>
+        <text x="50" y="16" text-anchor="middle" font-family="var(--font-display)" font-weight="500" font-size="13" fill="#EDEFF5">?</text>
+        <rect class="src-ring" x="-7" y="-7" width="114" height="54" rx="13" fill="none" stroke="var(--purple-1)" stroke-width="3" stroke-dasharray="5 6"/>
+        <g class="checkmark" transform="translate(104,0)">
+          <circle r="9.5" fill="var(--success)"/>
+          <path d="M-4 0 L-1 3 L4.5 -3.5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </g>
+      ${bulbs}
+      <g id="probes">
+        <path class="probe-lead" id="leadR" stroke="#E5484D" d=""/>
+        <path class="probe-lead" id="leadB" stroke="#2B2B33" d=""/>
+        <g id="tipR"><circle r="5.5" fill="#E5484D"/><circle r="2.4" fill="#fff"/></g>
+        <g id="tipB"><circle r="5.5" fill="#2B2B33"/><circle r="2.4" fill="#fff"/></g>
+      </g>
+    </svg>`;
+}
+
+/* ---------- ЭКРАНЫ ---------- */
+function renderIntro() {
+  setProgress(0);
+  stageEl.innerHTML = `
+    <div style="width:100%;background:#fff;border-radius:var(--radius-2xl);box-shadow:0 8px 26px rgba(24,12,34,.08);padding:22px 18px 10px;">
+      ${garlandSVG()}
+    </div>
+    <h1 class="m-h1">Гирлянда светится!</h1>
+    <p class="m-lead">Гирлянда горит от батарейки на <b>${SOURCE} В</b>. Лампочек три. Сколько вольт достаётся каждой? Сними показания вольтметром сам и найди правило.</p>`;
+  bottomEl.innerHTML = `<button class="btn-continue" id="go">Взять вольтметр →</button>`;
+  document.getElementById('go').onclick = renderMethod;
+  requestAnimationFrame(() => stageEl.querySelectorAll('.bulb').forEach(b => b.classList.add('lit')));
+  mascot.say('Проведём настоящую лабораторную — измеряй сам!', { emotion: 'idle', duration: 4500 });
+}
+
+function renderMethod() {
+  setProgress(1);
+  stageEl.innerHTML = `
+    <svg class="m-illus" viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg" style="max-width:540px;">
+      ${[0,1,2].map(i => {
+        const x = 110 + i*190;
+        return `
+          <g transform="translate(${x},70)">
+            <path d="M-16 0 C-34 22,-32 70,0 76 C32 70,34 22,16 0 Z" fill="${COLORS[i]}"/>
+            <ellipse cx="-6" cy="26" rx="6" ry="12" fill="#fff" opacity=".5"/>
+            <rect x="-13" y="-14" width="26" height="16" rx="3" fill="url(#capGrad3)"/>
+            <text x="0" y="118" text-anchor="middle" font-family="var(--font-display)" font-weight="500" font-size="30" fill="#6240FF">U${['₁','₂','₃'][i]}</text>
+          </g>`;
+      }).join('')}
+      <text x="205" y="150" text-anchor="middle" font-family="var(--font-display)" font-size="30" fill="#B0B4BE">+</text>
+      <text x="395" y="150" text-anchor="middle" font-family="var(--font-display)" font-size="30" fill="#B0B4BE">+</text>
+      <linearGradient id="capGrad3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#CBced6"/><stop offset="1" stop-color="#8A8E99"/></linearGradient>
+    </svg>
+    <h1 class="m-h1">Как измеряем</h1>
+    <p class="m-lead">Тыкай вольтметром <b>в каждую лампу</b>: смотри на стрелку, читай по шкале (цена деления <b>0,2 В</b>) и вписывай. Потом измерь <b>всю гирлянду</b> и сложи.</p>`;
+  bottomEl.innerHTML = `<button class="btn-continue" id="go">Начать измерения →</button>`;
+  document.getElementById('go').onclick = renderLab;
+  mascot.say('Показания снимаешь сам — как в настоящей лаборатории.', { emotion: 'think', duration: 4500 });
+}
+
+/* ---------- лаборатория с вводом показаний ---------- */
+const done = new Set();       // индексы измеренных ламп
+let doneWhole = false;
+let active = null;            // {kind:'lamp'|'whole'|'sum', i?, target, tries}
+let revealed = false;
+
+function renderLab() {
+  setProgress(2);
+  stageEl.innerHTML = `
+    <div class="lab-wrap">
+      ${garlandSVG()}
+      <div class="lab-row2">
+        <iframe class="meter-frame" id="meter" src="../?embed=1&value=0&max=6" title="Вольтметр"></iframe>
+        <div class="meas-card">
+          <div class="meas-q" id="measQ">Тыкни в лампочку, чтобы снять показания.</div>
+          <div class="meas-row">
+            <input class="meas-input" id="measInput" inputmode="decimal" placeholder="?" disabled autocomplete="off">
+            <span class="meas-unit">В</span>
+            <button class="meas-check" id="measCheck" disabled>Проверить</button>
+          </div>
+          <div class="meas-fb" id="measFb"></div>
+          <div class="meas-note">Цена деления шкалы — 0,2 В</div>
+        </div>
+      </div>
+      <div class="lab-table" id="labTable">
+        ${VOLTS.map((v, i) => `
+          <div class="lab-tr" data-lamp="${i}" style="--c:${COLORS[i]}">
+            <span class="lab-tr__name"><span class="lab-dot"></span>Лампа ${i + 1}</span>
+            <span class="lab-tr__val" id="lampVal${i}">—</span>
+          </div>`).join('')}
+        <div class="lab-tr lab-sum"><span class="lab-tr__name">Сумма U₁+U₂+U₃</span><span class="lab-tr__val" id="sumVal">—</span></div>
+        <div class="lab-tr lab-whole"><span class="lab-tr__name">Вся гирлянда</span><span class="lab-tr__val" id="wholeVal">—</span></div>
+      </div>
+      <button class="hint-link" id="hintBtn">💡 Нужна подсказка?</button>
+    </div>`;
+  bottomEl.innerHTML = `
+    <button class="btn-back" id="toHub">← К темам</button>
+    <button class="btn-continue" id="nextBtn" disabled>Открыть закон →</button>`;
+  document.getElementById('toHub').onclick = () => { location.href = '../demo/'; };
+  document.getElementById('nextBtn').onclick = renderFinale;
+  document.getElementById('hintBtn').onclick = showHint;
+
+  requestAnimationFrame(() => stageEl.querySelectorAll('.bulb').forEach(b => b.classList.add('lit')));
+  stageEl.querySelectorAll('.bulb').forEach(g =>
+    g.addEventListener('click', () => activateLamp(parseInt(g.dataset.i, 10))));
+  stageEl.querySelector('.src').addEventListener('click', activateWhole);
+
+  const input = document.getElementById('measInput');
+  document.getElementById('measCheck').addEventListener('click', submitReading);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') submitReading(); });
+
+  mascot.say('Тыкай в лампочку и снимай показания со шкалы сам!', { emotion: 'idle', duration: 5000 });
+}
+
+/* активировать замер лампы */
+function activateLamp(i) {
+  if (done.has(i)) { flashRow(i); return; }
+  active = { kind: 'lamp', i, target: VOLTS[i], tries: 0 };
+  markSel('lamp', i);
+  moveProbes({ x: xs[i] - 11, y: topY(xs[i]) + 20 }, { x: xs[i] + 11, y: topY(xs[i]) + 20 });
+  setMeter(VOLTS[i]);
+  openInput(`Лампа ${i + 1}: посмотри на стрелку и <b>впиши напряжение</b>.`);
+}
+
+/* активировать замер всей гирлянды */
+function activateWhole() {
+  if (done.size < N) { openInputLocked('Сначала измерь все три лампы, потом — всю гирлянду.'); return; }
+  if (doneWhole) return;
+  active = { kind: 'whole', target: SOURCE, tries: 0 };
+  markSel('whole');
+  moveProbes(END_L, END_R);
+  setMeter(SOURCE);
+  openInput('Вся гирлянда: сними показания на всей цепочке.');
+}
+
+/* перейти к сложению */
+function activateSum() {
+  active = { kind: 'sum', target: SOURCE, tries: 0 };
+  document.getElementById('probes').classList.remove('on');
+  markSel(null);
+  setMeter(0);
+  openInput('Сложи напряжения на лампах: <b>U₁ + U₂ + U₃</b>. Сколько всего?');
+}
+
+function openInput(q) {
+  document.getElementById('measQ').innerHTML = q;
+  const input = document.getElementById('measInput');
+  input.disabled = false; input.value = ''; input.focus();
+  document.getElementById('measCheck').disabled = false;
+  setFb('', '');
+}
+function openInputLocked(q) {
+  document.getElementById('measQ').innerHTML = q;
+  const input = document.getElementById('measInput');
+  input.disabled = true; input.value = '';
+  document.getElementById('measCheck').disabled = true;
+  setFb('', '');
+}
+
+function setFb(text, cls) {
+  const fb = document.getElementById('measFb');
+  fb.className = 'meas-fb' + (cls ? ' ' + cls : '');
+  fb.innerHTML = text;
+}
+
+/* проверка введённого показания */
+function submitReading() {
+  if (!active) return;
+  const raw = document.getElementById('measInput').value;
+  const v = parseNum(raw);
+  if (isNaN(v)) { setFb('Впиши число — сколько вольт показывает стрелка.', 'err'); return; }
+  active.tries++;
+  const diff = Math.abs(v - active.target);
+
+  if (diff < TOL) { onCorrect(); return; }
+
+  // неверно — подсказки нарастают
+  const oneDiv = Math.abs(diff - 0.2) < 0.06;
+  if (active.tries === 1 && oneDiv) {
+    setFb('Почти! Ошибка на одно деление (0,2 В). Пересчитай внимательнее.', 'hint');
+  } else if (active.tries === 1) {
+    setFb('Не туда. Между какими числами стрелка? Считай деления по 0,2 В от нуля.', 'err');
+  } else if (active.tries === 2) {
+    const near = Math.floor(active.target);
+    setFb(`Подсказка: стрелка чуть дальше ${near} В. Прибавляй по 0,2 В за деление.`, 'hint');
+  } else {
+    setFb(`Смотри: стрелка стоит на <b>${fmt(active.target)} В</b>. Впиши это значение.`, 'hint');
+  }
+}
+
+function onCorrect() {
+  const a = active;
+  if (a.kind === 'lamp') {
+    done.add(a.i);
+    document.getElementById('lampVal' + a.i).textContent = fmt(a.target) + ' В';
+    document.querySelector(`.lab-tr[data-lamp="${a.i}"]`).classList.add('done');
+    stageEl.querySelector(`.bulb[data-i="${a.i}"]`).classList.add('checked');
+    setFb('✓ Верно!', 'ok');
+    active = null; markSel(null);
+    document.getElementById('probes').classList.remove('on');
+    if (done.size < N) {
+      openInputLocked('Отлично! Тыкни в следующую лампочку.');
+    } else {
+      openInputLocked('Все три лампы измерены! Теперь тыкни в батарейку — вся гирлянда.');
+      mascot.say('Осталась вся гирлянда — тыкни в батарейку.', { emotion: 'happy', duration: 4000 });
+    }
+  } else if (a.kind === 'whole') {
+    doneWhole = true;
+    document.getElementById('wholeVal').textContent = fmt(a.target) + ' В';
+    document.querySelector('.lab-whole').classList.add('done');
+    stageEl.querySelector('.src').classList.add('checked');
+    setFb('✓ Верно — на всей гирлянде ' + fmt(a.target) + ' В', 'ok');
+    active = null; markSel(null);
+    document.getElementById('probes').classList.remove('on');
+    setTimeout(activateSum, 700);
+  } else if (a.kind === 'sum') {
+    document.getElementById('sumVal').textContent = fmt(a.target) + ' В';
+    document.querySelector('.lab-sum').classList.add('done', 'match');
+    document.querySelector('.lab-whole').classList.add('match');
+    setFb('✓ Верно! Сумма равна напряжению всей гирлянды.', 'ok');
+    openInputLocked('Ты сам открыл закон: сумма напряжений на лампах = напряжение источника.');
+    document.getElementById('measInput').disabled = true;
+    document.getElementById('measCheck').disabled = true;
+    document.getElementById('nextBtn').disabled = false;
+    active = null; revealed = true;
+    mascot.say(`${VOLTS.map(fmt).join(' + ')} = ${fmt(SOURCE)} — как на всей гирлянде! Это закон.`, { emotion: 'wow', duration: 7000 });
+  }
+}
+
+/* подсветка выбранного элемента */
+function markSel(kind, i) {
+  stageEl.querySelectorAll('.bulb').forEach(g =>
+    g.classList.toggle('sel', kind === 'lamp' && parseInt(g.dataset.i, 10) === i));
+  const src = stageEl.querySelector('.src');
+  if (src) src.classList.toggle('sel', kind === 'whole');
+}
+function flashRow(i) {
+  const row = document.querySelector(`.lab-tr[data-lamp="${i}"]`);
+  if (row) row.animate([{ opacity: 1 }, { opacity: .4 }, { opacity: 1 }], { duration: 400 });
+}
+
+function moveProbes(cL, cR) {
+  const oxR = 264, oxB = 336, oy = 316;
+  document.getElementById('leadR').setAttribute('d', `M${oxR} ${oy} Q${cL.x} ${cL.y + 70}, ${cL.x} ${cL.y + 4}`);
+  document.getElementById('leadB').setAttribute('d', `M${oxB} ${oy} Q${cR.x} ${cR.y + 70}, ${cR.x} ${cR.y + 4}`);
+  document.getElementById('tipR').setAttribute('transform', `translate(${cL.x},${cL.y})`);
+  document.getElementById('tipB').setAttribute('transform', `translate(${cR.x},${cR.y})`);
+  document.getElementById('probes').classList.add('on');
+}
+function setMeter(value) {
+  const f = document.getElementById('meter');
+  if (f && f.contentWindow) f.contentWindow.postMessage({ type: 'voltmeter:setNeedle', value, max: 6 }, '*');
+}
+
+/* ---------- финал ---------- */
+function renderFinale() {
+  progressFill.style.width = '100%';
+  stepNow.textContent = STEP_TOTAL;
+  saveProgress();
+  fireConfetti();
+  mascot.say('Ты всё измерил сам. С наступающим! 🎄', { emotion: 'wow', duration: 7000 });
+  const eq = VOLTS.map(fmt).join(' + ');
+  stageEl.innerHTML = `
+    <div style="width:100%;background:#fff;border-radius:var(--radius-2xl);box-shadow:0 8px 26px rgba(24,12,34,.08);padding:22px 18px 12px;">
+      ${garlandSVG()}
+    </div>
+    <h1 class="m-h1">Ты открыл закон! 🎄</h1>
+    <div class="law-card">
+      <div class="law-eq">U = U₁ + U₂ + U₃</div>
+      <div class="law-nums">${eq} = <b>${fmt(SOURCE)} В</b></div>
+    </div>
+    <p class="m-lead">Напряжение источника <b>делится</b> между лампами, а сумма напряжений на участках равна напряжению всей цепи.</p>
+    <div class="m-stats">
+      <div class="m-stat"><div class="m-stat__val">${N + 1}</div><div class="m-stat__lbl">замера сделано</div></div>
+      <div class="m-stat"><div class="m-stat__val">+${XP}</div><div class="m-stat__lbl">XP за практику</div></div>
+    </div>`;
+  requestAnimationFrame(() => stageEl.querySelectorAll('.bulb').forEach(b => b.classList.add('lit')));
+  bottomEl.innerHTML = `<button class="btn-continue" id="toHub">К темам →</button>`;
+  document.getElementById('toHub').onclick = () => { location.href = '../demo/'; };
+}
+
+/* ---------- прогресс + конфетти ---------- */
+function saveProgress() {
+  // ⏸ Сохранение прогресса временно отключено (сбрасывается при обновлении).
+  //    Чтобы вернуть — раскомментировать блок ниже.
+  // const st = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  // if (typeof st.xp !== 'number') st.xp = 0;
+  // if (!st.completed) st.completed = [];
+  // if (!st.completed.includes('garland')) { st.completed.push('garland'); st.xp += XP; }
+  // localStorage.setItem(STORAGE_KEY, JSON.stringify(st));
+}
+function fireConfetti() {
+  const box = document.createElement('div');
+  box.className = 'confetti';
+  const colors = ['#6240FF', '#CDFE00', '#FFD769', '#07BE7E', '#FF6B9D', '#149ECA'];
+  for (let i = 0; i < 70; i++) {
+    const p = document.createElement('span');
+    p.style.left = Math.random() * 100 + '%';
+    p.style.background = colors[i % colors.length];
+    p.style.animationDuration = (2.4 + Math.random() * 1.8) + 's';
+    p.style.animationDelay = (Math.random() * 0.5) + 's';
+    box.appendChild(p);
+  }
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 5000);
+}
+
+/* ---------- старт ---------- */
+renderIntro();
+</script>
+
+</body>
+</html>
