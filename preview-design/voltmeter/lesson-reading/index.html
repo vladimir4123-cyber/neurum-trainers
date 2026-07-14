@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Как снять показания · Вольтметр</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css">
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '/assets/lesson/lesson-engine.js';
+
+const TARGET = 4.4;  // куда показывает стрелка в интерактиве
+const PRICE = 0.2;   // цена деления
+const MAX = 6;       // предел шкалы
+const TOTAL = MAX / PRICE;             // всего делений на шкале (30)
+const TARGET_DIV = Math.round(TARGET / PRICE);  // делений до стрелки (22)
+
+const meterFrame = (value = 0, max = 6) =>
+  `<iframe class="meter-frame" src="../?embed=1&value=${value}&max=${max}" title="Вольтметр"></iframe>`;
+
+/* Русское склонение слова «деление» по числу */
+function divWord(n) {
+  const d = n % 10, dd = n % 100;
+  if (d === 1 && dd !== 11) return 'деление';
+  if (d >= 2 && d <= 4 && (dd < 12 || dd > 14)) return 'деления';
+  return 'делений';
+}
+
+/* Прямая шкала 0..6 с делениями; первые litN делений подсвечены (отсчёт).
+   Стрелка-указатель стоит на TARGET. */
+function scaleCount(litN) {
+  const x0 = 46, x1 = 574, y = 92;
+  const px = i => x0 + (x1 - x0) * i / TOTAL;
+  let ticks = '';
+  for (let i = 0; i <= TOTAL; i++) {
+    const major = i % 5 === 0;
+    const lit = i > 0 && i <= litN;
+    const stroke = lit ? '#6240FF' : (major ? '#232323' : '#C2C6D0');
+    ticks += `<line x1="${px(i).toFixed(1)}" y1="${y}" x2="${px(i).toFixed(1)}" y2="${(y - (major ? 28 : 17)).toFixed(1)}" stroke="${stroke}" stroke-width="${major ? 3 : 2}"/>`;
+    if (major) {
+      const val = i / 5;
+      ticks += `<text x="${px(i).toFixed(1)}" y="${y + 24}" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="20" fill="#232323">${val}</text>`;
+    }
+  }
+  const nx = px(TARGET_DIV);
+  return `
+    <svg viewBox="0 0 620 170" class="circuit-svg" aria-hidden="true">
+      <line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="#232323" stroke-width="3"/>
+      ${ticks}
+      <!-- красная стрелка-указатель на значении -->
+      <path d="M${nx.toFixed(1)} ${y - 44} L${(nx - 9).toFixed(1)} ${y - 62} L${(nx + 9).toFixed(1)} ${y - 62} Z" fill="#D8232A"/>
+      <line x1="${nx.toFixed(1)}" y1="${y - 44}" x2="${nx.toFixed(1)}" y2="${y}" stroke="#D8232A" stroke-width="3"/>
+    </svg>`;
+}
+
+/* =================== ШАГИ ТЕМЫ =================== */
+const STEPS = [
+  /* ---------- ТЕОРИЯ ---------- */
+  {
+    type: 'intro', phase: 'theory', visual: 'meterAt',
+    title: 'Стрелка показывает значение',
+    text: 'Стрелка остановилась напротив деления. Чтобы узнать <b>напряжение</b>, нужно правильно прочитать её положение по шкале.',
+    mascotSay: 'Учимся снимать показания со шкалы!',
+  },
+  {
+    type: 'interact', phase: 'theory', visual: 'countScale',
+    title: 'Считаем показания',
+    text: 'Сначала цена деления, потом считаем деления от нуля до стрелки. Нажми «Отсчитать» — и увидишь, как деления складываются в напряжение.',
+    mascotSay: 'Давай отсчитаем деления вместе!',
+    check: 'count',
+  },
+  {
+    type: 'interact', phase: 'theory', visual: 'readGuess',
+    title: 'Сними показания сам',
+    text: 'Прочитай, что показывает стрелка, и подведи под неё свой ответ ползунком.',
+    mascotSay: 'Определи, что показывает прибор!',
+    check: 'read',
+  },
+
+  /* ---------- SPLASH ---------- */
+  {
+    type: 'splash', phase: 'transition',
+    title: 'Проверь себя!',
+    text: 'Научились снимать показания — давайте проверим.',
+    mascotSay: 'Давайте проверим!',
+  },
+
+  /* ---------- ПРАКТИКА ---------- */
+  {
+    type: 'question', phase: 'practice', visual: 'meterQuiz',
+    title: 'Сколько показывает вольтметр?',
+    text: 'Шкала до 6 В, цена деления 0,2 В. Куда показывает стрелка?',
+    options: [
+      { id: 'a', text: '3 В',   correct: true },
+      { id: 'b', text: '2 В',   correct: false },
+      { id: 'c', text: '3,5 В', correct: false },
+      { id: 'd', text: '6 В',   correct: false },
+    ],
+    right: 'Верно! Стрелка на 3 В.',
+    wrong: 'Смотри внимательно: стрелка ровно на середине между 0 и 6 — это 3 В.',
+  },
+  {
+    type: 'question', phase: 'practice',
+    title: 'С чего начинать снятие показаний?',
+    text: 'Ты подошёл к прибору. Какое первое действие?',
+    options: [
+      { id: 'a', text: 'Определить цену деления', correct: true },
+      { id: 'b', text: 'Сразу назвать число',     correct: false },
+      { id: 'c', text: 'Посмотреть на клеммы',    correct: false },
+      { id: 'd', text: 'Постучать по стеклу',      correct: false },
+    ],
+    right: 'Именно! Без цены деления показания не прочитать. Сначала она, потом считаем деления.',
+    wrong: 'Сначала — цена деления. Только зная её, можно посчитать, сколько показывает стрелка.',
+  },
+];
+
+/* =================== ВИЗУАЛЫ ТЕМЫ =================== */
+const visuals = {
+  meterAt() {
+    return meterFrame(TARGET);
+  },
+  countScale() {
+    return `
+      <div class="lamp-slider-wrap">
+        <div id="countHost" style="width:100%;max-width:600px;">${scaleCount(0)}</div>
+        <div class="count-readout">
+          <span id="cntDiv">0</span> <span id="cntWord">делений</span> × 0,2 В = <b><span id="cntV">0</span> В</b>
+        </div>
+        <button class="polarity-btn" id="countBtn">▶ Отсчитать деления до стрелки</button>
+      </div>`;
+  },
+  readGuess() {
+    return `
+      <div class="lamp-slider-wrap">
+        <div id="readMeter" style="width:100%;max-width:460px;">${meterFrame(TARGET)}</div>
+        <div class="big-slider">
+          <div class="big-slider__label">твой ответ</div>
+          <div class="big-slider__val"><span id="gVal">3,0</span> В</div>
+          <input type="range" id="gSlider" min="0" max="6" step="0.2" value="3" class="big-slider__input">
+          <div class="big-slider__hint" id="gHint">Подведи ползунок под стрелку</div>
+        </div>
+      </div>`;
+  },
+  meterQuiz() {
+    return meterFrame(3);
+  },
+};
+
+/* =================== ЗАПУСК =================== */
+runLesson({
+  lessonId: 'reading',
+  storageKey: 'voltmeter-progress',
+  homeHref: '../demo/',
+  steps: STEPS,
+  visuals,
+  onInteract(step, ctx) {
+    if (step.check === 'count') {
+      const host = document.getElementById('countHost');
+      const btn = document.getElementById('countBtn');
+      const cntDiv = document.getElementById('cntDiv');
+      const cntV = document.getElementById('cntV');
+      const cntWord = document.getElementById('cntWord');
+      let running = false, doneOnce = false, timer = null;
+      btn.addEventListener('click', () => {
+        if (running) return;
+        running = true; btn.disabled = true;
+        let n = 0;
+        timer = setInterval(() => {
+          n++;
+          host.innerHTML = scaleCount(n);          // подсвечиваем на одно деление больше
+          cntDiv.textContent = n;
+          cntWord.textContent = divWord(n);
+          cntV.textContent = String(Math.round(n * PRICE * 10) / 10).replace('.', ',');
+          if (n >= TARGET_DIV) {
+            clearInterval(timer);
+            running = false; btn.disabled = false;
+            btn.textContent = '↺ Отсчитать заново';
+            if (!doneOnce) {
+              doneOnce = true;
+              ctx.done();
+              ctx.mascot.say('Вот так: 22 деления по 0,2 В — это 4,4 В!', { emotion: 'happy', duration: 4000 });
+            }
+          }
+        }, 85);
+      });
+    } else if (step.check === 'read') {
+      const slider = document.getElementById('gSlider');
+      const gVal = document.getElementById('gVal');
+      const gHint = document.getElementById('gHint');
+      let solved = false;
+      slider.addEventListener('input', () => {
+        const v = parseFloat(slider.value);
+        gVal.textContent = v.toFixed(1).replace('.', ',');
+        if (Math.abs(v - TARGET) < 0.11) {
+          gHint.textContent = '✓ Точно! Стрелка на 4,4 В';
+          gHint.style.color = 'var(--success)';
+          if (!solved) {
+            solved = true;
+            ctx.done();
+            ctx.mascot.say('В точку! Ты снял показания правильно.', { emotion: 'happy', duration: 3500 });
+          }
+        } else {
+          gHint.textContent = v < TARGET ? 'Чуть больше — стрелка правее' : 'Чуть меньше — стрелка левее';
+          gHint.style.color = '';
+        }
+      });
+    }
+  },
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Цена деления · Вольтметр</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📏</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css">
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '/assets/lesson/lesson-engine.js';
+
+const meterFrame = (value = 0, max = 6) =>
+  `<iframe class="meter-frame" src="../?embed=1&value=${value}&max=${max}" title="Вольтметр"></iframe>`;
+const PRICE = 0.2;  // цена деления верхней шкалы прибора (6 В, 5 делений на вольт)
+
+/* =================== ШАГИ ТЕМЫ =================== */
+const STEPS = [
+  /* ---------- ТЕОРИЯ ---------- */
+  {
+    type: 'intro', phase: 'theory', visual: 'scaleZoom',
+    title: 'Что такое цена деления',
+    text: 'Между цифрами на шкале — маленькие деления. <b>Цена деления</b> — это сколько вольт «стоит» одно такое деление.',
+    mascotSay: 'Разберёмся, что такое цена деления!',
+  },
+  {
+    type: 'reveal', phase: 'theory', visual: 'formula',
+    title: 'Как её посчитать',
+    text: 'Возьми два соседних числа, вычти меньшее из большего и раздели на число делений между ними. Например: (1 − 0) ÷ 5 = <b>0,2 В</b>.',
+    mascotSay: 'Формула простая: разность чисел ÷ число делений.',
+  },
+  {
+    type: 'interact', phase: 'theory', visual: 'priceCalc',
+    title: 'Определи цену деления',
+    text: 'На верхней шкале прибора между 0 и 1 В — <b>пять</b> делений. Посчитай цену деления и подведи ползунок к правильному значению.',
+    mascotSay: 'Посчитай цену деления и поставь ответ!',
+    check: 'price',
+  },
+
+  /* ---------- SPLASH ---------- */
+  {
+    type: 'splash', phase: 'transition',
+    title: 'Проверь себя!',
+    text: 'Разобрались с ценой деления — давайте потренируемся.',
+    mascotSay: 'Давайте проверим!',
+  },
+
+  /* ---------- ПРАКТИКА ---------- */
+  {
+    type: 'question', phase: 'practice', visual: 'scaleQuiz',
+    title: 'Найди цену деления',
+    text: 'На шкале между 0 и 2 В — десять маленьких делений. Чему равна цена деления?',
+    options: [
+      { id: 'a', text: '0,2 В', correct: true },
+      { id: 'b', text: '0,5 В', correct: false },
+      { id: 'c', text: '2 В',   correct: false },
+      { id: 'd', text: '10 В',  correct: false },
+    ],
+    right: 'Верно! (2 − 0) ÷ 10 = 0,2 В на одно деление.',
+    wrong: 'Считаем: разность чисел (2 − 0) делим на число делений (10). Получаем 0,2 В.',
+  },
+  {
+    type: 'question', phase: 'practice',
+    title: 'Чем меньше цена деления, тем прибор…',
+    text: 'Один прибор имеет цену деления 1 В, другой — 0,1 В. Какой измеряет точнее?',
+    options: [
+      { id: 'a', text: 'Точнее — у которого 0,1 В', correct: true },
+      { id: 'b', text: 'Точнее — у которого 1 В',   correct: false },
+      { id: 'c', text: 'Одинаково',                  correct: false },
+      { id: 'd', text: 'Зависит от напряжения',      correct: false },
+    ],
+    right: 'Точно! Меньше цена деления — мельче шаг шкалы — точнее измерение.',
+    wrong: 'Наоборот: чем меньше цена деления (0,1 В), тем мельче шаг и точнее прибор.',
+  },
+];
+
+/* =================== ВИЗУАЛЫ ТЕМЫ =================== */
+const visuals = {
+  scaleZoom() {
+    return meterFrame(2.4);
+  },
+  formula() {
+    /* Крупная формула цены деления + пример на маленькой шкале */
+    return `
+      <svg viewBox="0 0 620 300" class="circuit-svg">
+        <!-- шкала-пример 0..1 с 5 делениями (по центру) -->
+        <g transform="translate(190,70)">
+          <line x1="0" y1="40" x2="240" y2="40" stroke="#232323" stroke-width="3"/>
+          ${[0,1,2,3,4,5].map(i => `<line x1="${i*48}" y1="40" x2="${i*48}" y2="${i%5===0?18:26}" stroke="#232323" stroke-width="${i%5===0?3:2}"/>`).join('')}
+          <text x="0" y="12" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="22" fill="#232323">0</text>
+          <text x="240" y="12" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="22" fill="#232323">1</text>
+        </g>
+        <!-- формула -->
+        <text x="310" y="215" text-anchor="middle" font-family="var(--font-display)" font-weight="500" font-size="38" fill="#232323">
+          <tspan fill="#6240FF">1 − 0</tspan> ÷ <tspan fill="#6240FF">5</tspan> = <tspan fill="#07BE7E">0,2 В</tspan>
+        </text>
+      </svg>`;
+  },
+  scaleQuiz() {
+    /* Учебная шкала 0..2 В с 10 делениями — для вопроса «найди цену деления».
+       Это диаграмма конкретной шкалы, а не сам прибор. */
+    const x0 = 70, x1 = 550, N = 10;
+    let ticks = '';
+    for (let i = 0; i <= N; i++) {
+      const x = x0 + (x1 - x0) * i / N;
+      const major = i % 5 === 0;
+      ticks += `<line x1="${x.toFixed(1)}" y1="96" x2="${x.toFixed(1)}" y2="${major ? 54 : 74}" stroke="#232323" stroke-width="${major ? 3 : 2}"/>`;
+      if (major) {
+        const val = i / 5;
+        ticks += `<text x="${x.toFixed(1)}" y="42" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="28" fill="#232323">${val}</text>`;
+      }
+    }
+    return `
+      <svg viewBox="0 0 620 150" class="circuit-svg">
+        <line x1="${x0}" y1="96" x2="${x1}" y2="96" stroke="#232323" stroke-width="3"/>
+        ${ticks}
+        <!-- скобка «10 делений» под шкалой -->
+        <path d="M${x0} 116 L${x0} 124 L${x1} 124 L${x1} 116" fill="none" stroke="#6240FF" stroke-width="2"/>
+        <text x="310" y="144" text-anchor="middle" font-family="var(--font-sans)" font-weight="500" font-size="15" fill="#6240FF">10 делений между 0 и 2 В</text>
+      </svg>`;
+  },
+  priceCalc() {
+    return `
+      <div class="lamp-slider-wrap">
+        <div style="width:100%;max-width:460px;">${meterFrame(2.4)}</div>
+        <div class="big-slider">
+          <div class="big-slider__val" style="font-size:clamp(32px,6vw,52px);">цена: <span id="pVal">0,5</span> В</div>
+          <input type="range" id="pSlider" min="0.1" max="1" step="0.05" value="0.5" class="big-slider__input">
+          <div class="big-slider__hint" id="pHint">Подведи к цене деления шкалы</div>
+        </div>
+      </div>`;
+  },
+};
+
+/* =================== ЗАПУСК =================== */
+runLesson({
+  lessonId: 'price',
+  storageKey: 'voltmeter-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-reading/',
+  steps: STEPS,
+  visuals,
+  onInteract(step, ctx) {
+    if (step.check === 'price') {
+      const slider = document.getElementById('pSlider');
+      const pVal = document.getElementById('pVal');
+      const pHint = document.getElementById('pHint');
+      let solved = false;
+      slider.addEventListener('input', () => {
+        const v = parseFloat(slider.value);
+        pVal.textContent = String(v).replace('.', ',');
+        if (!solved && Math.abs(v - PRICE) < 0.001) {
+          solved = true;
+          pHint.textContent = '✓ Верно! (1 − 0) ÷ 5 = 0,2 В';
+          pHint.style.color = 'var(--success)';
+          ctx.done();
+          ctx.mascot.say('Точно! Цена деления — 0,2 В.', { emotion: 'happy', duration: 3500 });
+        }
+      });
+    }
+  },
+});
+</script>
+
+</body>
+</html>
