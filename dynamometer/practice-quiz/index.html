@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Тест по теории · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="/assets/lesson/practice.css?v=4">
+<style>
+  .task-icon{ font-size: 64px; line-height: 1; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">5</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '/assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Тест по теории» — пул из 10 вопросов о динамометре.
+   На каждый запуск — случайная выборка: легко 3, средне 5,
+   сложно 7. Варианты перемешивает движок.
+   ============================================================ */
+
+const TASKS = [
+  { icon: '📏',
+    text: 'Что измеряет динамометр?',
+    options: [
+      { text: 'Силу', correct: true },
+      { text: 'Массу тела', correct: false },
+      { text: 'Скорость движения', correct: false },
+      { text: 'Давление', correct: false },
+    ],
+    right: '✓ Именно силу. «Динамис» по-гречески — сила, «метрео» — измеряю.',
+    wrong: 'Динамометр измеряет именно силу — в ньютонах. Масса и скорость — забота других приборов.' },
+  { icon: '🍎',
+    text: 'В каких единицах измеряют силу?',
+    options: [
+      { text: 'В ньютонах', correct: true },
+      { text: 'В килограммах', correct: false },
+      { text: 'В джоулях', correct: false },
+      { text: 'В паскалях', correct: false },
+    ],
+    right: '✓ В ньютонах (Н). Килограммы — про массу, джоули — про работу и энергию.',
+    wrong: 'Сила измеряется в ньютонах (Н). Килограммы — это масса, джоули — работа.' },
+  { icon: '👨‍🔬',
+    text: 'В честь кого назвали единицу силы?',
+    options: [
+      { text: 'Исаака Ньютона', correct: true },
+      { text: 'Роберта Гука', correct: false },
+      { text: 'Джеймса Уатта', correct: false },
+      { text: 'Блеза Паскаля', correct: false },
+    ],
+    right: '✓ В честь Исаака Ньютона — того самого, с яблоком. И 1 Н как раз примерно вес яблока!',
+    wrong: 'Единица силы — ньютон, в честь Исаака Ньютона. Гуку достался закон упругости, Уатту — единица мощности.' },
+  { icon: '🌀',
+    text: 'Какая деталь — «сердце» динамометра?',
+    options: [
+      { text: 'Пружина', correct: true },
+      { text: 'Магнит', correct: false },
+      { text: 'Батарейка', correct: false },
+      { text: 'Шестерёнка', correct: false },
+    ],
+    right: '✓ Пружина! По её растяжению прибор и определяет силу.',
+    wrong: 'Внутри нет ни магнита, ни батарейки — только пружина. По её растяжению прибор определяет силу.' },
+  { icon: '🪢',
+    text: 'Закон Гука: если тянуть пружину вдвое сильнее, растяжение…',
+    options: [
+      { text: 'Станет вдвое больше', correct: true },
+      { text: 'Не изменится', correct: false },
+      { text: 'Станет вдвое меньше', correct: false },
+      { text: 'Станет вчетверо больше', correct: false },
+    ],
+    right: '✓ Вдвое больше! Растяжение прямо пропорционально силе — поэтому шкала прибора равномерная.',
+    wrong: 'По закону Гука растяжение прямо пропорционально силе: вдвое сильнее тянешь — вдвое больше растяжение.' },
+  { icon: '📐',
+    text: 'Как найти цену деления шкалы?',
+    options: [
+      { text: 'Разность соседних чисел разделить на число делений между ними', correct: true },
+      { text: 'Сложить все числа на шкале', correct: false },
+      { text: 'Посмотреть на самое большое число', correct: false },
+      { text: 'Предел измерения разделить на длину шкалы в сантиметрах', correct: false },
+    ],
+    right: '✓ Да: берём два соседних подписанных числа, вычитаем и делим на число делений между ними.',
+    wrong: 'Формула такая: разность соседних чисел шкалы делим на число делений между ними. Самое большое число — это предел, не цена.' },
+  { icon: '🚧',
+    text: 'Что такое предел измерения динамометра?',
+    options: [
+      { text: 'Наибольшая сила, которую можно измерить этим прибором', correct: true },
+      { text: 'Число делений на шкале', correct: false },
+      { text: 'Длина пружины', correct: false },
+      { text: 'Цена одного деления шкалы', correct: false },
+    ],
+    right: '✓ Верно: это самое большое число шкалы. Сильнее тянуть прибор нельзя.',
+    wrong: 'Предел измерения — наибольшая сила на шкале. Тянуть сильнее — портить пружину.' },
+  { icon: '💥',
+    text: 'Подвесили груз тяжелее предела измерения. Что с прибором?',
+    options: [
+      { text: 'Пружина перетянется, и прибор начнёт врать', correct: true },
+      { text: 'Ничего страшного не случится', correct: false },
+      { text: 'Показания станут точнее', correct: false },
+      { text: 'Прибор автоматически отключится', correct: false },
+    ],
+    right: '✓ Увы: перетянутая пружина не вернётся к прежней длине, и все показания «уедут».',
+    wrong: 'Защиты внутри нет: пружина перетянется навсегда, и прибор начнёт врать. Предел не превышают.' },
+  { icon: '0️⃣',
+    text: 'Что проверяют перед началом измерения?',
+    options: [
+      { text: 'Что указатель без груза стоит на нуле', correct: true },
+      { text: 'Что пружина блестит', correct: false },
+      { text: 'Что крючок смотрит вправо', correct: false },
+      { text: 'Что шкала подписана в килограммах', correct: false },
+    ],
+    right: '✓ Точно: сначала ноль. Иначе каждое показание будет со сдвигом.',
+    wrong: 'Главная проверка — ноль: без груза указатель должен стоять ровно на нуле, иначе все показания сдвинутся.' },
+  { icon: '🪨',
+    text: 'Камень массой 200 г повесили на динамометр (g = 10 Н/кг). Что покажет прибор?',
+    options: [
+      { text: '2 Н', correct: true },
+      { text: '20 Н', correct: false },
+      { text: '200 Н', correct: false },
+      { text: '0,2 Н', correct: false },
+    ],
+    right: '✓ Верно: F = 0,2 кг × 10 Н/кг = 2 Н.',
+    wrong: 'Сначала граммы в килограммы: 200 г = 0,2 кг. Потом F = 0,2 × 10 = 2 Н.' },
+];
+
+function pickRandom(arr, n, rnd) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a.slice(0, n);
+}
+
+function buildSteps(level, rnd) {
+  const n = level === 'easy' ? 3 : level === 'medium' ? 5 : 7;
+  const pool = pickRandom(TASKS, n, rnd);
+
+  return pool.map((t, i) => ({
+    type: 'choice',
+    title: `Вопрос ${i + 1} из ${pool.length}`,
+    text: t.text,
+    render: host => { host.innerHTML = `<div class="task-icon">${t.icon}</div>`; },
+    options: t.options.map(o => ({ text: o.text, correct: o.correct })),
+    right: t.right,
+    wrong: t.wrong,
+  }));
+}
+
+runPractice({
+  practiceId: 'quiz',
+  storageKey: 'dynamometer-progress',
+  homeHref: '../demo/',
+  title: 'Тест по теории',
+  subtitle: 'Десять вопросов о силе, ньютонах и пружине. Каждый запуск — новая случайная подборка.',
+  levels: {
+    easy:   { label: 'Разминка',  desc: '3 случайных вопроса из десяти.', xp: 25 },
+    medium: { label: 'Уверенный', desc: '5 случайных вопросов подряд.', xp: 40 },
+    hard:   { label: 'Знаток',    desc: '7 вопросов — почти вся теория.', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

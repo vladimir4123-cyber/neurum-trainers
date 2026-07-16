@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Амперметр · Урок для класса</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@48,500,1&display=block">
+<style>
+  *{ box-sizing: border-box; }
+  body{
+    margin: 0; font-family: var(--font-sans);
+    background: var(--white); color: var(--fg-1);
+    min-height: 100vh; -webkit-font-smoothing: antialiased;
+  }
+  .ms{ font-family: 'Material Symbols Rounded'; font-variation-settings: 'FILL' 1, 'wght' 500; line-height: 1; }
+
+  /* ============ TOP BAR ============ */
+  .topbar{
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    max-width: 1120px; margin: 0 auto; padding: 18px 24px;
+    background: var(--white);
+  }
+  .home-link{
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 16px; border-radius: 9999px;
+    background: var(--white); color: var(--fg-1);
+    text-decoration: none; font-weight: 500; font-size: 14px;
+    box-shadow: 0 1px 2px rgba(35,35,35,.05), 0 4px 12px rgba(35,35,35,.06), inset 0 0 0 1px rgba(35,35,35,.05);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .home-link:hover{ background: var(--purple-3); }
+  .home-link:active{ transform: scale(0.96); }
+  .share-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: 9999px;
+    background: var(--purple-1); color: #fff;
+    border: 0; cursor: pointer;
+    font-family: var(--font-sans); font-weight: 500; font-size: 14px;
+    box-shadow: 0 4px 12px rgba(101,31,255,.28);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .share-btn .ms{ font-size: 18px; }
+  .share-btn:hover{ background: var(--purple-2); }
+  .share-btn:active{ transform: scale(0.96); }
+  .share-toast{
+    position: fixed; left: 50%; bottom: 24px;
+    transform: translateX(-50%) translateY(20px);
+    padding: 12px 20px; border-radius: 12px;
+    background: var(--fg-1); color: #fff;
+    font-family: var(--font-sans); font-weight: 500; font-size: 15px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.2);
+    opacity: 0; pointer-events: none; z-index: 100;
+    transition: opacity 200ms var(--ease-standard), transform 200ms var(--ease-standard);
+  }
+  .share-toast.is-open{ opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  main.kit{ max-width: 1120px; margin: 0 auto; padding: 0 24px 120px; }
+
+  /* ============ HERO ============ */
+  .hero{
+    width: 100%;
+    background: var(--white);
+    box-shadow: 0 4px 16px rgba(0,0,0,.06);
+  }
+  .hero-inner{
+    max-width: 1120px; margin: 0 auto;
+    padding: 32px 24px;
+    display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 32px; align-items: stretch;
+  }
+  @media (max-width: 860px){ .hero-inner{ grid-template-columns: 1fr; gap: 22px; padding: 24px; } }
+  .hero-preview{
+    width: 100%; aspect-ratio: 4 / 3;
+    border-radius: var(--radius-2xl); overflow: hidden;
+    background: linear-gradient(180deg, #EEF0FF, #FBF8FF);
+    display: grid; place-items: center; padding: 28px;
+  }
+  .hero-preview iframe{ width: 100%; height: 100%; border: 0; display: block; }
+  .hero-body{ display: flex; flex-direction: column; padding: 12px 0; }
+  .hero h1{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(28px, 3.4vw, 40px); line-height: 1.05;
+    letter-spacing: -0.02em; margin: 0 0 12px; text-wrap: balance;
+  }
+  .hero-value{
+    font-size: var(--t-base); line-height: var(--lh-base); color: var(--fg-2);
+    margin: 0 0 18px; text-wrap: pretty;
+  }
+  .hero-meta{ display: flex; flex-wrap: wrap; gap: 18px; margin: 0 0 22px; }
+  .hero-meta .meta-item{ display: inline-flex; align-items: center; gap: 7px; color: var(--fg-2); font-size: 14px; font-weight: 500; }
+  .hero-meta .meta-item .ms{ font-size: 19px; color: var(--purple-1); }
+  .hero-cta{ display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: auto; }
+  .btn-primary{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 14px 32px;
+    border-radius: var(--radius-md);
+    background: var(--purple-1);
+    color: var(--white); text-decoration: none;
+    font-family: var(--font-sans); font-weight: 500; font-size: 16px;
+    box-shadow: var(--shadow-purple);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .btn-primary .ms{ font-size: 20px; }
+  .btn-primary:hover{ background: var(--purple-2); }
+  .btn-primary:active{ transform: scale(0.96); }
+  .btn-text{
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 17px 32px; border-radius: 9999px;
+    background: transparent; border: 0;
+    color: var(--fg-1); text-decoration: none;
+    font-family: var(--font-display); font-weight: 500; font-size: 19px;
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .btn-text .ms{ font-size: 24px; }
+  .btn-text:hover{ background: var(--purple-4); }
+  .btn-text:active{ transform: scale(0.97); }
+
+  /* ============ SECTIONS ============ */
+  .sec{ margin-top: 52px; }
+  .sec-head{ margin-bottom: 20px; }
+  .sec-head h2{
+    margin: 0;
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(24px, 3.4vw, 32px); letter-spacing: -0.02em;
+  }
+
+  /* ============ КАРТОЧКА ТЕМЫ ============ */
+  .topic-grid{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  @media (max-width: 780px){ .topic-grid{ grid-template-columns: 1fr; } }
+  .topic{
+    display: grid; grid-template-columns: 168px 1fr; gap: 20px; align-items: center;
+    padding: 22px; border-radius: var(--radius-2xl);
+    background: var(--white); text-decoration: none; color: var(--fg-1);
+    border: 1px solid var(--purple-4);
+    transition: transform 160ms var(--ease-standard), box-shadow 160ms var(--ease-standard);
+  }
+  .topic:hover{ transform: translateY(-4px); box-shadow: 0 8px 28px rgba(0,0,0,.12); }
+  .topic:active{ transform: translateY(-1px) scale(0.99); }
+  @media (max-width: 520px){
+    .topic{ grid-template-columns: 1fr; padding: 20px; }
+    .topic__illus{ order: -1; }
+  }
+  .topic__illus{
+    width: 168px; height: 138px; border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    display: grid; place-items: center; overflow: hidden;
+    padding: 12px;
+  }
+  .topic__illus svg{ width: 100%; height: 100%; }
+  .topic__body{ display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .topic__step{
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 500; color: var(--purple-1);
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .topic__title{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: 22px; line-height: 1.15; letter-spacing: -0.01em; margin: 0;
+    text-wrap: balance;
+  }
+  .topic__desc{ margin: 0; color: var(--fg-2); font-size: 15px; line-height: 1.4; text-wrap: pretty; }
+
+  /* ============ КАРТОЧКА ПРАКТИКИ ============ */
+  .practice-grid{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; max-width: 740px; }
+  @media (max-width: 600px){ .practice-grid{ grid-template-columns: 1fr; } }
+  .practice{
+    display: flex; flex-direction: column; gap: 14px;
+    padding: 20px; border-radius: var(--radius-2xl);
+    background: var(--white); text-decoration: none; color: var(--fg-1);
+    border: 1px solid var(--purple-4);
+    transition: transform 160ms var(--ease-standard), box-shadow 160ms var(--ease-standard);
+  }
+  .practice:hover{ transform: translateY(-4px); box-shadow: 0 8px 28px rgba(0,0,0,.12); }
+  .practice__illus{
+    width: 100%; height: 180px;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    display: grid; place-items: center; overflow: hidden;
+    padding: 10px;
+  }
+  .practice__illus svg{ max-width: 100%; max-height: 100%; }
+  .practice__top{ display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .practice__kind{
+    font-size: 12px; font-weight: 500; color: var(--fg-3);
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .practice__xp{
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 13px; font-weight: 500; color: var(--purple-1);
+    background: var(--purple-4); padding: 5px 10px; border-radius: 9999px;
+  }
+  .practice__xp .ms{ font-size: 15px; }
+  .practice__title{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: 20px; line-height: 1.15; letter-spacing: -0.01em; margin: 0;
+    text-wrap: balance;
+  }
+  .practice__desc{ margin: 0; color: var(--fg-2); font-size: 15px; line-height: 1.4; text-wrap: pretty; flex: 1; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="home-link" href="../../">← Все тренажёры</a>
+  <button class="share-btn" id="shareBtn">
+    <span class="ms">share</span>
+    Поделиться с учениками
+  </button>
+</div>
+<div class="share-toast" id="shareToast">Ссылка скопирована</div>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-preview">
+      <iframe src="../device/?embed=1" title="3D-амперметр" loading="lazy"></iframe>
+    </div>
+    <div class="hero-body">
+      <h1>Амперметр</h1>
+      <p class="hero-value">Готовый интерактивный урок для 8 класса. Покажите классу, как измеряют силу тока: живой амперметр со стрелкой, цена деления без зубрёжки и главное правило — включать прибор последовательно, в разрыв цепи. Ученики закрепят на «Приёмке приборов» и тесте по теории.</p>
+      <div class="hero-meta" id="heroMeta"></div>
+      <div class="hero-cta">
+        <a class="btn-primary" id="startBtn" href="../lesson-current/"><span class="ms">play_arrow</span> Провести урок</a>
+        <a class="btn-text" href="../device/?embed=1&back=1&panel=1"><span class="ms">360</span> Показать прибор</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<main class="kit">
+
+  <section class="sec">
+    <div class="sec-head"><h2>Темы урока</h2></div>
+    <div class="topic-grid" id="topicGrid"></div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><h2>Практика для учеников</h2></div>
+    <div class="practice-grid" id="practiceGrid"></div>
+  </section>
+
+</main>
+
+<script type="module">
+
+/* Мини-иллюстрации тем — инлайн-SVG в светлой палитре */
+const ILLUS = {
+  current: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <!-- секундомер: считаем заряды за секунду -->
+      <circle cx="80" cy="30" r="16" fill="#fff" stroke="#C9CEDA" stroke-width="2.5"/>
+      <rect x="75" y="8" width="10" height="5" rx="2" fill="#C9CEDA"/>
+      <line x1="80" y1="30" x2="80" y2="19" stroke="#6240FF" stroke-width="2.5" stroke-linecap="round">
+        <animateTransform attributeName="transform" type="rotate" from="0 80 30" to="360 80 30" dur="2s" repeatCount="indefinite"/>
+      </line>
+      <!-- батарейка -->
+      <rect x="8" y="72" width="16" height="30" rx="4" fill="#F5B93B" stroke="#D99A18" stroke-width="1.6"/>
+      <rect x="12" y="66" width="8" height="6" rx="2" fill="#C9CEDA"/>
+      <!-- провод -->
+      <line x1="24" y1="87" x2="130" y2="87" stroke="#C9CEDA" stroke-width="5" stroke-linecap="round"/>
+      <!-- заряды бегут -->
+      <g fill="#F5B93B" stroke="#E8590C" stroke-width="1.4">
+        <circle r="5"><animateMotion dur="2.1s" repeatCount="indefinite" path="M24 87 L130 87"/></circle>
+        <circle r="5"><animateMotion dur="2.1s" begin=".7s" repeatCount="indefinite" path="M24 87 L130 87"/></circle>
+        <circle r="5"><animateMotion dur="2.1s" begin="1.4s" repeatCount="indefinite" path="M24 87 L130 87"/></circle>
+      </g>
+      <!-- лампа -->
+      <circle cx="140" cy="87" r="15" fill="#FFD769" opacity=".5">
+        <animate attributeName="opacity" values=".3;.65;.3" dur="1.6s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="140" cy="87" r="10" fill="#FFF6DC" stroke="#2B2B33" stroke-width="2"/>
+      <line x1="133" y1="80" x2="147" y2="94" stroke="#2B2B33" stroke-width="1.6"/>
+      <line x1="147" y1="80" x2="133" y2="94" stroke="#2B2B33" stroke-width="1.6"/>
+      <line x1="80" y1="70" x2="80" y2="104" stroke="#6240FF" stroke-width="2" stroke-dasharray="4 4"/>
+    </svg>`,
+  scale: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <rect x="16" y="16" width="128" height="98" rx="12" fill="#fff" stroke="#C9CEDA" stroke-width="2.5"/>
+      <g stroke="#2B2B33" stroke-width="2.2" stroke-linecap="round">
+        <line x1="35.6" y1="58.7" x2="43.2" y2="65.1"/>
+        <line x1="55.5" y1="43.4" x2="59.7" y2="52.5"/>
+        <line x1="80" y1="38" x2="80" y2="48"/>
+        <line x1="104.5" y1="43.4" x2="100.3" y2="52.5"/>
+        <line x1="124.4" y1="58.7" x2="116.8" y2="65.1"/>
+      </g>
+      <g stroke="#8A8F9C" stroke-width="1.4" stroke-linecap="round">
+        <line x1="44.7" y1="50" x2="48.3" y2="54.7"/>
+        <line x1="67.4" y1="39.4" x2="68.7" y2="45.2"/>
+        <line x1="92.6" y1="39.4" x2="91.3" y2="45.2"/>
+        <line x1="115.3" y1="50" x2="111.7" y2="54.7"/>
+      </g>
+      <text x="34" y="82" font-family="Georgia, serif" font-weight="700" font-size="13" fill="#2B2B33">0</text>
+      <text x="118" y="82" font-family="Georgia, serif" font-weight="700" font-size="13" fill="#2B2B33">3</text>
+      <line x1="80" y1="96" x2="80" y2="44" stroke="#E5484D" stroke-width="3" stroke-linecap="round">
+        <animateTransform attributeName="transform" type="rotate" values="-45 80 96; 38 80 96; 12 80 96; -45 80 96" dur="5s" repeatCount="indefinite"/>
+      </line>
+      <circle cx="80" cy="96" r="6" fill="#2B2B33"/>
+      <circle cx="52" cy="106" r="5" fill="#2B2B33"/>
+      <circle cx="108" cy="106" r="5" fill="#E5484D"/>
+    </svg>`,
+  series: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <rect x="18" y="28" width="124" height="76" fill="none" stroke="#2B2B33" stroke-width="2.5" rx="2"/>
+      <g fill="#FFD769" stroke="#2B2B33" stroke-width=".8">
+        <circle r="3.5"><animateMotion dur="4s" repeatCount="indefinite" path="M18 66 L18 28 L142 28 L142 104 L18 104 Z"/></circle>
+        <circle r="3.5"><animateMotion dur="4s" begin="1.3s" repeatCount="indefinite" path="M18 66 L18 28 L142 28 L142 104 L18 104 Z"/></circle>
+        <circle r="3.5"><animateMotion dur="4s" begin="2.6s" repeatCount="indefinite" path="M18 66 L18 28 L142 28 L142 104 L18 104 Z"/></circle>
+      </g>
+      <rect x="8" y="56" width="20" height="20" fill="#fff"/>
+      <g stroke="#2B2B33" stroke-width="2.5" stroke-linecap="round">
+        <line x1="8" y1="61" x2="28" y2="61"/>
+        <line x1="13" y1="68" x2="23" y2="68"/>
+      </g>
+      <circle cx="142" cy="66" r="12" fill="#FFF6DC" stroke="#2B2B33" stroke-width="2.2"/>
+      <line x1="134" y1="58" x2="150" y2="74" stroke="#2B2B33" stroke-width="1.6"/>
+      <line x1="150" y1="58" x2="134" y2="74" stroke="#2B2B33" stroke-width="1.6"/>
+      <circle cx="80" cy="28" r="16" fill="#fff" stroke="#6240FF" stroke-width="2.8"/>
+      <text x="80" y="34" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-weight="700" font-size="17" fill="#6240FF">A</text>
+    </svg>`,
+  inspect: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <rect x="12" y="26" width="82" height="66" rx="10" fill="#fff" stroke="#C9CEDA" stroke-width="2.5"/>
+      <g stroke="#2B2B33" stroke-width="1.8" stroke-linecap="round">
+        <line x1="28" y1="55" x2="33" y2="60"/>
+        <line x1="53" y1="42" x2="53" y2="49"/>
+        <line x1="78" y1="55" x2="73" y2="60"/>
+      </g>
+      <line x1="53" y1="78" x2="53" y2="48" stroke="#E5484D" stroke-width="2.5" stroke-linecap="round">
+        <animateTransform attributeName="transform" type="rotate" values="-38 53 78; 26 53 78; 26 53 78; -38 53 78" dur="3.4s" repeatCount="indefinite"/>
+      </line>
+      <circle cx="53" cy="78" r="4.5" fill="#2B2B33"/>
+      <circle cx="112" cy="86" r="22" fill="#07BE7E">
+        <animate attributeName="r" values="22;24;22" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      <path d="M102 86 L109 93 L123 78" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="104" y="22" width="44" height="30" rx="6" fill="#F4F1FF" stroke="#C9CEDA" stroke-width="2"/>
+      <line x1="112" y1="32" x2="140" y2="32" stroke="#9AA0AA" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="112" y1="41" x2="132" y2="41" stroke="#C9CEDA" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>`,
+  quiz: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="70" cy="68" r="32" fill="#fff" stroke="#6240FF" stroke-width="3.5"/>
+      <text x="70" y="80" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-weight="700" font-size="36" fill="#6240FF">A</text>
+      <line x1="26" y1="68" x2="38" y2="68" stroke="#2B2B33" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="102" y1="68" x2="114" y2="68" stroke="#2B2B33" stroke-width="2.5" stroke-linecap="round"/>
+      <text x="118" y="38" font-family="system-ui" font-weight="700" font-size="26" fill="#F5B93B">?
+        <animate attributeName="opacity" values="0;1;1;0" dur="2.6s" repeatCount="indefinite"/>
+      </text>
+      <text x="130" y="94" font-family="system-ui" font-weight="700" font-size="19" fill="#E8590C">?
+        <animate attributeName="opacity" values="0;1;1;0" dur="2.6s" begin=".9s" repeatCount="indefinite"/>
+      </text>
+      <text x="102" y="22" font-family="system-ui" font-weight="700" font-size="15" fill="#6240FF">?
+        <animate attributeName="opacity" values="0;1;1;0" dur="2.6s" begin="1.7s" repeatCount="indefinite"/>
+      </text>
+    </svg>`,
+};
+
+const TOPICS = [
+  { title: 'Что такое сила тока',   desc: 'Поток зарядов в проводе, ампер и живой прибор со стрелкой.',        href: '../lesson-current/', illus: 'current' },
+  { title: 'Цена деления',          desc: 'Считаем деления шкалы и читаем стрелку между числами.',             href: '../lesson-scale/',   illus: 'scale' },
+  { title: 'Как снять показания',   desc: 'Последовательно, в разрыв цепи — и обязательно плюс к плюсу.',      href: '../lesson-reading/', illus: 'series' },
+];
+
+const PRACTICES = [
+  { title: 'Приёмка приборов', kind: 'лабораторная', xp: '+80 XP', href: '../practice-inspect/', illus: 'inspect',
+    desc: 'В кабинет привезли партию амперметров. У каждого найди цену деления и проверь показание.' },
+  { title: 'Тест по теории', kind: 'тест', xp: '+60 XP', href: '../practice-quiz/', illus: 'quiz',
+    desc: 'Подключение, единицы, значок на схеме и цена деления — случайные вопросы из банка.' },
+];
+
+/* ---------- hero-мета ---------- */
+const heroMeta = [
+  { ic: 'auto_stories', text: `${TOPICS.length} интерактивные темы` },
+  { ic: 'science',      text: 'живой прибор со шкалой' },
+  { ic: 'construction', text: `${PRACTICES.length} практики` },
+];
+document.getElementById('heroMeta').innerHTML = heroMeta.map(m =>
+  `<span class="meta-item"><span class="ms">${m.ic}</span> ${m.text}</span>`
+).join('');
+document.getElementById('startBtn').href = TOPICS[0].href;
+
+/* ---------- темы ---------- */
+document.getElementById('topicGrid').innerHTML = TOPICS.map((t, i) => `
+  <a class="topic" href="${t.href}">
+    <div class="topic__illus">${ILLUS[t.illus]}</div>
+    <div class="topic__body">
+      <span class="topic__step">Тема ${i + 1}</span>
+      <h3 class="topic__title">${t.title}</h3>
+      <p class="topic__desc">${t.desc}</p>
+    </div>
+  </a>`).join('');
+
+/* ---------- практика ---------- */
+document.getElementById('practiceGrid').innerHTML = PRACTICES.map(p => `
+  <a class="practice" href="${p.href}">
+    <div class="practice__illus">${ILLUS[p.illus]}</div>
+    <div class="practice__top">
+      <span class="practice__kind">${p.kind}</span>
+      <span class="practice__xp"><span class="ms">bolt</span> ${p.xp}</span>
+    </div>
+    <h3 class="practice__title">${p.title}</h3>
+    <p class="practice__desc">${p.desc}</p>
+  </a>`).join('');
+
+/* ---------- поделиться ---------- */
+const shareBtn = document.getElementById('shareBtn');
+const shareToast = document.getElementById('shareToast');
+let toastTimer;
+function showToast(text){
+  shareToast.textContent = text;
+  shareToast.classList.add('is-open');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => shareToast.classList.remove('is-open'), 2200);
+}
+shareBtn.addEventListener('click', async () => {
+  const url = location.origin + location.pathname;
+  const title = 'Амперметр — интерактивный урок';
+  if (navigator.share) {
+    try { await navigator.share({ title, url }); return; } catch(e) {}
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Ссылка скопирована');
+  } catch(e){
+    showToast('Скопируйте: ' + url);
+  }
+});
+
+</script>
+
+</body>
+</html>

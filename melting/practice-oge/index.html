@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Читаем график как на ОГЭ · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="/assets/lesson/practice.css?v=4">
+<style>
+  .canvas-panel{
+    width: 100%; max-width: 520px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '/assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Читаем график как на ОГЭ».
+   Случайный график нагревания (или остывания!) с полочкой —
+   как в первой части ОГЭ по физике. Числа считываешь и
+   вписываешь сам: температуру плавления, минуты, участки.
+   ============================================================ */
+
+const TXT = '#6B7180', AXIS = '#8A8F9C';
+const SEG_COLORS = ['#2F80ED', '#E8590C', '#E5484D'];   // ① ② ③
+
+const EASY_SUBST = [
+  { n: 'лёд', melt: 0 },
+  { n: 'парафин', melt: 55 },
+];
+const HARD_SUBST = [
+  { n: 'олово', melt: 232 },
+  { n: 'свинец', melt: 327 },
+  { n: 'цинк', melt: 420 },
+  { n: 'медь', melt: 1085 },
+];
+
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+
+const pick = (arr, rnd) => arr[Math.floor(rnd() * arr.length)];
+
+/* ---------- генератор сценария ---------- */
+function genScenario(level, rnd, cooling) {
+  const s = level === 'easy' ? pick(EASY_SUBST, rnd) : pick(HARD_SUBST, rnd);
+  // минуты: на лёгком уровне — всё чётное, читается по линиям сетки
+  const t1 = level === 'easy' ? pick([2, 4], rnd) : pick([2, 3, 4, 5], rnd);
+  const len = level === 'easy' ? pick([4, 6], rnd) : pick([3, 4, 5, 6, 7], rnd);
+  const after = level === 'easy' ? pick([2, 4], rnd) : pick([2, 3, 4], rnd);
+  const t2 = t1 + len, t3 = t2 + after;
+
+  // температуры до/после полочки
+  const dT = s.melt <= 60 ? pick([20, 30, 40], rnd) : pick([100, 150, 200], rnd);
+  const dT2 = s.melt <= 60 ? pick([20, 30], rnd) : pick([100, 150], rnd);
+  const startT = cooling ? s.melt + dT : s.melt - dT;
+  const endT = cooling ? s.melt - dT2 : s.melt + dT2;
+
+  // оси
+  const step = s.melt <= 60 ? 20 : 100;
+  const lo = Math.min(startT, endT, s.melt), hi = Math.max(startT, endT, s.melt);
+  const yMin = Math.floor((lo - 5) / step) * step;
+  const yMax = Math.ceil((hi + 5) / step) * step;
+  const yTicks = [];
+  for (let v = yMin; v <= yMax; v += step) yTicks.push(v);
+  const xStep = t3 > 12 ? 2 : 1;
+  const xMax = Math.ceil((t3 + 1) / xStep) * xStep;
+
+  return { subst: s, cooling: !!cooling, t1, t2, t3, len, startT, endT, yMin, yMax, yTicks, xStep, xMax };
+}
+
+/* T(мин) по сценарию */
+function tAt(m, sc) {
+  if (m <= sc.t1) return sc.startT + (sc.subst.melt - sc.startT) * (m / sc.t1);
+  if (m <= sc.t2) return sc.subst.melt;
+  return sc.subst.melt + (sc.endT - sc.subst.melt) * ((m - sc.t2) / (sc.t3 - sc.t2));
+}
+
+/* ---------- отрисовка графика ①②③ ---------- */
+function drawScenario(ctx, w, h, sc, animProg) {
+  const left = 92, right = 20, top = 22, bottom = 54;
+  const L = left, R = w - right, T = top, B = h - bottom;
+  const gx = v => L + (v / sc.xMax) * (R - L);
+  const gy = v => B - ((v - sc.yMin) / (sc.yMax - sc.yMin)) * (B - T);
+
+  ctx.font = '20px -apple-system, sans-serif';
+  ctx.textAlign = 'right';
+  sc.yTicks.forEach(v => {
+    const y = gy(v);
+    ctx.strokeStyle = '#E4E7F0';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(R, y); ctx.stroke();
+    ctx.fillStyle = AXIS;
+    ctx.fillText(String(v), L - 8, y + 7);
+  });
+  ctx.textAlign = 'center';
+  for (let m = 0; m <= sc.xMax; m += sc.xStep) {
+    const x = gx(m);
+    ctx.strokeStyle = '#EDEFF5';
+    ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, B); ctx.stroke();
+    ctx.fillStyle = AXIS;
+    ctx.fillText(String(m), x, B + 26);
+  }
+  ctx.strokeStyle = AXIS;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(L, T); ctx.lineTo(L, B); ctx.lineTo(R, B); ctx.stroke();
+  ctx.fillStyle = TXT;
+  ctx.fillText('время, мин', (L + R) / 2, h - 6);
+  ctx.save();
+  ctx.translate(18, (T + B) / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('t, °C', 0, 0);
+  ctx.restore();
+  ctx.textAlign = 'start';
+
+  // три участка с подписями ①②③
+  const segs = [
+    { m0: 0, m1: sc.t1 },
+    { m0: sc.t1, m1: sc.t2 },
+    { m0: sc.t2, m1: sc.t3 },
+  ];
+  const labels = ['①', '②', '③'];
+  const mProg = animProg * sc.t3;
+  segs.forEach((sg, i) => {
+    const mEnd = Math.min(sg.m1, mProg);
+    if (mEnd <= sg.m0) return;
+    ctx.beginPath();
+    ctx.strokeStyle = SEG_COLORS[i];
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.moveTo(gx(sg.m0), gy(tAt(sg.m0, sc)));
+    ctx.lineTo(gx(mEnd), gy(tAt(mEnd, sc)));
+    ctx.stroke();
+    // подпись участка
+    const mm = (sg.m0 + sg.m1) / 2;
+    const off = i === 1 ? -18 : (sc.cooling ? 26 : -14);
+    ctx.font = '700 26px -apple-system, sans-serif';
+    ctx.fillStyle = SEG_COLORS[i];
+    ctx.textAlign = 'center';
+    ctx.fillText(labels[i], gx(mm) + (i === 1 ? 0 : 14), gy(tAt(mm, sc)) + off);
+    ctx.textAlign = 'start';
+  });
+  // ключевые точки — начало и конец полочки
+  if (mProg >= sc.t1) {
+    [[sc.t1], mProg >= sc.t2 ? [sc.t2] : null].filter(Boolean).forEach(([m]) => {
+      ctx.beginPath();
+      ctx.arc(gx(m), gy(sc.subst.melt), 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = '#E8590C';
+      ctx.lineWidth = 3;
+      ctx.fill();
+      ctx.stroke();
+    });
+  }
+}
+
+function startScene(host, sc) {
+  host.innerHTML = `<div class="canvas-panel"><canvas id="ogeCanvas" height="210"></canvas></div>`;
+  const canvas = host.querySelector('#ogeCanvas');
+  const ctx = canvas.getContext('2d');
+  const t0 = performance.now() / 1000;
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 210);
+    ctx.clearRect(0, 0, w, h);
+    const anim = Math.min(1, (t - t0) / 1.6);
+    drawScenario(ctx, w, h, sc, anim);
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ---------- шаги по сценарию нагревания ---------- */
+function heatingSteps(sc, withExtra) {
+  const scene = host => startScene(host, sc);
+  const steps = [
+    {
+      type: 'choice',
+      title: 'Что на участке ②?',
+      text: 'Вещество нагревали на горелке и записывали температуру. Что происходит с веществом на участке ②?',
+      render: scene,
+      options: [
+        { text: 'Плавится: энергия рушит кристаллическую решётку', correct: true },
+        { text: 'Нагревается, оставаясь твёрдым', correct: false },
+        { text: 'Кипит', correct: false },
+        { text: 'Остывает и кристаллизуется', correct: false },
+      ],
+      right: '✓ Полочка — это плавление. Температура стоит, потому что вся энергия идёт на разрушение решётки.',
+      wrong: 'Полочка на графике — всегда плавление (или кристаллизация). Твёрдое вещество нагревается на участке ①, а до кипения тут не дошло.',
+    },
+    {
+      type: 'reading',
+      title: 'Температура плавления',
+      text: 'Определи по графику температуру плавления вещества и впиши её.',
+      render: scene,
+      answer: sc.subst.melt, tolerance: 0, unit: '°C',
+      hints: [
+        'Температура плавления — это высота полочки (участка ②) по оси t.',
+        'Проведи от полочки линию влево до оси температуры — на какой отметке она упрётся?',
+      ],
+      right: `✓ Да, полочка на ${sc.subst.melt} °C. Между прочим, по таблице это ${sc.subst.n}.`,
+    },
+    {
+      type: 'reading',
+      title: 'Сколько длилось плавление?',
+      text: 'Сколько минут длилось плавление? Прочитай по графику и впиши.',
+      render: scene,
+      answer: sc.len, tolerance: 0, unit: 'мин',
+      hints: [
+        'Плавление — это полочка. Посмотри по оси времени, на какой минуте она начинается и на какой заканчивается.',
+        `Полочка тянется с ${sc.t1}-й по ${sc.t2}-ю минуту. Вычти одно из другого.`,
+      ],
+      right: `✓ Верно: ${sc.t2} − ${sc.t1} = ${sc.len} мин. Длина полочки — это время плавления.`,
+    },
+  ];
+  if (withExtra) {
+    steps.push({
+      type: 'choice',
+      title: 'Где нагревается жидкость?',
+      text: 'Какой участок графика — нагревание уже расплавленного, жидкого вещества?',
+      render: scene,
+      options: [
+        { text: 'Участок ①', correct: false },
+        { text: 'Участок ②', correct: false },
+        { text: 'Участок ③', correct: true },
+        { text: 'Участки ② и ③ вместе', correct: false },
+      ],
+      right: '✓ Точно: ① — нагрев твёрдого вещества, ② — плавление, ③ — нагрев жидкости.',
+      wrong: 'Жидкость появляется только после плавления. ① — нагрев твёрдого, ② — плавление, ③ — нагрев жидкости.',
+    });
+  }
+  return steps;
+}
+
+/* ---------- шаги по сценарию остывания (ловушка!) ---------- */
+function coolingSteps(sc) {
+  const scene = host => startScene(host, sc);
+  return [
+    {
+      type: 'choice',
+      title: 'График-обманка',
+      text: 'Внимание: температура падает, но в середине — полочка. Что происходит на ней?',
+      render: scene,
+      options: [
+        { text: 'Кристаллизация: вещество затвердевает и отдаёт энергию', correct: true },
+        { text: 'Плавление: энергия рушит решётку', correct: false },
+        { text: 'Термометр сломался — так не бывает', correct: false },
+        { text: 'Кипение при постоянной температуре', correct: false },
+      ],
+      right: '✓ Это график остывания: на полочке идёт кристаллизация, и энергия выделяется, пока решётка собирается.',
+      wrong: 'График идёт вниз — вещество остывает, а не плавится. На полочке оно затвердевает: это кристаллизация, зеркальный процесс плавления.',
+    },
+    {
+      type: 'reading',
+      title: 'Температура кристаллизации',
+      text: 'При какой температуре шла кристаллизация? Прочитай по графику и впиши.',
+      render: scene,
+      answer: sc.subst.melt, tolerance: 0, unit: '°C',
+      hints: [
+        'Кристаллизация идёт при той же температуре, что и плавление.',
+        'Высота полочки по оси t — и есть ответ.',
+      ],
+      right: `✓ Да, ${sc.subst.melt} °C — у плавления и кристаллизации полочка одна. По таблице это ${sc.subst.n}.`,
+    },
+    {
+      type: 'reading',
+      title: 'Сколько длилась кристаллизация?',
+      text: 'Сколько минут вещество затвердевало? Прочитай по графику и впиши.',
+      render: scene,
+      answer: sc.len, tolerance: 0, unit: 'мин',
+      hints: [
+        'Затвердевание — это полочка: найди минуты её начала и конца.',
+        `Полочка тянется с ${sc.t1}-й по ${sc.t2}-ю минуту.`,
+      ],
+      right: `✓ Верно: ${sc.t2} − ${sc.t1} = ${sc.len} мин.`,
+    },
+    {
+      type: 'choice',
+      title: 'Где остывает жидкость?',
+      text: 'Какой участок графика — остывание ещё жидкого вещества?',
+      render: scene,
+      options: [
+        { text: 'Участок ①', correct: true },
+        { text: 'Участок ②', correct: false },
+        { text: 'Участок ③', correct: false },
+        { text: 'Участки ② и ③ вместе', correct: false },
+      ],
+      right: '✓ Да: до полочки вещество ещё жидкое (①), на полочке затвердевает (②), после — остывает уже твёрдым (③).',
+      wrong: 'При остывании всё зеркально: жидкость остывает ДО полочки — это ①. После полочки (③) остывает уже твёрдое вещество.',
+    },
+    {
+      type: 'choice',
+      title: 'Мороз усилился',
+      text: 'Вещество стали охлаждать вдвое сильнее. Что станет с полочкой на графике?',
+      render: scene,
+      options: [
+        { text: 'Останется на той же температуре, но станет короче', correct: true },
+        { text: 'Опустится ниже', correct: false },
+        { text: 'Исчезнет совсем', correct: false },
+        { text: 'Останется на той же температуре, но станет длиннее', correct: false },
+      ],
+      right: '✓ Температура кристаллизации — свойство вещества, она не зависит от силы охлаждения. А вот времени уйдёт меньше: полочка короче.',
+      wrong: 'Высота полочки — свойство вещества, охлаждение её не сдвинет и не уберёт. Изменится только длина: затвердевание закончится быстрее.',
+    },
+  ];
+}
+
+/* ---------- сборка шагов ---------- */
+function buildSteps(level, rnd) {
+  if (level === 'easy') return heatingSteps(genScenario('easy', rnd, false), false);
+  if (level === 'medium') return heatingSteps(genScenario('medium', rnd, false), true);
+  return coolingSteps(genScenario('hard', rnd, true));
+}
+
+runPractice({
+  practiceId: 'oge',
+  storageKey: 'melting-progress',
+  homeHref: '../demo/',
+  title: 'Читаем график как на ОГЭ',
+  subtitle: 'График нагревания с полочкой — реальное задание первой части ОГЭ. Числа не подсказываем: считывай с графика и вписывай сам.',
+  levels: {
+    easy:   { label: 'Разминка', desc: 'Лёд или парафин, круглые числа, три вопроса.', xp: 30 },
+    medium: { label: 'Экзамен',  desc: 'Случайный металл, полный разбор графика.', xp: 45 },
+    hard:   { label: 'Ловушка',  desc: 'График остывания! Пять вопросов — не дай себя обмануть.', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

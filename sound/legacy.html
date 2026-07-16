@@ -1,0 +1,2324 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Интерактивный микротренажёр по звуковым волнам: частота, амплитуда, интерференция, биения. 7 минут — и тема понятна.">
+    <title>Микротренажёр: Звуковые волны 2.0</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --violet: #6c5ce7;
+            --violet-l: #a29bfe;
+            --coral: #e17055;
+            --coral-l: #fab1a0;
+            --green: #00b894;
+            --gold: #fdcb6e;
+            --bg: #070714;
+            --panel: #12122acc;
+            --panel-solid: #12122a;
+            --border: #2a2a3e;
+            --text: #e0e0e0;
+            --muted: #b0b0c0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            min-height: 100dvh;
+            overflow-x: hidden;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        /* ═══ Background: starfield + aurora ═══ */
+        #bgCanvas {
+            position: fixed; inset: 0;
+            width: 100vw; height: 100vh;
+            z-index: 0; pointer-events: none;
+        }
+        .aurora {
+            position: fixed; z-index: 0; pointer-events: none;
+            width: 60vmax; height: 60vmax; border-radius: 50%;
+            filter: blur(90px); opacity: 0.16;
+        }
+        .aurora-1 { background: #6c5ce7; top: -25vmax; left: -20vmax; animation: drift1 26s ease-in-out infinite alternate; }
+        .aurora-2 { background: #0984e3; bottom: -30vmax; right: -22vmax; animation: drift2 32s ease-in-out infinite alternate; }
+        @keyframes drift1 { from { transform: translate(0,0) scale(1); } to { transform: translate(8vmax, 6vmax) scale(1.15); } }
+        @keyframes drift2 { from { transform: translate(0,0) scale(1.1); } to { transform: translate(-7vmax, -5vmax) scale(0.95); } }
+
+        #confettiCanvas {
+            position: fixed; inset: 0;
+            width: 100vw; height: 100vh;
+            z-index: 200; pointer-events: none;
+        }
+
+        .container {
+            position: relative; z-index: 1;
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 44px 24px 40px;
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            perspective: 1200px;
+        }
+
+        /* ═══ Progress + HUD ═══ */
+        .progress-bar {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 4px;
+            background: #1a1a2e; z-index: 100;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #6c5ce7, #a29bfe, #74b9ff);
+            transition: width 0.5s ease;
+            width: 0%;
+            box-shadow: 0 0 12px #6c5ce7aa;
+        }
+
+        #hud {
+            position: fixed; top: 12px; right: 14px; z-index: 110;
+            display: flex; align-items: center; gap: 6px;
+            background: #12122ae8;
+            border: 1px solid #6c5ce750;
+            border-radius: 999px;
+            padding: 7px 14px;
+            font-size: 14px; font-weight: 700;
+            color: var(--gold);
+            box-shadow: 0 4px 18px #00000060;
+            transition: transform 0.2s ease;
+        }
+        #hud.bump { transform: scale(1.22); }
+        .float-point {
+            position: fixed; z-index: 111;
+            font-weight: 800; font-size: 16px; color: var(--gold);
+            pointer-events: none;
+            animation: floatUp 0.9s ease forwards;
+            text-shadow: 0 0 12px #fdcb6e90;
+        }
+        @keyframes floatUp {
+            from { opacity: 1; transform: translateY(0) scale(1); }
+            to { opacity: 0; transform: translateY(-44px) scale(1.3); }
+        }
+
+        .steps-indicator {
+            display: flex; gap: 6px;
+            margin-bottom: 30px;
+            justify-content: center; flex-wrap: wrap;
+        }
+        .step-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #2a2a3e;
+            transition: all 0.3s ease;
+        }
+        .step-dot.active { background: var(--violet); box-shadow: 0 0 10px #6c5ce7; transform: scale(1.3); }
+        .step-dot.completed { background: var(--violet-l); }
+
+        /* ═══ Screens ═══ */
+        .screen { display: none; flex: 1; }
+        .screen.active { display: flex; flex-direction: column; animation: screenIn 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
+        @keyframes screenIn {
+            from { opacity: 0; transform: translateY(28px) rotateX(6deg) scale(0.985); }
+            to { opacity: 1; transform: translateY(0) rotateX(0) scale(1); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(14px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ═══ Typography ═══ */
+        .screen-label {
+            font-size: 11px; text-transform: uppercase;
+            letter-spacing: 2.5px; color: var(--violet-l);
+            margin-bottom: 12px;
+        }
+        h1 { font-size: 26px; font-weight: 800; line-height: 1.3; margin-bottom: 18px;
+             background: linear-gradient(120deg, #ffffff, #c9c3ff);
+             -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+        h2 { font-size: 20px; font-weight: 700; margin-bottom: 14px; color: #fff; }
+        p { font-size: 16px; line-height: 1.7; color: var(--muted); margin-bottom: 14px; }
+        .highlight { color: var(--violet-l); font-weight: 600; }
+
+        /* ═══ Cards ═══ */
+        .concept-card {
+            position: relative;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 20px;
+            margin-bottom: 14px;
+            overflow: hidden;
+        }
+        .concept-card::before {
+            content: '';
+            position: absolute; inset: 0; border-radius: 18px;
+            padding: 1px;
+            background: linear-gradient(135deg, #6c5ce740, transparent 40%, transparent 70%, #6c5ce720);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor; mask-composite: exclude;
+            pointer-events: none;
+        }
+        .concept-card .emoji { font-size: 28px; margin-bottom: 10px; }
+        .concept-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: #fff; }
+        .concept-card p { font-size: 14px; margin-bottom: 0; }
+        .concept-card p + p { margin-top: 10px; }
+
+        .note-box {
+            background: var(--panel); border: 1px solid var(--border);
+            border-radius: 12px; padding: 14px; margin-bottom: 14px;
+        }
+        .note-box p { margin: 0; font-size: 14px; }
+
+        /* ═══ Buttons ═══ */
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 16px 28px; border-radius: 14px;
+            font-size: 16px; font-weight: 700;
+            border: none; cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: auto;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #6c5ce7, #8f7bf0);
+            color: #fff;
+            box-shadow: 0 6px 22px #6c5ce735;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 28px #6c5ce755; }
+        .btn-secondary { background: #1a1a2ecc; color: var(--violet-l); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: #22223a; }
+        .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn:active { transform: scale(0.97); }
+
+        /* ═══ Promo ═══ */
+        .promo-icon-wrap { position: relative; width: 110px; height: 110px; margin: 4px auto 24px; }
+        .promo-icon {
+            position: relative; z-index: 2;
+            width: 110px; height: 110px;
+            background: linear-gradient(135deg, #6c5ce728, #a29bfe18);
+            border-radius: 30px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 52px;
+            border: 1px solid #6c5ce745;
+            box-shadow: 0 10px 40px #6c5ce730, inset 0 0 30px #6c5ce715;
+            animation: iconFloat 4s ease-in-out infinite;
+        }
+        @keyframes iconFloat {
+            0%, 100% { transform: translateY(0) rotate(-2deg); }
+            50% { transform: translateY(-8px) rotate(2deg); }
+        }
+        .pulse-ring {
+            position: absolute; inset: 0; z-index: 1;
+            border: 2px solid #6c5ce7;
+            border-radius: 30px;
+            animation: pulseRing 2.6s ease-out infinite;
+        }
+        .pulse-ring:nth-child(2) { animation-delay: 1.3s; }
+        @keyframes pulseRing {
+            from { transform: scale(1); opacity: 0.7; }
+            to { transform: scale(1.65); opacity: 0; }
+        }
+        .promo-title { text-align: center; font-size: 32px; margin-bottom: 8px; }
+        .promo-subtitle { text-align: center; font-size: 17px; color: #8888a0; margin-bottom: 26px; }
+        .hero-canvas-wrap { margin: 0 0 24px; }
+        .hero-canvas-wrap canvas { width: 100%; display: block; }
+        .promo-features { display: flex; flex-direction: column; gap: 12px; margin-bottom: 26px; }
+        .promo-feature {
+            display: flex; align-items: flex-start; gap: 14px;
+            padding: 16px;
+            background: var(--panel);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+        .promo-feature-icon {
+            flex-shrink: 0; width: 44px; height: 44px;
+            border-radius: 13px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 21px;
+        }
+        .promo-feature-text h4 { font-size: 15px; color: #fff; margin-bottom: 3px; }
+        .promo-feature-text p { font-size: 13px; margin-bottom: 0; color: #8888a0; line-height: 1.5; }
+        .promo-meta {
+            display: flex; justify-content: center; gap: 22px;
+            margin-bottom: 26px; font-size: 13px; color: #66667a;
+        }
+        .promo-meta span { display: flex; align-items: center; gap: 6px; }
+
+        /* ═══ Hook (insects) ═══ */
+        .sound-buttons { display: flex; gap: 12px; margin: 16px 0 18px; }
+        .sound-btn {
+            flex: 1; padding: 16px 12px;
+            border-radius: 16px;
+            border: 2px solid var(--border);
+            background: var(--panel);
+            color: var(--text);
+            font-size: 14px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s;
+            text-align: center;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .sound-btn .icon { font-size: 36px; display: block; margin-bottom: 6px; transition: transform 0.2s; }
+        .sound-btn .freq { font-size: 12px; color: #77778a; margin-top: 4px; display: block; }
+        .sound-btn:hover { border-color: var(--violet); background: #1a1a30; }
+        .sound-btn.active { border-color: var(--violet-l); background: #1a1a40; box-shadow: 0 0 26px #6c5ce740; }
+        .sound-btn.active .icon { animation: buzz 0.12s linear infinite; }
+        @keyframes buzz {
+            0% { transform: translate(0.6px, -0.6px) rotate(-3deg); }
+            50% { transform: translate(-0.6px, 0.6px) rotate(3deg); }
+            100% { transform: translate(0.6px, -0.6px) rotate(-3deg); }
+        }
+
+        .canvas-panel {
+            background: #0c0c1eb8;
+            border-radius: 16px;
+            padding: 10px;
+            margin: 12px 0 10px;
+            border: 1px solid #1c1c34;
+        }
+        .canvas-panel canvas { width: 100%; display: block; border-radius: 10px; touch-action: none; }
+        .canvas-hint { font-size: 12px; color: #66667a; text-align: center; margin: 8px 0 14px; }
+
+        /* ═══ Mini controls ═══ */
+        .mini-control { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+        .mini-control-label { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+        .mini-control-label span:first-child { color: #8888a0; }
+        .mini-control-label .mc-value { color: var(--violet-l); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%; height: 6px;
+            border-radius: 3px;
+            background: linear-gradient(90deg, #6c5ce750, #1a1a2e);
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 26px; height: 26px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #a29bfe, #6c5ce7);
+            cursor: pointer;
+            box-shadow: 0 0 14px #6c5ce780, 0 2px 6px #00000080;
+        }
+
+        .preset-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+        .chip {
+            padding: 8px 13px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: #181830;
+            color: var(--muted);
+            font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .chip:hover { border-color: var(--violet); color: #fff; }
+        .chip.active { border-color: var(--violet-l); background: #2a2a55; color: #fff; box-shadow: 0 0 14px #6c5ce740; }
+
+        .mini-play-btn {
+            margin-top: 12px;
+            padding: 11px 20px;
+            border: 1px solid var(--violet);
+            background: #6c5ce714;
+            color: var(--violet-l);
+            border-radius: 10px;
+            font-size: 14px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .mini-play-btn:hover { background: #6c5ce728; }
+        .mini-play-btn.playing { background: #e1705522; border-color: var(--coral); color: var(--coral); }
+
+        .loud-indicator {
+            display: flex; align-items: center; gap: 10px;
+            margin-top: 12px; padding: 10px 14px;
+            background: #181830; border-radius: 12px;
+            font-size: 14px; color: var(--muted);
+        }
+        .loud-indicator .li-emoji { font-size: 26px; transition: transform 0.15s; }
+
+        /* ═══ Quiz ═══ */
+        .quiz-option {
+            background: var(--panel);
+            border: 2px solid var(--border);
+            border-radius: 14px;
+            padding: 16px 18px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 15px;
+            color: var(--text);
+            text-align: left;
+            width: 100%;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .quiz-option:hover { border-color: var(--violet); background: #1a1a30; transform: translateX(3px); }
+        .quiz-option.correct { border-color: var(--green); background: #00b89418; color: #5fe8c8; animation: popCorrect 0.4s ease; }
+        .quiz-option.wrong { border-color: var(--coral); background: #e1705518; color: var(--coral-l); animation: shake 0.4s ease; }
+        .quiz-option.disabled { pointer-events: none; }
+        @keyframes popCorrect {
+            0% { transform: scale(1); } 40% { transform: scale(1.035); } 100% { transform: scale(1); }
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); } 75% { transform: translateX(6px); }
+        }
+
+        .feedback-box {
+            background: var(--panel);
+            border-radius: 12px;
+            padding: 16px;
+            margin: 12px 0;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        .feedback-box.show { display: block; }
+        .feedback-box.correct-fb { border-left: 4px solid var(--green); }
+        .feedback-box.wrong-fb { border-left: 4px solid var(--coral); }
+        .feedback-box p { margin-bottom: 0; font-size: 14px; }
+
+        /* ═══ Detective game ═══ */
+        .detective-stage {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 22px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .detective-round { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--violet-l); margin-bottom: 14px; }
+        .mystery-btn {
+            width: 120px; height: 120px;
+            border-radius: 50%;
+            border: 2px solid var(--violet);
+            background: radial-gradient(circle at 38% 32%, #2c2c5a, #15152e);
+            color: #fff;
+            font-size: 40px;
+            cursor: pointer;
+            margin: 0 auto 8px;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+            box-shadow: 0 0 30px #6c5ce735;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .mystery-btn:hover { transform: scale(1.05); box-shadow: 0 0 44px #6c5ce760; }
+        .mystery-btn.playing { animation: mysteryPulse 0.5s ease-in-out infinite; border-color: var(--gold); }
+        @keyframes mysteryPulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 30px #fdcb6e40; }
+            50% { transform: scale(1.1); box-shadow: 0 0 56px #fdcb6e70; }
+        }
+        .mystery-hint { font-size: 13px; color: #77778a; margin-bottom: 16px; }
+        .detective-options { display: flex; gap: 10px; }
+        .det-option {
+            flex: 1; padding: 16px 8px;
+            border-radius: 14px;
+            border: 2px solid var(--border);
+            background: #181830;
+            color: var(--text);
+            font-size: 16px; font-weight: 700;
+            cursor: pointer; transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .det-option small { display: block; font-size: 11px; color: #77778a; font-weight: 500; margin-top: 4px; }
+        .det-option:hover { border-color: var(--violet); }
+        .det-option.correct { border-color: var(--green); background: #00b89420; }
+        .det-option.wrong { border-color: var(--coral); background: #e1705520; animation: shake 0.4s ease; }
+        .det-option:disabled { pointer-events: none; }
+        .detective-feedback { min-height: 22px; font-size: 14px; margin-top: 14px; color: var(--muted); }
+
+        /* ═══ Trainer ═══ */
+        .challenge-box {
+            background: linear-gradient(135deg, #1a1a30e0, #12122ae0);
+            border: 1px solid #6c5ce735;
+            border-radius: 16px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            transition: all 0.3s;
+        }
+        .challenge-box h3 { color: var(--violet-l); font-size: 15px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+        .challenge-box p { margin-bottom: 0; font-size: 14px; }
+        .challenge-box.success { border-color: #00b89470; box-shadow: 0 0 26px #00b89425; }
+        .challenge-box.success h3 { color: var(--green); }
+        .challenge-progress { display: flex; gap: 5px; margin-top: 10px; }
+        .challenge-progress .cp-dot {
+            height: 5px; flex: 1; border-radius: 3px;
+            background: #2a2a3e; transition: background 0.3s;
+        }
+        .challenge-progress .cp-dot.done { background: var(--green); box-shadow: 0 0 8px #00b89460; }
+
+        .wave-info { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+        .wave-info-item {
+            background: var(--panel); border: 1px solid #1f1f36;
+            border-radius: 13px;
+            padding: 13px 8px; text-align: center;
+        }
+        .wave-info-item .label { font-size: 11px; color: #77778a; margin-bottom: 3px; }
+        .wave-info-item .val { font-size: 18px; font-weight: 800; color: var(--violet-l); font-variant-numeric: tabular-nums; }
+
+        .control-group { margin-bottom: 18px; }
+        .control-label { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+        .control-label span:first-child { color: var(--muted); }
+        .control-label .value { color: var(--violet-l); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+        .trainer-controls { display: flex; gap: 12px; margin-bottom: 18px; }
+        .trainer-controls .btn { flex: 1; margin-top: 0; padding: 14px 20px; }
+
+        .second-wave-toggle {
+            display: flex; align-items: center; gap: 12px;
+            margin-bottom: 16px; padding: 14px;
+            background: var(--panel); border-radius: 14px;
+            cursor: pointer; border: 1px solid var(--border);
+            transition: border-color 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .second-wave-toggle:hover { border-color: var(--violet); }
+        .toggle-switch {
+            width: 44px; height: 24px;
+            border-radius: 12px; background: #2a2a3e;
+            position: relative; transition: background 0.2s; flex-shrink: 0;
+        }
+        .toggle-switch.on { background: var(--violet); }
+        .toggle-switch::after {
+            content: '';
+            position: absolute; top: 3px; left: 3px;
+            width: 18px; height: 18px;
+            border-radius: 50%; background: #fff;
+            transition: transform 0.2s;
+        }
+        .toggle-switch.on::after { transform: translateX(20px); }
+        .toggle-label { font-size: 14px; color: var(--muted); }
+
+        .controls-wave2 {
+            display: none; padding: 16px;
+            background: #0d0d20cc; border-radius: 14px;
+            margin-bottom: 16px; border: 1px solid #e1705580;
+        }
+        .controls-wave2.show { display: block; animation: fadeIn 0.3s ease; }
+        .controls-wave2 .control-label .value { color: var(--coral); }
+        .controls-wave2 input[type="range"]::-webkit-slider-thumb { background: radial-gradient(circle at 35% 35%, #fab1a0, #e17055); box-shadow: 0 0 14px #e1705580; }
+
+        .phase-toggle {
+            display: flex; align-items: center; gap: 10px;
+            margin-top: 12px; padding-top: 12px;
+            border-top: 1px solid #2a2a3e;
+            cursor: pointer;
+            font-size: 13px; color: var(--muted);
+            -webkit-tap-highlight-color: transparent;
+        }
+        .phase-toggle .toggle-switch { width: 38px; height: 21px; }
+        .phase-toggle .toggle-switch::after { width: 15px; height: 15px; }
+        .phase-toggle .toggle-switch.on { background: var(--coral); }
+        .phase-toggle .toggle-switch.on::after { transform: translateX(17px); }
+
+        .wave-legend { display: none; gap: 14px; font-size: 12px; margin: 8px 2px 0; }
+        .wave-legend.show { display: flex; }
+        .wave-legend span { display: flex; align-items: center; gap: 5px; }
+        .wave-legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+
+        /* ═══ Interference ═══ */
+        .interference-btns { display: flex; gap: 8px; margin-bottom: 10px; }
+        .interference-btn {
+            flex: 1; padding: 11px 6px;
+            border: 2px solid var(--border);
+            background: var(--panel); color: var(--muted);
+            border-radius: 10px; font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .interference-btn:hover { border-color: var(--violet); }
+        .interference-btn.active { border-color: var(--green); background: #00b89418; color: #5fe8c8; }
+        .interference-label { text-align: center; font-size: 12px; color: #77778a; margin-top: 8px; }
+
+        .silence-demo-btn {
+            width: 100%;
+            margin-top: 10px;
+            padding: 13px;
+            border-radius: 12px;
+            border: 1px solid var(--gold);
+            background: #fdcb6e12;
+            color: var(--gold);
+            font-size: 14px; font-weight: 700;
+            cursor: pointer; transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .silence-demo-btn:hover { background: #fdcb6e22; }
+        .silence-demo-btn:disabled { opacity: 0.5; }
+
+        .nav-row { display: flex; gap: 10px; margin-top: auto; padding-top: 16px; }
+        .nav-row .btn { flex: 1; margin-top: 0; }
+
+        /* ═══ Results ═══ */
+        .stars-row { display: flex; justify-content: center; gap: 14px; margin: 6px 0 20px; }
+        .star {
+            font-size: 52px;
+            filter: grayscale(1) brightness(0.4);
+            transform: scale(0.8);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .star.lit {
+            filter: none;
+            transform: scale(1);
+            text-shadow: 0 0 26px #fdcb6e90;
+            animation: starPop 0.5s cubic-bezier(0.34, 1.8, 0.64, 1);
+        }
+        @keyframes starPop {
+            0% { transform: scale(0.3) rotate(-30deg); }
+            70% { transform: scale(1.25) rotate(8deg); }
+            100% { transform: scale(1) rotate(0); }
+        }
+        .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+        .result-card {
+            background: var(--panel); border: 1px solid #1f1f36;
+            border-radius: 14px; padding: 18px; text-align: center;
+        }
+        .result-card .big-num { font-size: 30px; font-weight: 800; color: var(--violet-l); font-variant-numeric: tabular-nums; }
+        .result-card .label { font-size: 12px; color: #77778a; margin-top: 4px; }
+
+        /* ═══ Mobile ═══ */
+        @media (max-width: 480px) {
+            .container { padding: 36px 16px 28px; }
+            h1 { font-size: 22px; margin-bottom: 14px; }
+            h2 { font-size: 18px; }
+            p { font-size: 15px; margin-bottom: 12px; }
+            .promo-title { font-size: 25px; }
+            .promo-subtitle { font-size: 15px; margin-bottom: 20px; }
+            .promo-icon-wrap, .promo-icon { width: 88px; height: 88px; }
+            .promo-icon { font-size: 42px; border-radius: 24px; }
+            .promo-feature { padding: 14px 12px; gap: 12px; }
+            .promo-feature-icon { width: 38px; height: 38px; font-size: 18px; }
+            .promo-meta { gap: 14px; font-size: 12px; }
+            .concept-card { padding: 16px; }
+            .concept-card h3 { font-size: 15px; }
+            .concept-card p { font-size: 13px; }
+            .btn { padding: 14px 20px; font-size: 15px; }
+            .sound-btn { padding: 14px 8px; font-size: 13px; }
+            .sound-btn .icon { font-size: 30px; }
+            .quiz-option { padding: 14px 16px; font-size: 14px; }
+            .wave-info { gap: 6px; }
+            .wave-info-item { padding: 10px 6px; }
+            .wave-info-item .val { font-size: 15px; }
+            .wave-info-item .label { font-size: 10px; }
+            .canvas-panel { padding: 8px; }
+            .feedback-box { padding: 14px; }
+            .feedback-box p { font-size: 13px; }
+            .nav-row { gap: 8px; }
+            .nav-row .btn { padding: 14px 12px; font-size: 14px; }
+            .steps-indicator { gap: 4px; margin-bottom: 22px; }
+            .step-dot { width: 7px; height: 7px; }
+            .mystery-btn { width: 100px; height: 100px; font-size: 34px; }
+            .det-option { font-size: 14px; padding: 13px 6px; }
+            .star { font-size: 44px; }
+            #hud { top: 10px; right: 10px; padding: 6px 11px; font-size: 13px; }
+        }
+        @media (max-width: 360px) {
+            .container { padding: 32px 12px 24px; }
+            h1 { font-size: 20px; }
+            .promo-title { font-size: 22px; }
+            .sound-buttons { gap: 8px; }
+            .detective-options { gap: 6px; }
+        }
+    </style>
+</head>
+<body>
+<a href="../" style="position:fixed;top:12px;left:12px;z-index:400;background:rgba(11,17,48,.85);border:1px solid rgba(255,255,255,.18);color:#eef1fb;text-decoration:none;font:600 13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:7px 13px;border-radius:999px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);">⚡ Все тренажёры</a>
+
+    <canvas id="bgCanvas"></canvas>
+    <div class="aurora aurora-1"></div>
+    <div class="aurora aurora-2"></div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div id="hud">⚡ <span id="hudScore">0</span></div>
+    <canvas id="confettiCanvas"></canvas>
+
+    <div class="container">
+        <div class="steps-indicator" id="stepsIndicator"></div>
+
+        <!-- ═══ SCREEN 0: Promo ═══ -->
+        <div class="screen active" id="screen-0">
+            <div class="promo-icon-wrap">
+                <div class="pulse-ring"></div>
+                <div class="pulse-ring"></div>
+                <div class="promo-icon">🔊</div>
+            </div>
+            <h1 class="promo-title">Звуковые волны</h1>
+            <p class="promo-subtitle">Интерактивный микротренажёр 2.0</p>
+
+            <div class="hero-canvas-wrap canvas-panel">
+                <canvas id="heroCanvas" height="120"></canvas>
+            </div>
+
+            <div class="promo-features">
+                <div class="promo-feature">
+                    <div class="promo-feature-icon" style="background:#6c5ce722;">🎓</div>
+                    <div class="promo-feature-text">
+                        <h4>Поймёшь, что такое звук</h4>
+                        <p>Почему одни звуки высокие, а другие низкие, и от чего зависит громкость</p>
+                    </div>
+                </div>
+                <div class="promo-feature">
+                    <div class="promo-feature-icon" style="background:#e1705522;">🕵️</div>
+                    <div class="promo-feature-text">
+                        <h4>Прокачаешь слух</h4>
+                        <p>Игра «Звуковой детектив»: научишься угадывать частоту звука на слух</p>
+                    </div>
+                </div>
+                <div class="promo-feature">
+                    <div class="promo-feature-icon" style="background:#00b89422;">🎛</div>
+                    <div class="promo-feature-text">
+                        <h4>Поуправляешь волной</h4>
+                        <p>3D-волна под твоими пальцами: частота, громкость, интерференция и биения</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="promo-meta">
+                <span>⏱ ~7 минут</span>
+                <span>📝 9 вопросов</span>
+                <span>🎯 13 очков</span>
+            </div>
+
+            <button class="btn btn-primary" onclick="goTo(1)" style="width:100%; padding:18px;">Начать тренажёр →</button>
+        </div>
+
+        <!-- ═══ SCREEN 1: Hook ═══ -->
+        <div class="screen" id="screen-1">
+            <div class="screen-label">Зацепка</div>
+            <h1>Почему комар пищит, а шмель гудит?</h1>
+            <p>Оба машут крыльями. Оба создают звук. Но звучат совершенно по-разному. Послушай сам:</p>
+
+            <div class="sound-buttons">
+                <button class="sound-btn" id="btnMosquito" onclick="playHookSound('mosquito')">
+                    <span class="icon">🦟</span>
+                    Комар
+                    <span class="freq">~600 взмахов/сек</span>
+                </button>
+                <button class="sound-btn" id="btnBumblebee" onclick="playHookSound('bumblebee')">
+                    <span class="icon">🐝</span>
+                    Шмель
+                    <span class="freq">~130 взмахов/сек</span>
+                </button>
+            </div>
+
+            <div class="canvas-panel">
+                <canvas id="hookCanvas" height="150"></canvas>
+            </div>
+            <p class="canvas-hint" id="hookHint">Нажми на комара или шмеля — увидишь и услышишь разницу</p>
+
+            <p>Единственная разница — <span class="highlight">скорость взмахов</span>. Больше взмахов в секунду = выше звук. Это и есть <span class="highlight">частота</span>.</p>
+            <button class="btn btn-primary" onclick="goTo(2)">Понятно, идём дальше →</button>
+        </div>
+
+        <!-- ═══ SCREEN 2: Vibrations ═══ -->
+        <div class="screen" id="screen-2">
+            <div class="screen-label">Базовая модель · 1 / 3</div>
+            <h1>Звук — это колебания воздуха</h1>
+
+            <p>Когда крыло комара бьёт по воздуху, оно <span class="highlight">сжимает</span> молекулы. Те толкают соседние — и так волна «бежит» до твоего уха.</p>
+
+            <div class="concept-card">
+                <h3>Молекулы воздуха в 3D:</h3>
+                <p>Динамик толкает молекулы, и волна сжатия бежит вправо. Сами частицы <span class="highlight">остаются на месте</span> — передаётся только толчок.</p>
+                <div class="canvas-panel" style="margin-bottom:0;">
+                    <canvas id="particlesCanvas" height="170"></canvas>
+                </div>
+                <div class="mini-control">
+                    <div class="mini-control-label">
+                        <span>Скорость колебаний динамика</span>
+                        <span class="mc-value" id="pumpVal">обычная</span>
+                    </div>
+                    <input type="range" id="pumpSlider" min="1" max="10" value="4" step="1">
+                </div>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(1)">← Назад</button>
+                <button class="btn btn-primary" onclick="goTo(3)">Дальше: Частота →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 3: Frequency ═══ -->
+        <div class="screen" id="screen-3">
+            <div class="screen-label">Базовая модель · 2 / 3</div>
+            <h1>Частота — высота звука</h1>
+
+            <p>Частота измеряется в <span class="highlight">Герцах (Гц)</span> — это количество колебаний в секунду. Человек слышит от 20 до 20 000 Гц.</p>
+
+            <div class="concept-card">
+                <h3>Попробуй: двигай ползунок и слушай</h3>
+                <div class="canvas-panel" style="margin-top:8px;">
+                    <canvas id="freqDemoCanvas" height="110"></canvas>
+                </div>
+                <div class="mini-control">
+                    <div class="mini-control-label">
+                        <span>Частота</span>
+                        <span class="mc-value" id="freqDemoVal">200 Гц</span>
+                    </div>
+                    <input type="range" id="freqDemoSlider" min="80" max="1200" value="200" step="1">
+                </div>
+                <div class="preset-chips">
+                    <button class="chip" onclick="setFreqPreset(130, this)">🐝 130</button>
+                    <button class="chip" onclick="setFreqPreset(440, this)">🎵 440 «ля»</button>
+                    <button class="chip" onclick="setFreqPreset(600, this)">🦟 600</button>
+                    <button class="chip" onclick="setFreqPreset(1000, this)">📯 1000</button>
+                </div>
+                <button class="mini-play-btn" id="freqDemoPlayBtn" onclick="toggleMiniSound('freq')">▶ Послушать</button>
+                <p style="margin-top:12px;">Двигай вправо — волна «сжимается», колебаний больше, звук <span class="highlight">выше</span>.</p>
+            </div>
+
+            <div class="note-box">
+                <p><span class="highlight">Запомни:</span> 130 Гц — гул шмеля. 440 Гц — нота «ля» (камертон). 600 Гц — писк комара. 4000 Гц — свисток.</p>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(2)">← Назад</button>
+                <button class="btn btn-primary" onclick="goTo(4)">Дальше: Амплитуда →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 4: Amplitude ═══ -->
+        <div class="screen" id="screen-4">
+            <div class="screen-label">Базовая модель · 3 / 3</div>
+            <h1>Амплитуда — громкость</h1>
+
+            <p>Амплитуда — это <span class="highlight">«размах»</span> волны. Чем больше размах — тем громче звук.</p>
+
+            <div class="concept-card">
+                <h3>Попробуй: меняй громкость</h3>
+                <div class="canvas-panel" style="margin-top:8px;">
+                    <canvas id="ampDemoCanvas" height="110"></canvas>
+                </div>
+                <div class="mini-control">
+                    <div class="mini-control-label">
+                        <span>Амплитуда</span>
+                        <span class="mc-value" id="ampDemoVal">50%</span>
+                    </div>
+                    <input type="range" id="ampDemoSlider" min="5" max="100" value="50" step="1">
+                </div>
+                <div class="loud-indicator">
+                    <span class="li-emoji" id="loudEmoji">🗣</span>
+                    <span id="loudLabel">Обычный разговор</span>
+                </div>
+                <button class="mini-play-btn" id="ampDemoPlayBtn" onclick="toggleMiniSound('amp')">▶ Послушать</button>
+                <p style="margin-top:12px;">Маленькая амплитуда — <span class="highlight">шёпот</span>. Большая — <span class="highlight">крик</span>. Высота звука при этом не меняется!</p>
+            </div>
+
+            <div class="note-box">
+                <p><span class="highlight">Итого:</span> частота = высота звука. Амплитуда = громкость. Это два независимых свойства.</p>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(3)">← Назад</button>
+                <button class="btn btn-primary" onclick="goTo(5)">Проверь себя →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 5: Quiz 1 ═══ -->
+        <div class="screen" id="screen-5">
+            <div class="screen-label">Проверка понимания</div>
+            <h2>Вопрос 1 из 3</h2>
+            <p>Гитарную струну натянули сильнее, и она стала колебаться быстрее. Что произошло со звуком?</p>
+            <div id="quiz1">
+                <button class="quiz-option" onclick="checkAnswer(1, 0, true)">Звук стал выше</button>
+                <button class="quiz-option" onclick="checkAnswer(1, 1, false)">Звук стал громче</button>
+                <button class="quiz-option" onclick="checkAnswer(1, 2, false)">Звук стал ниже</button>
+            </div>
+            <div class="feedback-box" id="feedback1"><p id="feedback1-text"></p></div>
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(4)">← Назад</button>
+                <button class="btn btn-primary" id="nextQ1" onclick="goTo(6)" disabled>Дальше →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 6: Quiz 2 ═══ -->
+        <div class="screen" id="screen-6">
+            <div class="screen-label">Проверка понимания</div>
+            <h2>Вопрос 2 из 3</h2>
+            <p>Ты отошёл от колонки на 10 метров. Что изменилось?</p>
+            <div id="quiz2">
+                <button class="quiz-option" onclick="checkAnswer(2, 0, false)">Звук стал ниже (частота упала)</button>
+                <button class="quiz-option" onclick="checkAnswer(2, 1, true)">Звук стал тише (амплитуда упала)</button>
+                <button class="quiz-option" onclick="checkAnswer(2, 2, false)">Ничего не изменилось</button>
+            </div>
+            <div class="feedback-box" id="feedback2"><p id="feedback2-text"></p></div>
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(5)">← Назад</button>
+                <button class="btn btn-primary" id="nextQ2" onclick="goTo(7)" disabled>Дальше →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 7: Interference ═══ -->
+        <div class="screen" id="screen-7">
+            <div class="screen-label">Углубление</div>
+            <h1>А если две волны встретятся?</h1>
+
+            <p>Когда два источника звука работают одновременно, их волны <span class="highlight">складываются</span>. Результат зависит от того, совпадают ли пики.</p>
+
+            <div class="concept-card">
+                <div class="interference-btns">
+                    <button class="interference-btn active" id="intBtn1" onclick="setInterference('constructive')">Пики совпадают</button>
+                    <button class="interference-btn" id="intBtn2" onclick="setInterference('destructive')">Пики и впадины</button>
+                </div>
+                <div class="canvas-panel" style="margin: 0 0 4px;">
+                    <canvas id="interferenceCanvas" height="240"></canvas>
+                </div>
+                <div class="interference-label" id="interferenceLabel">Два источника на 3D-поле: волны усиливают друг друга</div>
+                <button class="silence-demo-btn" id="silenceBtn" onclick="playSilenceDemo()">🎧 Услышь, как звук гасит звук</button>
+                <div class="interference-label" id="silenceLabel" style="min-height:16px;"></div>
+            </div>
+
+            <div class="concept-card">
+                <div class="emoji">🎧</div>
+                <h3>Так работают шумоподавляющие наушники</h3>
+                <p>Микрофон записывает внешний шум, а наушник создаёт «зеркальную» волну — пик против впадины. Шум гасится — наступает тишина!</p>
+            </div>
+
+            <h2 style="margin-top: 8px;">Вопрос 3 из 3</h2>
+            <p>Как работают шумоподавляющие наушники?</p>
+            <div id="quiz3">
+                <button class="quiz-option" onclick="checkAnswer(3, 0, false)">Блокируют звук толстыми стенками</button>
+                <button class="quiz-option" onclick="checkAnswer(3, 1, true)">Создают «антиволну», которая гасит шум</button>
+                <button class="quiz-option" onclick="checkAnswer(3, 2, false)">Заглушают шум белым шумом</button>
+            </div>
+            <div class="feedback-box" id="feedback3"><p id="feedback3-text"></p></div>
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(6)">← Назад</button>
+                <button class="btn btn-primary" id="nextQ3" onclick="goTo(8)" disabled>Дальше: игра →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 8: Sound Detective ═══ -->
+        <div class="screen" id="screen-8">
+            <div class="screen-label">Игра</div>
+            <h1>🕵️ Звуковой детектив</h1>
+            <p>Теперь проверим твой слух. Я сыграю загадочный звук — а ты определи его частоту. С каждым раундом сложнее!</p>
+
+            <div class="detective-stage">
+                <div class="detective-round" id="detRound">Раунд 1 из 3</div>
+                <button class="mystery-btn" id="mysteryBtn" onclick="playMystery()">▶</button>
+                <div class="mystery-hint" id="mysteryHint">Нажми, чтобы услышать загадочный звук</div>
+                <div class="detective-options" id="detOptions"></div>
+                <div class="detective-feedback" id="detFeedback"></div>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(7)">← Назад</button>
+                <button class="btn btn-primary" id="detNextBtn" onclick="goTo(9)" disabled>К тренажёру →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 9: Interactive Trainer ═══ -->
+        <div class="screen" id="screen-9">
+            <div class="screen-label">Тренажёр</div>
+            <h1>Управляй звуковой волной</h1>
+
+            <div class="challenge-box" id="challengeBox">
+                <h3 id="challengeTitle">🎯 Задание 1 из 4</h3>
+                <p id="challengeText">Создай писк комара: установи частоту ~600 Гц</p>
+                <div class="challenge-progress" id="challengeProgress">
+                    <div class="cp-dot"></div><div class="cp-dot"></div><div class="cp-dot"></div><div class="cp-dot"></div>
+                </div>
+            </div>
+
+            <div class="canvas-panel">
+                <canvas id="waveCanvas" height="240"></canvas>
+            </div>
+            <p class="canvas-hint">Можно тянуть прямо по волне: ↔ частота · ↕ громкость</p>
+
+            <div class="wave-info">
+                <div class="wave-info-item">
+                    <div class="label">Частота</div>
+                    <div class="val" id="infoFreq">440 Гц</div>
+                </div>
+                <div class="wave-info-item">
+                    <div class="label">Нота</div>
+                    <div class="val" id="infoNote">A4</div>
+                </div>
+                <div class="wave-info-item">
+                    <div class="label">Период</div>
+                    <div class="val" id="infoPeriod">2.3 мс</div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Частота (высота звука)</span>
+                    <span class="value" id="freqVal">440 Гц</span>
+                </div>
+                <input type="range" id="freqSlider" min="80" max="2000" value="440" step="1">
+                <div class="preset-chips">
+                    <button class="chip" onclick="setTrainerFreq(130)">🐝 130</button>
+                    <button class="chip" onclick="setTrainerFreq(440)">🎵 440</button>
+                    <button class="chip" onclick="setTrainerFreq(600)">🦟 600</button>
+                    <button class="chip" onclick="setTrainerFreq(880)">🎶 880</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Амплитуда (громкость)</span>
+                    <span class="value" id="ampVal">50%</span>
+                </div>
+                <input type="range" id="ampSlider" min="0" max="100" value="50">
+            </div>
+
+            <div class="trainer-controls">
+                <button class="btn btn-primary" id="playBtn" onclick="toggleSound()">▶ Воспроизвести</button>
+            </div>
+
+            <div class="second-wave-toggle" onclick="toggleWave2()">
+                <div class="toggle-switch" id="wave2Toggle"></div>
+                <div class="toggle-label">Добавить вторую волну (интерференция)</div>
+            </div>
+
+            <div class="controls-wave2" id="wave2Controls">
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Частота 2-й волны</span>
+                        <span class="value" id="freq2Val">440 Гц</span>
+                    </div>
+                    <input type="range" id="freq2Slider" min="80" max="2000" value="440" step="1">
+                </div>
+                <div class="control-group" style="margin-bottom:0">
+                    <div class="control-label">
+                        <span>Амплитуда 2-й волны</span>
+                        <span class="value" id="amp2Val">50%</span>
+                    </div>
+                    <input type="range" id="amp2Slider" min="0" max="100" value="50">
+                </div>
+                <div class="phase-toggle" onclick="togglePhase(event)">
+                    <div class="toggle-switch" id="phaseToggle"></div>
+                    <span>Противофаза (перевернуть волну 2)</span>
+                </div>
+            </div>
+            <div class="wave-legend" id="waveLegend">
+                <span><i style="background:#a29bfe;"></i> Волна 1</span>
+                <span><i style="background:#e17055;"></i> Волна 2</span>
+                <span><i style="background:#00b894;"></i> Сумма</span>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(8)">← Назад</button>
+                <button class="btn btn-primary" onclick="goTo(10)">Завершить →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 10: Final Quiz ═══ -->
+        <div class="screen" id="screen-10">
+            <div class="screen-label">Финальная проверка</div>
+            <h1>Проверь, насколько ты всё понял</h1>
+            <p>Последние 3 вопроса — отвечай, опираясь на то, что узнал.</p>
+
+            <div id="finalQuiz">
+                <div class="fq-block" id="fqBlock1">
+                    <p style="color:#fff; font-weight:600; margin-bottom:10px;">1. От чего зависит высота звука?</p>
+                    <div id="fq1">
+                        <button class="quiz-option" onclick="checkFinal(1, 0, false)">От амплитуды волны</button>
+                        <button class="quiz-option" onclick="checkFinal(1, 1, true)">От частоты колебаний</button>
+                        <button class="quiz-option" onclick="checkFinal(1, 2, false)">От скорости распространения звука</button>
+                    </div>
+                    <div class="feedback-box" id="fqFb1"><p id="fqFb1-text"></p></div>
+                </div>
+
+                <div class="fq-block" id="fqBlock2" style="display:none;">
+                    <p style="color:#fff; font-weight:600; margin-bottom:10px;">2. Что определяет громкость звука?</p>
+                    <div id="fq2">
+                        <button class="quiz-option" onclick="checkFinal(2, 0, true)">Амплитуда — размах волны</button>
+                        <button class="quiz-option" onclick="checkFinal(2, 1, false)">Частота — количество колебаний</button>
+                        <button class="quiz-option" onclick="checkFinal(2, 2, false)">Длина волны</button>
+                    </div>
+                    <div class="feedback-box" id="fqFb2"><p id="fqFb2-text"></p></div>
+                </div>
+
+                <div class="fq-block" id="fqBlock3" style="display:none;">
+                    <p style="color:#fff; font-weight:600; margin-bottom:10px;">3. Что произойдёт, если наложить две одинаковые волны в противофазе?</p>
+                    <div id="fq3">
+                        <button class="quiz-option" onclick="checkFinal(3, 0, false)">Звук станет в два раза громче</button>
+                        <button class="quiz-option" onclick="checkFinal(3, 1, false)">Частота удвоится</button>
+                        <button class="quiz-option" onclick="checkFinal(3, 2, true)">Звук погасится — наступит тишина</button>
+                    </div>
+                    <div class="feedback-box" id="fqFb3"><p id="fqFb3-text"></p></div>
+                </div>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(9)">← В тренажёр</button>
+                <button class="btn btn-primary" id="toResultsBtn" onclick="goTo(11)" disabled style="display:none;">Завершить →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 11: Results ═══ -->
+        <div class="screen" id="screen-11">
+            <div class="screen-label">Завершение</div>
+
+            <div style="text-align:center; font-size:60px; margin: 4px 0 10px;">🎓</div>
+            <h1 style="text-align:center;" id="resultTitle">Тренажёр пройден!</h1>
+
+            <div class="stars-row">
+                <span class="star" id="star1">⭐</span>
+                <span class="star" id="star2">⭐</span>
+                <span class="star" id="star3">⭐</span>
+            </div>
+
+            <div class="results-grid">
+                <div class="result-card">
+                    <div class="big-num" id="resultCorrect">0</div>
+                    <div class="label">теория</div>
+                </div>
+                <div class="result-card">
+                    <div class="big-num" id="resultDetective">0</div>
+                    <div class="label">звуковой детектив</div>
+                </div>
+                <div class="result-card">
+                    <div class="big-num" id="resultChallenges">0</div>
+                    <div class="label">задания тренажёра</div>
+                </div>
+                <div class="result-card">
+                    <div class="big-num" id="resultFinal">0</div>
+                    <div class="label">финальный квиз</div>
+                </div>
+            </div>
+            <div class="note-box" style="text-align:center;">
+                <p>Общий итог: <span class="highlight" id="resultTotal" style="font-size:18px;">0 / 13</span></p>
+            </div>
+
+            <div class="concept-card" style="border-color: #6c5ce740;">
+                <h3 style="font-size:17px; margin-bottom:10px;">Что ты теперь знаешь</h3>
+                <p><span class="highlight">Частота</span> (Гц) определяет высоту звука — комар пищит на 600 Гц, шмель гудит на 130 Гц.</p>
+                <p><span class="highlight">Амплитуда</span> определяет громкость — чем сильнее размах волны, тем громче звук.</p>
+                <p><span class="highlight">Интерференция</span> — волны складываются: усиливают друг друга или гасят. Так работают шумоподавляющие наушники.</p>
+                <p><span class="highlight">Биения</span> — когда две частоты почти совпадают, громкость «плывёт»: вуа-вуа-вуа. Так настраивают гитары!</p>
+            </div>
+
+            <div class="concept-card" style="border-color: #00b89440;">
+                <h3 style="color:#00b894; font-size:16px; margin-bottom:8px;">Где это пригодится</h3>
+                <p>Эти знания — фундамент акустики, музыки и звукорежиссуры. Те же принципы — в радиосвязи, медицинском УЗИ, эквалайзерах и даже сейсмологии.</p>
+                <p>Теперь, когда ты слышишь звук — ты понимаешь, что за ним стоит.</p>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:8px;">
+                <button class="btn btn-secondary" onclick="restart()" style="flex:1; margin-top:0;">Пройти ещё раз</button>
+                <button class="btn btn-primary" onclick="goTo(9)" style="flex:1; margin-top:0;">🎛 В тренажёр</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    'use strict';
+    // ══════════════════ STATE ══════════════════
+    const TOTAL_SCREENS = 12;
+    const MAX_SCORE = 13;
+    let currentScreen = 0;
+    let score = 0;
+    let correctAnswers = 0;     // theory: 3
+    let detectiveScore = 0;     // game: 3
+    let challengesDone = 0;     // trainer: 4
+    let finalCorrect = 0;       // final: 3
+    let finalAnswered = 0;
+    let currentChallenge = 0;
+    let wave2Active = false;
+    let phaseInverted = false;
+    let interferenceMode = 'constructive';
+
+    // ══════════════════ AUDIO ENGINE ══════════════════
+    let actx = null, master = null;
+    let audioUnlocked = false;
+    const liveVoices = new Set();
+
+    function ac() {
+        if (!actx) {
+            actx = new (window.AudioContext || window.webkitAudioContext)();
+            const comp = actx.createDynamicsCompressor();
+            comp.threshold.value = -18;
+            comp.ratio.value = 6;
+            master = actx.createGain();
+            master.gain.value = 0.9;
+            master.connect(comp);
+            comp.connect(actx.destination);
+        }
+        if (actx.state === 'suspended') actx.resume().catch(() => {});
+        if (!audioUnlocked) {
+            const o = actx.createOscillator(), g = actx.createGain();
+            g.gain.value = 0.0001;
+            o.connect(g); g.connect(actx.destination);
+            o.start(0); o.stop(actx.currentTime + 0.05);
+            audioUnlocked = true;
+        }
+        return actx;
+    }
+    document.addEventListener('touchend', function unlock() {
+        ac();
+        document.removeEventListener('touchend', unlock);
+    }, { passive: true });
+    document.addEventListener('click', function unlockC() {
+        ac();
+        document.removeEventListener('click', unlockC);
+    });
+
+    // Smooth-enveloped voice. dur=null → continuous (stop manually)
+    function voice({ freq = 440, type = 'sine', gain = 0.15, dur = null, attack = 0.012, release = 0.09, when = 0, detune = 0, filterFreq = null }) {
+        ac();
+        const t0 = actx.currentTime + when;
+        const o = actx.createOscillator();
+        const g = actx.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(freq, t0);
+        if (detune) o.detune.value = detune;
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(Math.max(gain, 0.0001), t0 + attack);
+
+        let tail = g;
+        let filter = null;
+        if (filterFreq) {
+            filter = actx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = filterFreq;
+            o.connect(filter); filter.connect(g);
+        } else {
+            o.connect(g);
+        }
+        g.connect(master);
+        o.start(t0);
+
+        const handle = {
+            osc: o, gain: g, filter,
+            extras: [],
+            setFreq(f) { try { o.frequency.setTargetAtTime(f, actx.currentTime, 0.02); } catch (e) {} },
+            setGain(v) { try { g.gain.setTargetAtTime(Math.max(v, 0.0001), actx.currentTime, 0.03); } catch (e) {} },
+            stop(rel = release) {
+                if (handle.stopped) return;
+                handle.stopped = true;
+                const t = actx.currentTime;
+                try {
+                    g.gain.cancelScheduledValues(t);
+                    g.gain.setValueAtTime(Math.max(g.gain.value, 0.0001), t);
+                    g.gain.exponentialRampToValueAtTime(0.0001, t + rel);
+                    o.stop(t + rel + 0.05);
+                } catch (e) {}
+                handle.extras.forEach(x => { try { x.stop(t + rel + 0.05); } catch (e) {} });
+                liveVoices.delete(handle);
+            }
+        };
+        if (dur != null) {
+            g.gain.setValueAtTime(gain, t0 + Math.max(attack, dur - release));
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+            o.stop(t0 + dur + 0.05);
+            handle.stopped = true; // self-terminating, no manual stop needed
+        } else {
+            liveVoices.add(handle);
+        }
+        return handle;
+    }
+
+    function stopAllSound() {
+        [...liveVoices].forEach(v => v.stop());
+        liveVoices.clear();
+        stopMainSound(true);
+        stopMiniSound();
+        stopHookSound();
+        mysteryPlaying = false;
+        const mb = document.getElementById('mysteryBtn');
+        if (mb) mb.classList.remove('playing');
+    }
+
+    // ── UI sound effects ──
+    const sfx = {
+        click() { voice({ freq: 740, type: 'triangle', gain: 0.05, dur: 0.07, attack: 0.005, release: 0.05 }); },
+        correct() {
+            [523.25, 659.25, 783.99].forEach((f, i) =>
+                voice({ freq: f, type: 'sine', gain: 0.13, dur: 0.22, when: i * 0.09, attack: 0.008, release: 0.12 }));
+            if (navigator.vibrate) navigator.vibrate(30);
+        },
+        wrong() {
+            voice({ freq: 170, type: 'sawtooth', gain: 0.07, dur: 0.12, attack: 0.006, release: 0.07, filterFreq: 600 });
+            voice({ freq: 140, type: 'sawtooth', gain: 0.07, dur: 0.16, when: 0.14, attack: 0.006, release: 0.09, filterFreq: 600 });
+        },
+        complete() {
+            const v = voice({ freq: 320, type: 'triangle', gain: 0.12, dur: 0.4, attack: 0.01, release: 0.18 });
+            try { v.osc.frequency.exponentialRampToValueAtTime(960, actx.currentTime + 0.35); } catch (e) {}
+            voice({ freq: 1046.5, type: 'sine', gain: 0.12, dur: 0.5, when: 0.34, attack: 0.01, release: 0.3 });
+            if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+        },
+        fanfare() {
+            const notes = [523.25, 659.25, 783.99, 1046.5];
+            notes.forEach((f, i) => voice({ freq: f, type: 'triangle', gain: 0.12, dur: 0.3, when: i * 0.13, attack: 0.01, release: 0.15 }));
+            notes.forEach(f => voice({ freq: f, type: 'sine', gain: 0.09, dur: 1.2, when: 0.55, attack: 0.02, release: 0.8 }));
+        }
+    };
+
+    // ── Insect voices ──
+    let hookVoice = null, hookPlaying = null, hookTimer = null;
+
+    function makeInsect(kind) {
+        ac();
+        if (kind === 'mosquito') {
+            const v = voice({ freq: 600, type: 'sawtooth', gain: 0.08, filterFreq: 2600 });
+            const lfo = actx.createOscillator(), lfoG = actx.createGain();
+            lfo.frequency.value = 7; lfoG.gain.value = 28;
+            lfo.connect(lfoG); lfoG.connect(v.osc.frequency);
+            lfo.start();
+            v.extras.push(lfo);
+            const v2 = voice({ freq: 1200, type: 'sine', gain: 0.025 });
+            const origStop = v.stop.bind(v);
+            v.stop = (r) => { origStop(r); v2.stop(r); };
+            return v;
+        } else {
+            const v = voice({ freq: 130, type: 'sawtooth', gain: 0.13, filterFreq: 520 });
+            const sub = voice({ freq: 65, type: 'sine', gain: 0.09 });
+            const lfo = actx.createOscillator(), lfoG = actx.createGain();
+            lfo.frequency.value = 4.5; lfoG.gain.value = 5;
+            lfo.connect(lfoG); lfoG.connect(v.osc.frequency);
+            lfo.start();
+            v.extras.push(lfo);
+            const origStop = v.stop.bind(v);
+            v.stop = (r) => { origStop(r); sub.stop(r); };
+            return v;
+        }
+    }
+
+    function stopHookSound() {
+        if (hookVoice) { hookVoice.stop(); hookVoice = null; }
+        hookPlaying = null;
+        if (hookTimer) { clearTimeout(hookTimer); hookTimer = null; }
+        const m = document.getElementById('btnMosquito'), b = document.getElementById('btnBumblebee');
+        if (m) m.classList.remove('active');
+        if (b) b.classList.remove('active');
+    }
+
+    function playHookSound(type) {
+        if (hookPlaying === type) { stopHookSound(); return; }
+        stopHookSound();
+        hookVoice = makeInsect(type);
+        hookPlaying = type;
+        document.getElementById('btnMosquito').classList.toggle('active', type === 'mosquito');
+        document.getElementById('btnBumblebee').classList.toggle('active', type === 'bumblebee');
+        document.getElementById('hookHint').textContent = type === 'mosquito'
+            ? 'Слышишь высокий писк? Это 600 Гц — крылья бьют очень быстро'
+            : 'Слышишь низкий гул? Это 130 Гц — крылья бьют медленно';
+        hookTimer = setTimeout(() => { if (hookPlaying === type) stopHookSound(); }, 3500);
+    }
+
+    // ══════════════════ SCORE HUD ══════════════════
+    function addPoint() {
+        score++;
+        const hud = document.getElementById('hud');
+        document.getElementById('hudScore').textContent = score;
+        hud.classList.add('bump');
+        setTimeout(() => hud.classList.remove('bump'), 220);
+        const fp = document.createElement('div');
+        fp.className = 'float-point';
+        fp.textContent = '+1';
+        const r = hud.getBoundingClientRect();
+        fp.style.left = (r.left + r.width / 2 - 10) + 'px';
+        fp.style.top = (r.bottom + 6) + 'px';
+        document.body.appendChild(fp);
+        setTimeout(() => fp.remove(), 950);
+    }
+
+    // ══════════════════ CONFETTI ══════════════════
+    const confettiCanvas = document.getElementById('confettiCanvas');
+    const confettiCtx = confettiCanvas.getContext('2d');
+    let confetti = [];
+    const CONF_COLORS = ['#6c5ce7', '#a29bfe', '#e17055', '#00b894', '#fdcb6e', '#74b9ff', '#ff7675'];
+
+    function fitConfetti() {
+        confettiCanvas.width = window.innerWidth;
+        confettiCanvas.height = window.innerHeight;
+    }
+    fitConfetti();
+    window.addEventListener('resize', fitConfetti);
+
+    function confettiBurst(n = 60, xN = 0.5, yN = 0.35) {
+        const W = confettiCanvas.width, H = confettiCanvas.height;
+        for (let i = 0; i < n; i++) {
+            const a = Math.random() * Math.PI * 2, sp = 3 + Math.random() * 7;
+            confetti.push({
+                x: W * xN, y: H * yN,
+                vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 4,
+                w: 5 + Math.random() * 6, h: 3 + Math.random() * 5,
+                rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.3,
+                color: CONF_COLORS[(Math.random() * CONF_COLORS.length) | 0],
+                life: 1
+            });
+        }
+    }
+    function confettiRain(n = 130) {
+        const W = confettiCanvas.width;
+        for (let i = 0; i < n; i++) {
+            confetti.push({
+                x: Math.random() * W, y: -20 - Math.random() * 360,
+                vx: (Math.random() - 0.5) * 1.6, vy: 2 + Math.random() * 3,
+                w: 5 + Math.random() * 6, h: 3 + Math.random() * 5,
+                rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.25,
+                color: CONF_COLORS[(Math.random() * CONF_COLORS.length) | 0],
+                life: 1
+            });
+        }
+    }
+    function drawConfetti() {
+        if (!confetti.length) {
+            confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+            return;
+        }
+        const W = confettiCanvas.width, H = confettiCanvas.height;
+        confettiCtx.clearRect(0, 0, W, H);
+        confetti.forEach(p => {
+            p.x += p.vx; p.y += p.vy;
+            p.vy += 0.12; p.vx *= 0.99;
+            p.rot += p.vr;
+            p.life -= 0.004;
+            confettiCtx.save();
+            confettiCtx.translate(p.x, p.y);
+            confettiCtx.rotate(p.rot);
+            confettiCtx.globalAlpha = Math.max(0, Math.min(1, p.life));
+            confettiCtx.fillStyle = p.color;
+            confettiCtx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+            confettiCtx.restore();
+        });
+        confetti = confetti.filter(p => p.y < H + 30 && p.life > 0);
+    }
+
+    // ══════════════════ CANVAS HELPERS ══════════════════
+    function fit(c, cssH) {
+        const w = c.offsetWidth * 2;
+        if (c.width !== w) c.width = w;
+        const h = cssH * 2;
+        if (c.height !== h) c.height = h;
+        return { w: c.width, h: c.height };
+    }
+
+    // ══════════════════ BG STARFIELD ══════════════════
+    const bgCanvas = document.getElementById('bgCanvas');
+    const bgCtx = bgCanvas.getContext('2d');
+    let stars = [];
+    function initStars() {
+        bgCanvas.width = window.innerWidth;
+        bgCanvas.height = window.innerHeight;
+        stars = [];
+        const n = Math.min(110, (bgCanvas.width * bgCanvas.height) / 9000);
+        for (let i = 0; i < n; i++) {
+            stars.push({
+                x: Math.random() * bgCanvas.width,
+                y: Math.random() * bgCanvas.height,
+                r: 0.4 + Math.random() * 1.4,
+                tw: Math.random() * Math.PI * 2,
+                sp: 0.02 + Math.random() * 0.06
+            });
+        }
+    }
+    initStars();
+    window.addEventListener('resize', initStars);
+    function drawStars(t) {
+        bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+        stars.forEach(s => {
+            const a = 0.25 + 0.55 * (0.5 + 0.5 * Math.sin(t * 1.6 + s.tw));
+            bgCtx.beginPath();
+            bgCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+            bgCtx.fillStyle = `rgba(190,185,255,${a})`;
+            bgCtx.fill();
+            s.y += s.sp;
+            if (s.y > bgCanvas.height + 2) s.y = -2;
+        });
+    }
+
+    // ══════════════════ SCREEN 0: hero wave ══════════════════
+    const heroCanvas = document.getElementById('heroCanvas');
+    const heroCtx = heroCanvas.getContext('2d');
+    function drawHero(t) {
+        const { w, h } = fit(heroCanvas, 120);
+        heroCtx.clearRect(0, 0, w, h);
+        const L = 7;
+        for (let i = L - 1; i >= 0; i--) {
+            const z = i / (L - 1);
+            const yc = h * 0.52 - z * h * 0.18;
+            const amp = h * 0.26 * (1 - z * 0.4);
+            heroCtx.beginPath();
+            heroCtx.strokeStyle = `hsla(${250 - z * 30}, 75%, ${66 - z * 30}%, ${0.85 - z * 0.7})`;
+            heroCtx.lineWidth = 3 - z * 2;
+            if (i === 0) { heroCtx.shadowColor = '#6c5ce7'; heroCtx.shadowBlur = 16; }
+            for (let x = 0; x <= w; x += 3) {
+                const xn = x / w;
+                const y = yc + Math.sin(2 * Math.PI * 2.4 * xn - t * 2.2 + z * 1.1) * amp * (0.6 + 0.4 * Math.sin(xn * Math.PI));
+                x === 0 ? heroCtx.moveTo(x, y) : heroCtx.lineTo(x, y);
+            }
+            heroCtx.stroke();
+            heroCtx.shadowBlur = 0;
+        }
+    }
+
+    // ══════════════════ SCREEN 1: hook ══════════════════
+    const hookCanvas = document.getElementById('hookCanvas');
+    const hookCtx = hookCanvas.getContext('2d');
+    let mosqRipples = [], beeRipples = [], lastMosqSpawn = 0, lastBeeSpawn = 0;
+
+    function drawHook(t) {
+        const { w, h } = fit(hookCanvas, 150);
+        hookCtx.clearRect(0, 0, w, h);
+        const isMosq = hookPlaying === 'mosquito', isBee = hookPlaying === 'bumblebee';
+
+        const emitters = [
+            { x: w * 0.26, y: h * 0.38, ripples: mosqRipples, color: '162,155,254', on: isMosq, rate: isMosq ? 0.10 : 0.5, speed: 95, emoji: '🦟', label: '600 Гц', wob: 14 },
+            { x: w * 0.74, y: h * 0.38, ripples: beeRipples, color: '225,112,85', on: isBee, rate: isBee ? 0.38 : 1.1, speed: 55, emoji: '🐝', label: '130 Гц', wob: 4 }
+        ];
+
+        emitters.forEach((e, idx) => {
+            const lastKey = idx === 0 ? 'm' : 'b';
+            if (idx === 0) { if (t - lastMosqSpawn > e.rate) { e.ripples.push({ r: 6, born: t }); lastMosqSpawn = t; } }
+            else { if (t - lastBeeSpawn > e.rate) { e.ripples.push({ r: 6, born: t }); lastBeeSpawn = t; } }
+
+            // 3D tilted ellipse ripples
+            for (let i = e.ripples.length - 1; i >= 0; i--) {
+                const rp = e.ripples[i];
+                rp.r += e.speed / 60;
+                const alpha = Math.max(0, (e.on ? 0.55 : 0.22) * (1 - rp.r / (w * 0.30)));
+                if (alpha <= 0) { e.ripples.splice(i, 1); continue; }
+                hookCtx.beginPath();
+                hookCtx.ellipse(e.x, e.y + rp.r * 0.22, rp.r, rp.r * 0.38, 0, 0, Math.PI * 2);
+                hookCtx.strokeStyle = `rgba(${e.color},${alpha})`;
+                hookCtx.lineWidth = e.on ? 3 : 1.6;
+                hookCtx.stroke();
+            }
+
+            // insect emoji with flutter
+            const wobF = idx === 0 ? 40 : 14;
+            const dy = Math.sin(t * wobF) * (e.on ? e.wob : 2);
+            const dx = Math.cos(t * wobF * 0.7) * (e.on ? e.wob * 0.4 : 1);
+            hookCtx.font = `${Math.round(h * 0.24)}px serif`;
+            hookCtx.textAlign = 'center';
+            hookCtx.fillText(e.emoji, e.x + dx, e.y + dy);
+
+            hookCtx.font = `600 ${Math.min(22, w * 0.028)}px -apple-system, sans-serif`;
+            hookCtx.fillStyle = e.on ? `rgb(${e.color})` : `rgba(${e.color},0.55)`;
+            hookCtx.fillText(e.label, e.x, h * 0.16);
+        });
+
+        // bottom waveform strips
+        [[6, 'rgba(162,155,254,', isMosq, 12], [1.5, 'rgba(225,112,85,', isBee, 3.2]].forEach((cfg, i) => {
+            const [cycles, col, on, speed] = cfg;
+            const yb = h * (0.78 + i * 0.13);
+            hookCtx.beginPath();
+            hookCtx.strokeStyle = col + (on ? '1)' : '0.3)');
+            hookCtx.lineWidth = on ? 3 : 1.8;
+            if (on) { hookCtx.shadowColor = col + '0.9)'; hookCtx.shadowBlur = 10; }
+            for (let x = 0; x <= w; x += 3) {
+                const y = yb + Math.sin(2 * Math.PI * cycles * (x / w) - t * speed) * h * 0.05;
+                x === 0 ? hookCtx.moveTo(x, y) : hookCtx.lineTo(x, y);
+            }
+            hookCtx.stroke();
+            hookCtx.shadowBlur = 0;
+        });
+        hookCtx.textAlign = 'start';
+    }
+
+    // ══════════════════ SCREEN 2: particles 3D ══════════════════
+    const particlesCanvas = document.getElementById('particlesCanvas');
+    const pCtx = particlesCanvas.getContext('2d');
+    const pumpSlider = document.getElementById('pumpSlider');
+    pumpSlider.addEventListener('input', () => {
+        const v = +pumpSlider.value;
+        document.getElementById('pumpVal').textContent = v <= 3 ? 'медленная' : v <= 6 ? 'обычная' : 'быстрая';
+    });
+
+    function drawParticles(t) {
+        const { w, h } = fit(particlesCanvas, 170);
+        pCtx.clearRect(0, 0, w, h);
+        const speed = +pumpSlider.value * 0.7;
+        const phase = t * speed;
+
+        // speaker
+        const sx = w * 0.06, sy = h * 0.5;
+        const pump = 1 + Math.sin(phase * Math.PI * 2) * 0.12;
+        pCtx.save();
+        pCtx.translate(sx, sy);
+        pCtx.scale(pump, pump);
+        pCtx.font = `${Math.round(h * 0.3)}px serif`;
+        pCtx.textAlign = 'center';
+        pCtx.textBaseline = 'middle';
+        pCtx.fillText('🔊', 0, 0);
+        pCtx.restore();
+        pCtx.textBaseline = 'alphabetic';
+
+        // 3D lattice: 5 depth layers
+        const layers = 5, cols = 34;
+        for (let L = layers - 1; L >= 0; L--) {
+            const z = L / (layers - 1);            // 0 front, 1 back
+            const scale = 1 - z * 0.35;
+            const rowY = h * (0.62 - z * 0.38);
+            const alpha = 1 - z * 0.55;
+            for (let i = 0; i < cols; i++) {
+                const xn = i / cols;
+                const baseX = w * 0.14 + xn * w * 0.84 * (1 - z * 0.06) + z * w * 0.02;
+                const ph = 2 * Math.PI * (xn * 3 - phase);
+                const disp = Math.sin(ph) * 13 * scale;
+                const comp = Math.cos(ph);
+                const bright = 0.35 + (1 + comp) * 0.32;
+                const r = (3.6 + comp * 1.6) * scale;
+                pCtx.beginPath();
+                pCtx.arc(baseX + disp, rowY + Math.sin(i * 7 + L * 13) * 2, Math.max(0.8, r), 0, Math.PI * 2);
+                pCtx.fillStyle = `rgba(${Math.round(120 * bright + 60)},${Math.round(100 * bright + 50)},${Math.round(235 * bright)},${alpha})`;
+                if (comp > 0.5 && z < 0.3) { pCtx.shadowColor = '#6c5ce7'; pCtx.shadowBlur = 8; }
+                pCtx.fill();
+                pCtx.shadowBlur = 0;
+            }
+        }
+        pCtx.font = `${Math.min(20, w * 0.026)}px -apple-system, sans-serif`;
+        pCtx.fillStyle = '#ffffff45';
+        pCtx.textAlign = 'center';
+        pCtx.fillText('направление волны →', w * 0.55, h * 0.95);
+        pCtx.textAlign = 'start';
+    }
+
+    // ══════════════════ SCREEN 3: freq demo ══════════════════
+    const freqDemoCanvas = document.getElementById('freqDemoCanvas');
+    const fdCtx = freqDemoCanvas.getContext('2d');
+    const freqDemoSlider = document.getElementById('freqDemoSlider');
+
+    function setFreqPreset(f, chipEl) {
+        sfx.click();
+        freqDemoSlider.value = f;
+        freqDemoSlider.dispatchEvent(new Event('input'));
+        document.querySelectorAll('#screen-3 .chip').forEach(c => c.classList.remove('active'));
+        if (chipEl) chipEl.classList.add('active');
+        if (miniPlaying !== 'freq') toggleMiniSound('freq');
+    }
+
+    freqDemoSlider.addEventListener('input', () => {
+        document.getElementById('freqDemoVal').textContent = freqDemoSlider.value + ' Гц';
+        if (miniPlaying === 'freq' && miniVoice) miniVoice.setFreq(+freqDemoSlider.value);
+    });
+
+    function drawFreqDemo(t) {
+        const { w, h } = fit(freqDemoCanvas, 110);
+        fdCtx.clearRect(0, 0, w, h);
+        const freq = +freqDemoSlider.value;
+        fdCtx.beginPath();
+        fdCtx.strokeStyle = '#ffffff10';
+        fdCtx.moveTo(0, h / 2); fdCtx.lineTo(w, h / 2);
+        fdCtx.stroke();
+
+        fdCtx.beginPath();
+        fdCtx.strokeStyle = '#8d7df0';
+        fdCtx.lineWidth = 3;
+        fdCtx.shadowColor = '#6c5ce7';
+        fdCtx.shadowBlur = 12;
+        for (let x = 0; x <= w; x += 2) {
+            const y = h / 2 + Math.sin(2 * Math.PI * (freq / 110) * (x / w) - t * freq * 0.016) * (h * 0.36);
+            x === 0 ? fdCtx.moveTo(x, y) : fdCtx.lineTo(x, y);
+        }
+        fdCtx.stroke();
+        fdCtx.shadowBlur = 0;
+
+        // particles riding the wave
+        for (let i = 0; i < 7; i++) {
+            const xn = (i + 0.5) / 7;
+            const y = h / 2 + Math.sin(2 * Math.PI * (freq / 110) * xn - t * freq * 0.016) * (h * 0.36);
+            fdCtx.beginPath();
+            fdCtx.arc(xn * w, y, 5, 0, Math.PI * 2);
+            fdCtx.fillStyle = '#c9c3ff';
+            fdCtx.fill();
+        }
+    }
+
+    // ══════════════════ SCREEN 4: amp demo ══════════════════
+    const ampDemoCanvas = document.getElementById('ampDemoCanvas');
+    const adCtx = ampDemoCanvas.getContext('2d');
+    const ampDemoSlider = document.getElementById('ampDemoSlider');
+
+    ampDemoSlider.addEventListener('input', () => {
+        const v = +ampDemoSlider.value;
+        document.getElementById('ampDemoVal').textContent = v + '%';
+        if (miniPlaying === 'amp' && miniVoice) miniVoice.setGain((v / 100) * 0.25);
+        const emoji = document.getElementById('loudEmoji'), label = document.getElementById('loudLabel');
+        if (v < 30) { emoji.textContent = '🤫'; label.textContent = 'Шёпот'; }
+        else if (v < 70) { emoji.textContent = '🗣'; label.textContent = 'Обычный разговор'; }
+        else { emoji.textContent = '📢'; label.textContent = 'Крик!'; }
+        emoji.style.transform = `scale(${0.8 + v / 200})`;
+    });
+
+    function drawAmpDemo(t) {
+        const { w, h } = fit(ampDemoCanvas, 110);
+        adCtx.clearRect(0, 0, w, h);
+        const amp = +ampDemoSlider.value / 100;
+        adCtx.beginPath();
+        adCtx.strokeStyle = '#ffffff10';
+        adCtx.moveTo(0, h / 2); adCtx.lineTo(w, h / 2);
+        adCtx.stroke();
+
+        adCtx.beginPath();
+        adCtx.strokeStyle = '#8d7df0';
+        adCtx.lineWidth = 3;
+        adCtx.shadowColor = '#6c5ce7';
+        adCtx.shadowBlur = 4 + amp * 16;
+        for (let x = 0; x <= w; x += 2) {
+            const y = h / 2 + Math.sin(2 * Math.PI * 3 * (x / w) - t * 5) * (h * 0.42 * amp);
+            x === 0 ? adCtx.moveTo(x, y) : adCtx.lineTo(x, y);
+        }
+        adCtx.stroke();
+        adCtx.shadowBlur = 0;
+    }
+
+    // ══════════════════ MINI SOUND (screens 3-4) ══════════════════
+    let miniVoice = null, miniPlaying = null;
+
+    function toggleMiniSound(type) {
+        if (miniPlaying === type) { stopMiniSound(); return; }
+        stopMiniSound();
+        if (type === 'freq') {
+            miniVoice = voice({ freq: +freqDemoSlider.value, type: 'triangle', gain: 0.15 });
+        } else {
+            miniVoice = voice({ freq: 300, type: 'triangle', gain: (+ampDemoSlider.value / 100) * 0.25 });
+        }
+        miniPlaying = type;
+        const btn = document.getElementById(type === 'freq' ? 'freqDemoPlayBtn' : 'ampDemoPlayBtn');
+        btn.textContent = '■ Остановить';
+        btn.classList.add('playing');
+    }
+
+    function stopMiniSound() {
+        if (miniVoice) { miniVoice.stop(); miniVoice = null; }
+        miniPlaying = null;
+        ['freqDemoPlayBtn', 'ampDemoPlayBtn'].forEach(id => {
+            const b = document.getElementById(id);
+            if (b) { b.textContent = '▶ Послушать'; b.classList.remove('playing'); }
+        });
+    }
+
+    // ══════════════════ SCREEN 7: interference 3D field ══════════════════
+    const intCanvas = document.getElementById('interferenceCanvas');
+    const intCtx = intCanvas.getContext('2d');
+
+    function setInterference(mode) {
+        sfx.click();
+        interferenceMode = mode;
+        document.getElementById('intBtn1').classList.toggle('active', mode === 'constructive');
+        document.getElementById('intBtn2').classList.toggle('active', mode === 'destructive');
+        document.getElementById('interferenceLabel').textContent = mode === 'constructive'
+            ? 'Два источника на 3D-поле: волны усиливают друг друга'
+            : 'Противофаза: по средней линии волны гасят друг друга';
+    }
+
+    function drawInterference(t) {
+        const { w, h } = fit(intCanvas, 240);
+        intCtx.clearRect(0, 0, w, h);
+        const phase = interferenceMode === 'destructive' ? Math.PI : 0;
+
+        // ── 3D ripple field (top 62%) ──
+        const rows = 14, cols = 40;
+        const fieldH = h * 0.60;
+        for (let r = 0; r < rows; r++) {
+            const v = r / (rows - 1);              // 0 far → 1 near
+            const py = h * 0.06 + Math.pow(v, 1.12) * fieldH;
+            const scale = 0.42 + 0.58 * v;
+            for (let c = 0; c < cols; c++) {
+                const u = c / (cols - 1) - 0.5;    // -0.5..0.5
+                const px = w / 2 + u * w * 0.94 * scale;
+                // plane coords
+                const X = u * 12, Z = (1 - v) * 9;
+                const d1 = Math.hypot(X + 3.4, Z - 4.5);
+                const d2 = Math.hypot(X - 3.4, Z - 4.5);
+                const val = Math.sin(d1 * 1.5 - t * 4.2) + Math.sin(d2 * 1.5 - t * 4.2 + phase);
+                const mag = Math.abs(val) / 2;
+                const size = (1.1 + mag * 3.4) * scale;
+                const alpha = 0.10 + mag * 0.55;
+                intCtx.beginPath();
+                intCtx.arc(px, py + val * 3.2 * scale, size, 0, Math.PI * 2);
+                intCtx.fillStyle = val > 0 ? `rgba(162,155,254,${alpha})` : `rgba(225,112,85,${alpha})`;
+                intCtx.fill();
+            }
+        }
+        // sources
+        const srcY = h * 0.06 + Math.pow(0.5, 1.12) * fieldH;
+        [[-3.4, '#a29bfe'], [3.4, '#e17055']].forEach(([X, col]) => {
+            const scale = 0.42 + 0.58 * 0.5;
+            const px = w / 2 + (X / 12) * w * 0.94 * scale;
+            const pulse = 1 + Math.sin(t * 4.2) * 0.25;
+            intCtx.beginPath();
+            intCtx.arc(px, srcY, 7 * pulse, 0, Math.PI * 2);
+            intCtx.fillStyle = col;
+            intCtx.shadowColor = col;
+            intCtx.shadowBlur = 16;
+            intCtx.fill();
+            intCtx.shadowBlur = 0;
+        });
+
+        // ── sum strands (bottom) ──
+        const baseY = h * 0.84;
+        const amp = h * 0.075;
+        intCtx.beginPath();
+        intCtx.strokeStyle = '#ffffff0a';
+        intCtx.moveTo(0, baseY); intCtx.lineTo(w, baseY);
+        intCtx.stroke();
+
+        [['rgba(162,155,254,0.5)', 0, 1.6], ['rgba(225,112,85,0.5)', phase, 1.6]].forEach(([col, ph, lw]) => {
+            intCtx.beginPath();
+            intCtx.strokeStyle = col;
+            intCtx.lineWidth = lw;
+            for (let x = 0; x <= w; x += 3) {
+                const y = baseY + Math.sin(2 * Math.PI * 3 * (x / w) - t * 4 + ph) * amp;
+                x === 0 ? intCtx.moveTo(x, y) : intCtx.lineTo(x, y);
+            }
+            intCtx.stroke();
+        });
+        intCtx.beginPath();
+        intCtx.strokeStyle = '#00b894';
+        intCtx.lineWidth = 3;
+        intCtx.shadowColor = '#00b894';
+        intCtx.shadowBlur = 10;
+        for (let x = 0; x <= w; x += 3) {
+            const xn = x / w;
+            const y = baseY + (Math.sin(2 * Math.PI * 3 * xn - t * 4) + Math.sin(2 * Math.PI * 3 * xn - t * 4 + phase)) * amp * 0.5;
+            x === 0 ? intCtx.moveTo(x, y) : intCtx.lineTo(x, y);
+        }
+        intCtx.stroke();
+        intCtx.shadowBlur = 0;
+
+        intCtx.font = `600 ${Math.min(19, w * 0.024)}px -apple-system, sans-serif`;
+        intCtx.fillStyle = '#00b894';
+        intCtx.fillText('Сумма волн', 14, baseY - amp - 10);
+    }
+
+    // ── "hear silence" demo ──
+    let silenceToken = 0;
+    function playSilenceDemo() {
+        ac();
+        const token = ++silenceToken;
+        const alive = () => token === silenceToken && currentScreen === 7;
+        const btn = document.getElementById('silenceBtn');
+        const label = document.getElementById('silenceLabel');
+        btn.disabled = true;
+
+        const F = 330;
+        label.textContent = '🔊 Волна 1...';
+        const v1 = voice({ freq: F, type: 'sine', gain: 0.18 });
+
+        setTimeout(() => {
+            v1.stop();
+            if (!alive()) return finishDemo(true);
+            label.textContent = '🔊 Волна 2 — точно такая же...';
+            const v2 = voice({ freq: F, type: 'sine', gain: 0.18 });
+            setTimeout(() => {
+                v2.stop();
+                if (!alive()) return finishDemo(true);
+                label.textContent = interferenceMode === 'destructive'
+                    ? '🤫 Обе вместе в ПРОТИВОФАЗЕ: тишина!'
+                    : '📢 Обе вместе, пики совпадают: ГРОМЧЕ!';
+                const a = voice({ freq: F, type: 'sine', gain: 0.18 });
+                const b = voice({ freq: F, type: 'sine', gain: 0.18 });
+                if (interferenceMode === 'destructive') {
+                    // true cancellation: invert the second wave
+                    try {
+                        const inv = actx.createGain();
+                        inv.gain.value = -1;
+                        b.gain.disconnect();
+                        b.gain.connect(inv);
+                        inv.connect(master);
+                    } catch (e) {}
+                }
+                setTimeout(() => { a.stop(); b.stop(); finishDemo(); }, 1800);
+            }, 1100);
+        }, 1100);
+
+        function finishDemo(silent) {
+            btn.disabled = false;
+            if (!silent) label.textContent = 'Попробуй переключить режим выше и нажми ещё раз!';
+        }
+    }
+
+    // ══════════════════ SCREEN 8: Sound Detective ══════════════════
+    const detRounds = [
+        { mystery: 600, options: [130, 600, 1200], hint: 'Подсказка: вспомни комара 🦟' },
+        { mystery: 220, options: [220, 520, 900], hint: 'Стало сложнее: частоты ближе' },
+        { mystery: 700, options: [550, 700, 880], hint: 'Финал: совсем близкие частоты!' }
+    ];
+    let detRound = 0, detAnswered = false, mysteryPlaying = false;
+
+    function renderDetective() {
+        const r = detRounds[detRound];
+        detAnswered = false;
+        document.getElementById('detRound').textContent = `Раунд ${detRound + 1} из 3`;
+        document.getElementById('mysteryHint').textContent = 'Нажми, чтобы услышать загадочный звук';
+        document.getElementById('detFeedback').textContent = r.hint;
+        const wrap = document.getElementById('detOptions');
+        wrap.innerHTML = '';
+        r.options.forEach(f => {
+            const b = document.createElement('button');
+            b.className = 'det-option';
+            b.innerHTML = `${f} Гц<small>${f < 300 ? 'низкий' : f < 650 ? 'средний' : 'высокий'}</small>`;
+            b.onclick = () => answerDetective(f, b);
+            wrap.appendChild(b);
+        });
+    }
+
+    function playMystery() {
+        if (mysteryPlaying) return;
+        ac();
+        const r = detRounds[detRound];
+        mysteryPlaying = true;
+        const btn = document.getElementById('mysteryBtn');
+        btn.classList.add('playing');
+        document.getElementById('mysteryHint').textContent = 'Слушай внимательно...';
+        voice({ freq: r.mystery, type: 'triangle', gain: 0.18, dur: 1.4, attack: 0.03, release: 0.25 });
+        setTimeout(() => {
+            mysteryPlaying = false;
+            btn.classList.remove('playing');
+            if (!detAnswered) document.getElementById('mysteryHint').textContent = 'Какая это была частота? Можно послушать ещё раз';
+        }, 1500);
+    }
+
+    function answerDetective(f, btnEl) {
+        if (detAnswered) return;
+        const r = detRounds[detRound];
+        detAnswered = true;
+        const correct = f === r.mystery;
+        const fb = document.getElementById('detFeedback');
+        document.querySelectorAll('.det-option').forEach(b => {
+            b.disabled = true;
+            const bf = parseInt(b.textContent);
+            if (bf === r.mystery) b.classList.add('correct');
+        });
+        if (correct) {
+            sfx.correct();
+            detectiveScore++;
+            addPoint();
+            confettiBurst(26, 0.5, 0.45);
+            fb.textContent = `✅ Точно! Это было ${r.mystery} Гц.`;
+        } else {
+            btnEl.classList.add('wrong');
+            sfx.wrong();
+            fb.textContent = `Это было ${r.mystery} Гц. Сейчас сыграю его ещё раз — запомни!`;
+            setTimeout(() => voice({ freq: r.mystery, type: 'triangle', gain: 0.16, dur: 1.0, attack: 0.03, release: 0.2 }), 700);
+        }
+        setTimeout(() => {
+            detRound++;
+            if (detRound < detRounds.length) {
+                renderDetective();
+            } else {
+                document.getElementById('detRound').textContent = 'Игра окончена';
+                document.getElementById('mysteryHint').textContent = '';
+                document.getElementById('detOptions').innerHTML = '';
+                document.getElementById('detFeedback').innerHTML =
+                    `<b style="color:#fff;">Твой слух: ${detectiveScore} из 3.</b> ${detectiveScore === 3 ? 'Абсолютный слух! 👂✨' : detectiveScore === 2 ? 'Отличный результат!' : 'С практикой будет лучше!'}`;
+                const nb = document.getElementById('detNextBtn');
+                nb.disabled = false;
+                if (detectiveScore >= 2) confettiBurst(50, 0.5, 0.4);
+            }
+        }, correct ? 1400 : 2600);
+    }
+
+    // ══════════════════ SCREEN 9: trainer ══════════════════
+    const freqSlider = document.getElementById('freqSlider');
+    const ampSlider = document.getElementById('ampSlider');
+    const freq2Slider = document.getElementById('freq2Slider');
+    const amp2Slider = document.getElementById('amp2Slider');
+    const waveCanvas = document.getElementById('waveCanvas');
+    const wCtx = waveCanvas.getContext('2d');
+
+    let mainVoice = null, mainVoice2 = null, isPlaying = false;
+    let wave2Inverter = null;
+
+    const challenges = [
+        { text: 'Создай писк комара: установи частоту ~600 Гц', check: () => { const f = +freqSlider.value; return f >= 570 && f <= 630; } },
+        { text: 'Создай гул шмеля: установи частоту ~130 Гц', check: () => { const f = +freqSlider.value; return f >= 110 && f <= 150; } },
+        { text: 'Включи 2-ю волну с такой же частотой (±15 Гц) — услышь усиление', check: () => wave2Active && !phaseInverted && Math.abs(freqSlider.value - freq2Slider.value) < 15 && +amp2Slider.value > 10 },
+        { text: 'Сделай БИЕНИЯ: сдвинь 2-ю волну на 3–10 Гц от первой и нажми ▶ — услышишь «вуа-вуа-вуа»', check: () => { const d = Math.abs(freqSlider.value - freq2Slider.value); return wave2Active && d >= 3 && d <= 10 && +amp2Slider.value > 10 && +ampSlider.value > 10; } },
+    ];
+
+    function setTrainerFreq(f) {
+        sfx.click();
+        freqSlider.value = f;
+        updateTrainerUI();
+    }
+
+    function getNote(freq) {
+        const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const n = 12 * Math.log2(freq / 440) + 69;
+        const idx = Math.round(n) % 12;
+        const oct = Math.floor(Math.round(n) / 12) - 1;
+        return notes[idx < 0 ? idx + 12 : idx] + oct;
+    }
+
+    function updateTrainerUI() {
+        const f = +freqSlider.value, a = +ampSlider.value;
+        document.getElementById('freqVal').textContent = f + ' Гц';
+        document.getElementById('ampVal').textContent = a + '%';
+        document.getElementById('infoFreq').textContent = f + ' Гц';
+        document.getElementById('infoNote').textContent = getNote(f);
+        document.getElementById('infoPeriod').textContent = (1000 / f).toFixed(1) + ' мс';
+        document.getElementById('freq2Val').textContent = freq2Slider.value + ' Гц';
+        document.getElementById('amp2Val').textContent = amp2Slider.value + '%';
+        if (mainVoice) {
+            mainVoice.setFreq(f);
+            mainVoice.setGain((a / 100) * 0.28);
+        }
+        if (mainVoice2) {
+            mainVoice2.setFreq(+freq2Slider.value);
+            mainVoice2.setGain((+amp2Slider.value / 100) * 0.28);
+        }
+        checkChallenges();
+    }
+
+    [freqSlider, ampSlider, freq2Slider, amp2Slider].forEach(s => s.addEventListener('input', updateTrainerUI));
+
+    function toggleSound() { isPlaying ? stopMainSound() : startMainSound(); }
+
+    function startMainSound() {
+        ac();
+        stopMainSound(true);
+        mainVoice = voice({ freq: +freqSlider.value, type: 'sine', gain: (+ampSlider.value / 100) * 0.28 });
+        if (wave2Active) startWave2Voice();
+        isPlaying = true;
+        const btn = document.getElementById('playBtn');
+        btn.textContent = '■ Остановить';
+        btn.style.background = 'linear-gradient(135deg, #e17055, #fab1a0)';
+    }
+
+    function startWave2Voice() {
+        mainVoice2 = voice({ freq: +freq2Slider.value, type: 'sine', gain: (+amp2Slider.value / 100) * 0.28 });
+        if (phaseInverted) {
+            try {
+                wave2Inverter = actx.createGain();
+                wave2Inverter.gain.value = -1;
+                mainVoice2.gain.disconnect();
+                mainVoice2.gain.connect(wave2Inverter);
+                wave2Inverter.connect(master);
+            } catch (e) {}
+        }
+    }
+
+    function stopMainSound(silent) {
+        if (mainVoice) { mainVoice.stop(); mainVoice = null; }
+        if (mainVoice2) { mainVoice2.stop(); mainVoice2 = null; }
+        wave2Inverter = null;
+        isPlaying = false;
+        const btn = document.getElementById('playBtn');
+        if (btn) {
+            btn.textContent = '▶ Воспроизвести';
+            btn.style.background = '';
+        }
+    }
+
+    function toggleWave2() {
+        sfx.click();
+        wave2Active = !wave2Active;
+        document.getElementById('wave2Toggle').classList.toggle('on', wave2Active);
+        document.getElementById('wave2Controls').classList.toggle('show', wave2Active);
+        document.getElementById('waveLegend').classList.toggle('show', wave2Active);
+        if (isPlaying) { stopMainSound(true); startMainSound(); }
+        checkChallenges();
+    }
+
+    function togglePhase(e) {
+        if (e) e.stopPropagation();
+        sfx.click();
+        phaseInverted = !phaseInverted;
+        document.getElementById('phaseToggle').classList.toggle('on', phaseInverted);
+        if (isPlaying) { stopMainSound(true); startMainSound(); }
+    }
+
+    function checkChallenges() {
+        if (currentScreen !== 9) return;
+        if (currentChallenge >= challenges.length) return;
+        if (challenges[currentChallenge].check()) {
+            challengesDone++;
+            addPoint();
+            sfx.complete();
+            confettiBurst(36, 0.5, 0.3);
+            currentChallenge++;
+            updateChallengeBox(true);
+        }
+    }
+
+    function updateChallengeBox(justDone) {
+        const box = document.getElementById('challengeBox');
+        const title = document.getElementById('challengeTitle');
+        const text = document.getElementById('challengeText');
+        const dots = document.querySelectorAll('#challengeProgress .cp-dot');
+        dots.forEach((d, i) => d.classList.toggle('done', i < currentChallenge));
+
+        if (currentChallenge < challenges.length) {
+            if (justDone) {
+                box.classList.add('success');
+                title.textContent = '✅ Выполнено!';
+                setTimeout(() => {
+                    box.classList.remove('success');
+                    title.textContent = `🎯 Задание ${currentChallenge + 1} из 4`;
+                    text.textContent = challenges[currentChallenge].text;
+                }, 1100);
+            } else {
+                title.textContent = `🎯 Задание ${currentChallenge + 1} из 4`;
+                text.textContent = challenges[currentChallenge].text;
+            }
+        } else {
+            box.classList.add('success');
+            title.textContent = '🏆 Все задания выполнены!';
+            text.textContent = 'Теперь экспериментируй свободно или жми «Завершить».';
+        }
+    }
+
+    // 3D wave ribbon
+    function drawTrainer(t) {
+        const { w, h } = fit(waveCanvas, 240);
+        wCtx.clearRect(0, 0, w, h);
+        const f1 = +freqSlider.value, a1 = (+ampSlider.value / 100);
+        const f2 = +freq2Slider.value, a2 = (+amp2Slider.value / 100);
+        const inv = phaseInverted ? -1 : 1;
+
+        const L = 11;
+        for (let i = L - 1; i >= 0; i--) {
+            const z = i / (L - 1);                 // 0 front, 1 back
+            const scale = 1 - z * 0.42;
+            const yc = h * 0.58 - z * h * 0.30;
+            const alpha = 0.92 - z * 0.8;
+            const ampPx = h * 0.24 * scale;
+            const zph = z * 1.5;
+
+            wCtx.beginPath();
+            wCtx.strokeStyle = `hsla(${248 - z * 28}, 72%, ${64 - z * 26}%, ${alpha})`;
+            wCtx.lineWidth = 3.4 - z * 2.5;
+            if (i === 0) { wCtx.shadowColor = '#6c5ce7'; wCtx.shadowBlur = 18; }
+            for (let x = 0; x <= w; x += 3) {
+                const xn = x / w;
+                let y = Math.sin(2 * Math.PI * (f1 / 110) * xn - t * f1 * 0.016 + zph) * a1;
+                if (wave2Active) y += Math.sin(2 * Math.PI * (f2 / 110) * xn - t * f2 * 0.016 + zph) * a2 * inv;
+                const py = yc + y * ampPx;
+                x === 0 ? wCtx.moveTo(x, py) : wCtx.lineTo(x, py);
+            }
+            wCtx.stroke();
+            wCtx.shadowBlur = 0;
+        }
+
+        // individual strands (thin) when wave2 on
+        if (wave2Active) {
+            const yc = h * 0.58;
+            const ampPx = h * 0.24;
+            [['rgba(162,155,254,0.4)', f1, a1, 0, 1], ['rgba(225,112,85,0.55)', f2, a2, 0, inv]].forEach(([col, f, a, ph, sgn]) => {
+                wCtx.beginPath();
+                wCtx.strokeStyle = col;
+                wCtx.lineWidth = 1.6;
+                wCtx.setLineDash([5, 5]);
+                for (let x = 0; x <= w; x += 3) {
+                    const xn = x / w;
+                    const py = yc + Math.sin(2 * Math.PI * (f / 110) * xn - t * f * 0.016) * a * sgn * ampPx;
+                    x === 0 ? wCtx.moveTo(x, py) : wCtx.lineTo(x, py);
+                }
+                wCtx.stroke();
+                wCtx.setLineDash([]);
+            });
+        }
+
+        // axis
+        wCtx.beginPath();
+        wCtx.strokeStyle = '#ffffff12';
+        wCtx.moveTo(0, h * 0.58); wCtx.lineTo(w, h * 0.58);
+        wCtx.stroke();
+    }
+
+    // drag-to-control on the wave canvas
+    let dragging = false, dragX = 0, dragY = 0, dragF = 0, dragA = 0;
+    waveCanvas.addEventListener('pointerdown', e => {
+        dragging = true;
+        dragX = e.clientX; dragY = e.clientY;
+        dragF = +freqSlider.value; dragA = +ampSlider.value;
+        waveCanvas.setPointerCapture(e.pointerId);
+    });
+    waveCanvas.addEventListener('pointermove', e => {
+        if (!dragging) return;
+        const rect = waveCanvas.getBoundingClientRect();
+        const df = (e.clientX - dragX) / rect.width * 1920;   // full width = full range
+        const da = (dragY - e.clientY) / rect.height * 130;
+        freqSlider.value = Math.round(Math.min(2000, Math.max(80, dragF + df)));
+        ampSlider.value = Math.round(Math.min(100, Math.max(0, dragA + da)));
+        updateTrainerUI();
+    });
+    ['pointerup', 'pointercancel'].forEach(ev => waveCanvas.addEventListener(ev, () => { dragging = false; }));
+
+    // ══════════════════ QUIZZES ══════════════════
+    const feedbackCorrect = {
+        1: 'Верно! Больше колебаний в секунду = выше частота = выше звук.',
+        2: 'Точно! Расстояние не меняет частоту — меняется только громкость (амплитуда), потому что энергия рассеивается.',
+        3: 'Именно! Наушники записывают внешний шум микрофоном и создают «зеркальную» волну, которая гасит его.'
+    };
+    const feedbackWrong = {
+        1: 'Не совсем. Натяжение увеличило скорость колебаний — выросла частота, а частота — это высота звука.',
+        2: 'Не совсем. Частота (высота) не зависит от расстояния. Уменьшается амплитуда — поэтому звук стал тише.',
+        3: 'Не совсем. ANC-наушники используют микрофон + динамик, чтобы создать волну-антифазу, которая гасит шум.'
+    };
+
+    function checkAnswer(quizNum, optionIdx, isCorrect) {
+        const options = document.querySelectorAll(`#quiz${quizNum} .quiz-option`);
+        options.forEach((o, i) => {
+            o.classList.add('disabled');
+            if (i === optionIdx) o.classList.add(isCorrect ? 'correct' : 'wrong');
+        });
+        const fb = document.getElementById(`feedback${quizNum}`);
+        document.getElementById(`feedback${quizNum}-text`).textContent = isCorrect ? feedbackCorrect[quizNum] : feedbackWrong[quizNum];
+        fb.classList.add('show', isCorrect ? 'correct-fb' : 'wrong-fb');
+        if (isCorrect) {
+            correctAnswers++;
+            addPoint();
+            sfx.correct();
+            confettiBurst(22, 0.5, 0.4);
+        } else {
+            sfx.wrong();
+        }
+        document.getElementById(`nextQ${quizNum}`).disabled = false;
+    }
+
+    const fqCorrectTexts = {
+        1: 'Верно! Частота колебаний (Гц) — это и есть высота звука. Больше колебаний — выше звук.',
+        2: 'Точно! Амплитуда — размах волны — определяет, насколько громким мы слышим звук.',
+        3: 'Правильно! Две одинаковые волны в противофазе полностью гасят друг друга — деструктивная интерференция.'
+    };
+    const fqWrongTexts = {
+        1: 'Не совсем. Высоту звука определяет именно частота — количество колебаний в секунду.',
+        2: 'Не совсем. Громкость зависит от амплитуды — размаха волны, а не от частоты.',
+        3: 'Не совсем. В противофазе пики одной волны совпадают с впадинами другой — звук исчезает.'
+    };
+
+    function checkFinal(qNum, optIdx, isCorrect) {
+        const options = document.querySelectorAll(`#fq${qNum} .quiz-option`);
+        options.forEach((o, i) => {
+            o.classList.add('disabled');
+            if (i === optIdx) o.classList.add(isCorrect ? 'correct' : 'wrong');
+        });
+        const fb = document.getElementById(`fqFb${qNum}`);
+        document.getElementById(`fqFb${qNum}-text`).textContent = isCorrect ? fqCorrectTexts[qNum] : fqWrongTexts[qNum];
+        fb.classList.add('show', isCorrect ? 'correct-fb' : 'wrong-fb');
+        if (isCorrect) { finalCorrect++; addPoint(); sfx.correct(); } else { sfx.wrong(); }
+        finalAnswered++;
+
+        if (qNum < 3) {
+            setTimeout(() => {
+                const nextBlock = document.getElementById(`fqBlock${qNum + 1}`);
+                nextBlock.style.display = 'block';
+                nextBlock.style.animation = 'fadeIn 0.4s ease';
+                nextBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 600);
+        }
+        if (finalAnswered === 3) {
+            setTimeout(() => {
+                const btn = document.getElementById('toResultsBtn');
+                btn.style.display = '';
+                btn.disabled = false;
+                btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 800);
+        }
+    }
+
+    // ══════════════════ NAVIGATION ══════════════════
+    const renderers = {
+        0: drawHero, 1: drawHook, 2: drawParticles, 3: drawFreqDemo,
+        4: drawAmpDemo, 7: drawInterference, 9: drawTrainer
+    };
+
+    function goTo(n) {
+        stopAllSound();
+        document.getElementById(`screen-${currentScreen}`).classList.remove('active');
+        currentScreen = n;
+        const el = document.getElementById(`screen-${n}`);
+        el.classList.add('active');
+        updateProgress();
+        if (n === 8 && detRound < detRounds.length && document.getElementById('detOptions').children.length === 0) renderDetective();
+        if (n === 9) updateChallengeBox(false);
+        if (n === 11) showResults();
+        window.scrollTo(0, 0);
+    }
+
+    function updateProgress() {
+        const pct = (currentScreen / (TOTAL_SCREENS - 1)) * 100;
+        document.getElementById('progressFill').style.width = pct + '%';
+        const indicator = document.getElementById('stepsIndicator');
+        indicator.innerHTML = '';
+        for (let i = 0; i < TOTAL_SCREENS; i++) {
+            const dot = document.createElement('div');
+            dot.className = 'step-dot';
+            if (i === currentScreen) dot.classList.add('active');
+            if (i < currentScreen) dot.classList.add('completed');
+            indicator.appendChild(dot);
+        }
+    }
+
+    // ══════════════════ RESULTS ══════════════════
+    let resultsShown = false;
+    function showResults() {
+        document.getElementById('resultCorrect').textContent = correctAnswers + '/3';
+        document.getElementById('resultDetective').textContent = detectiveScore + '/3';
+        document.getElementById('resultChallenges').textContent = challengesDone + '/4';
+        document.getElementById('resultFinal').textContent = finalCorrect + '/3';
+        const total = correctAnswers + detectiveScore + challengesDone + finalCorrect;
+        document.getElementById('resultTotal').textContent = total + ' / ' + MAX_SCORE;
+
+        const title = document.getElementById('resultTitle');
+        let starsCount;
+        if (total >= 12) { title.textContent = '🏆 Гений звука!'; starsCount = 3; }
+        else if (total >= 8) { title.textContent = 'Отличный результат!'; starsCount = 3; }
+        else if (total >= 5) { title.textContent = 'Хорошая работа!'; starsCount = 2; }
+        else { title.textContent = 'Тренажёр пройден!'; starsCount = 1; }
+
+        [1, 2, 3].forEach(i => document.getElementById('star' + i).classList.remove('lit'));
+        for (let i = 1; i <= starsCount; i++) {
+            setTimeout(() => {
+                document.getElementById('star' + i).classList.add('lit');
+                voice({ freq: 660 + i * 160, type: 'sine', gain: 0.1, dur: 0.3, attack: 0.01, release: 0.18 });
+            }, 500 + i * 420);
+        }
+        sfx.fanfare();
+        confettiRain(150);
+        setTimeout(() => confettiRain(80), 1200);
+    }
+
+    function restart() {
+        score = 0; correctAnswers = 0; detectiveScore = 0;
+        challengesDone = 0; currentChallenge = 0;
+        finalCorrect = 0; finalAnswered = 0;
+        detRound = 0;
+        document.getElementById('hudScore').textContent = '0';
+
+        for (let i = 1; i <= 3; i++) {
+            document.querySelectorAll(`#quiz${i} .quiz-option`).forEach(o => o.classList.remove('correct', 'wrong', 'disabled'));
+            document.getElementById(`feedback${i}`).classList.remove('show', 'correct-fb', 'wrong-fb');
+            document.getElementById(`nextQ${i}`).disabled = true;
+        }
+        for (let i = 1; i <= 3; i++) {
+            document.querySelectorAll(`#fq${i} .quiz-option`).forEach(o => o.classList.remove('correct', 'wrong', 'disabled'));
+            document.getElementById(`fqFb${i}`).classList.remove('show', 'correct-fb', 'wrong-fb');
+            if (i > 1) document.getElementById(`fqBlock${i}`).style.display = 'none';
+        }
+        document.getElementById('toResultsBtn').disabled = true;
+        document.getElementById('toResultsBtn').style.display = 'none';
+
+        document.getElementById('detNextBtn').disabled = true;
+        document.getElementById('detOptions').innerHTML = '';
+        document.getElementById('detFeedback').textContent = '';
+
+        document.getElementById('challengeBox').classList.remove('success');
+        updateChallengeBox(false);
+        document.querySelectorAll('#challengeProgress .cp-dot').forEach(d => d.classList.remove('done'));
+
+        if (wave2Active) toggleWave2();
+        if (phaseInverted) togglePhase();
+        freqSlider.value = 440; ampSlider.value = 50;
+        freq2Slider.value = 440; amp2Slider.value = 50;
+        updateTrainerUI();
+        goTo(0);
+    }
+
+    // ══════════════════ MASTER LOOP ══════════════════
+    function masterLoop() {
+        const t = performance.now() / 1000;
+        drawStars(t);
+        const fn = renderers[currentScreen];
+        if (fn) fn(t);
+        drawConfetti();
+        requestAnimationFrame(masterLoop);
+    }
+
+    // ══════════════════ INIT ══════════════════
+    updateProgress();
+    updateTrainerUI();
+    masterLoop();
+    </script>
+</body>
+</html>

@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Звук — это колебания · Звуковые волны</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔊</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<style>
+  /* панель+подсказка+кнопки визуала — колонкой, а не в ряд */
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 560px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; touch-action: none; }
+  .canvas-hint{
+    margin: 10px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+
+  /* кнопки «комар / шмель» */
+  .snd-row{
+    display: flex; gap: 10px; justify-content: center;
+    width: 100%; max-width: 560px; margin: 14px auto 0;
+  }
+  .snd-btn{
+    flex: 1; padding: 14px 10px;
+    border: 1px solid var(--purple-4); border-radius: var(--radius-md);
+    background: var(--white); color: var(--fg-1); cursor: pointer;
+    font-family: var(--font-sans); font-size: 14px; font-weight: 500;
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard), box-shadow 120ms var(--ease-standard);
+  }
+  .snd-btn .icon{ display: block; font-size: 34px; margin-bottom: 6px; }
+  .snd-btn .freq{ display: block; font-size: 12px; color: var(--fg-3); margin-top: 4px; }
+  .snd-btn:hover{ background: var(--purple-4); }
+  .snd-btn:active{ transform: scale(0.96); }
+  .snd-btn.active{ border-color: var(--purple-1); background: var(--purple-4); box-shadow: 0 4px 14px rgba(98,64,255,.18); }
+
+  /* слайдер */
+  .ctl{ width: 100%; max-width: 560px; margin: 14px auto 0; text-align: left; }
+  .ctl-label{ display: flex; justify-content: space-between; font-size: 14px; color: var(--fg-2); margin-bottom: 8px; }
+  .ctl-label b{ color: var(--purple-1); font-weight: 500; font-variant-numeric: tabular-nums; }
+  input[type="range"]{
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 6px; border-radius: 3px;
+    background: linear-gradient(90deg, #D9D2FF, #EEF0FF); outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance: none;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #8B6FFF, #6240FF);
+    cursor: pointer; box-shadow: 0 2px 8px rgba(98,64,255,.35);
+  }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '/assets/lesson/lesson-engine.js?v=4';
+import { makeInsect, stopAll } from '/sound/audio.js?v=1';
+
+/* ============================================================
+   ТЕМА 1 «Звук — это колебания».
+   Интерактивы перенесены из старого монолита sound/ (зацепка
+   «комар и шмель» + молекулы воздуха) и перекрашены в светлую
+   Neuroom-тему.
+   ============================================================ */
+
+const VIOLET = '98,64,255';   /* #6240FF */
+const ORANGE = '232,89,12';   /* #E8590C */
+
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+
+/* ============================================================
+   ИНТЕРАКТИВ 1: комар и шмель (звук + расходящиеся волны)
+   ============================================================ */
+function startHook(root, done) {
+  const canvas = root.querySelector('#hookCanvas');
+  const hint = root.querySelector('#hookHint');
+  const btnM = root.querySelector('#btnMosquito');
+  const btnB = root.querySelector('#btnBumblebee');
+  const ctx = canvas.getContext('2d');
+
+  let playing = null, voiceH = null, timer = null;
+  const heard = new Set();
+  const mosqRipples = [], beeRipples = [];
+  let lastMosqSpawn = 0, lastBeeSpawn = 0;
+
+  function stopInsect() {
+    if (voiceH) { voiceH.stop(); voiceH = null; }
+    playing = null;
+    if (timer) { clearTimeout(timer); timer = null; }
+    btnM.classList.remove('active');
+    btnB.classList.remove('active');
+  }
+  function play(kind) {
+    if (playing === kind) { stopInsect(); return; }
+    stopInsect();
+    voiceH = makeInsect(kind);
+    playing = kind;
+    btnM.classList.toggle('active', kind === 'mosquito');
+    btnB.classList.toggle('active', kind === 'bumblebee');
+    hint.innerHTML = kind === 'mosquito'
+      ? 'Высокий писк — <b>600 колебаний в секунду</b>: крылья бьют очень быстро'
+      : 'Низкий гул — <b>130 колебаний в секунду</b>: крылья бьют медленно';
+    heard.add(kind);
+    if (heard.size === 2) {
+      done();
+      setTimeout(() => { hint.innerHTML = 'Разница только в <b>скорости взмахов</b> — а звучат совсем по-разному!'; }, 3600);
+    }
+    timer = setTimeout(() => { if (playing === kind) stopInsect(); }, 3500);
+  }
+  btnM.addEventListener('click', () => play('mosquito'));
+  btnB.addEventListener('click', () => play('bumblebee'));
+
+  function draw(t) {
+    if (!canvas.isConnected) { stopAll(); return; }
+    const { w, h } = fit(canvas, 150);
+    ctx.clearRect(0, 0, w, h);
+    const isMosq = playing === 'mosquito', isBee = playing === 'bumblebee';
+
+    const emitters = [
+      { x: w * 0.26, y: h * 0.38, ripples: mosqRipples, color: VIOLET, on: isMosq, rate: isMosq ? 0.10 : 0.5, speed: 95, emoji: '🦟', label: '600 Гц', wob: 14 },
+      { x: w * 0.74, y: h * 0.38, ripples: beeRipples, color: ORANGE, on: isBee, rate: isBee ? 0.38 : 1.1, speed: 55, emoji: '🐝', label: '130 Гц', wob: 4 },
+    ];
+
+    emitters.forEach((e, idx) => {
+      if (idx === 0) { if (t - lastMosqSpawn > e.rate) { e.ripples.push({ r: 6 }); lastMosqSpawn = t; } }
+      else { if (t - lastBeeSpawn > e.rate) { e.ripples.push({ r: 6 }); lastBeeSpawn = t; } }
+
+      // наклонённые эллипсы-«круги» от источника
+      for (let i = e.ripples.length - 1; i >= 0; i--) {
+        const rp = e.ripples[i];
+        rp.r += e.speed / 60;
+        const alpha = Math.max(0, (e.on ? 0.55 : 0.22) * (1 - rp.r / (w * 0.30)));
+        if (alpha <= 0) { e.ripples.splice(i, 1); continue; }
+        ctx.beginPath();
+        ctx.ellipse(e.x, e.y + rp.r * 0.22, rp.r, rp.r * 0.38, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${e.color},${alpha})`;
+        ctx.lineWidth = e.on ? 3 : 1.6;
+        ctx.stroke();
+      }
+
+      // насекомое с трепетанием крыльев
+      const wobF = idx === 0 ? 40 : 14;
+      const dy = Math.sin(t * wobF) * (e.on ? e.wob : 2);
+      const dx = Math.cos(t * wobF * 0.7) * (e.on ? e.wob * 0.4 : 1);
+      ctx.font = `${Math.round(h * 0.24)}px serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(e.emoji, e.x + dx, e.y + dy);
+
+      ctx.font = `600 ${Math.round(w * 0.042)}px var(--font-display), sans-serif`;
+      ctx.fillStyle = e.on ? `rgb(${e.color})` : `rgba(${e.color},0.55)`;
+      ctx.fillText(e.label, e.x, h * 0.16);
+    });
+
+    // осциллограммы внизу: частая у комара, редкая у шмеля
+    [[6, VIOLET, isMosq, 12], [1.5, ORANGE, isBee, 3.2]].forEach((cfg, i) => {
+      const [cycles, col, on, speed] = cfg;
+      const yb = h * (0.78 + i * 0.13);
+      ctx.beginPath();
+      ctx.strokeStyle = `rgba(${col},${on ? 1 : 0.3})`;
+      ctx.lineWidth = on ? 3 : 1.8;
+      for (let x = 0; x <= w; x += 3) {
+        const y = yb + Math.sin(2 * Math.PI * cycles * (x / w) - t * speed) * h * 0.05;
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    });
+    ctx.textAlign = 'start';
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ============================================================
+   ИНТЕРАКТИВ 2: молекулы воздуха передают толчок
+   ============================================================ */
+function startParticles(root, done) {
+  const canvas = root.querySelector('#particlesCanvas');
+  const slider = root.querySelector('#pumpSlider');
+  const valEl = root.querySelector('#pumpVal');
+  const ctx = canvas.getContext('2d');
+
+  slider.addEventListener('input', () => {
+    const v = +slider.value;
+    valEl.textContent = v <= 3 ? 'медленная' : v <= 6 ? 'обычная' : 'быстрая';
+    done();
+  });
+
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 170);
+    ctx.clearRect(0, 0, w, h);
+    const speed = +slider.value * 0.7;
+    const phase = t * speed;
+
+    // динамик «дышит» в такт
+    const sx = w * 0.06, sy = h * 0.5;
+    const pump = 1 + Math.sin(phase * Math.PI * 2) * 0.12;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.scale(pump, pump);
+    ctx.font = `${Math.round(h * 0.3)}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🔊', 0, 0);
+    ctx.restore();
+    ctx.textBaseline = 'alphabetic';
+
+    // решётка молекул: 5 слоёв в глубину
+    const layers = 5, cols = 34;
+    for (let L = layers - 1; L >= 0; L--) {
+      const z = L / (layers - 1);            // 0 ближний, 1 дальний
+      const scale = 1 - z * 0.35;
+      const rowY = h * (0.62 - z * 0.38);
+      const alpha = 1 - z * 0.55;
+      for (let i = 0; i < cols; i++) {
+        const xn = i / cols;
+        const baseX = w * 0.14 + xn * w * 0.84 * (1 - z * 0.06) + z * w * 0.02;
+        const ph = 2 * Math.PI * (xn * 3 - phase);
+        const disp = Math.sin(ph) * 13 * scale;
+        const comp = Math.cos(ph);            // >0 — сжатие
+        const bright = (1 + comp) / 2;
+        const r = (3.6 + comp * 1.6) * scale;
+        ctx.beginPath();
+        ctx.arc(baseX + disp, rowY + Math.sin(i * 7 + L * 13) * 2, Math.max(0.8, r), 0, Math.PI * 2);
+        // сжатые участки — насыщенный фиолетовый, разреженные — бледнее
+        ctx.fillStyle = `rgba(${VIOLET},${(alpha * (0.25 + bright * 0.65)).toFixed(3)})`;
+        ctx.fill();
+      }
+    }
+    ctx.font = `${Math.round(w * 0.036)}px var(--font-display), sans-serif`;
+    ctx.fillStyle = '#6B7180';
+    ctx.textAlign = 'center';
+    ctx.fillText('направление волны →', w * 0.55, h * 0.95);
+    ctx.textAlign = 'start';
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'interact', id: 'hook', visual: 'hook',
+    title: 'Почему комар пищит, а шмель гудит?',
+    text: 'Оба машут крыльями. Оба создают звук. Но звучат совершенно по-разному. Послушай обоих и сравни картинку волн.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'speaker', big: true,
+    title: 'Звук — это колебания воздуха',
+    text: 'Когда крыло комара бьёт по воздуху, оно <b>сжимает</b> молекулы. Те толкают соседние — и так волна сжатий «бежит» до твоего уха. Всё, что дрожит — струна, динамик, голосовые связки, — рождает звук.',
+  },
+  {
+    phase: 'theory', type: 'interact', id: 'particles', visual: 'particles',
+    title: 'Молекулы передают толчок',
+    text: 'Динамик толкает молекулы воздуха, и волна сжатия бежит вправо. Сами частицы <b>остаются на месте</b> — передаётся только толчок. Подвигай слайдер и посмотри, как меняется волна.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'vacuum', big: true,
+    title: 'Без воздуха звука нет',
+    text: 'Звуку нужна среда: воздух, вода, металл. В вакууме колебаться нечему — поэтому <b>в космосе взрывы беззвучны</b>. А в воздухе звук бежит со скоростью около <b>340 м/с</b>: молния видна сразу, а гром догоняет через несколько секунд.',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Два вопроса — и тема твоя.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 1',
+    text: 'Звуковая волна дошла от динамика до твоего уха. Что именно «долетело»?',
+    options: [
+      { id: 'a', text: 'Молекулы воздуха перелетели от динамика к уху', correct: false },
+      { id: 'b', text: 'Толчок передавался от молекулы к молекуле — сами они остались на месте', correct: true },
+      { id: 'c', text: 'Электрические заряды из динамика', correct: false },
+    ],
+    right: 'Именно так: волна переносит колебание, а не вещество. Молекулы лишь качаются возле своих мест.',
+    wrong: 'Вспомни интерактив: частицы качались на месте, а вправо бежала только волна сжатий — толчок.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 2',
+    text: 'Космонавт на Луне ударил в колокол рядом с собой. Что он услышит через вакуум?',
+    options: [
+      { id: 'a', text: 'То же самое, что и на Земле', correct: false },
+      { id: 'b', text: 'Звук будет ниже, но слышен', correct: false },
+      { id: 'c', text: 'Ничего — без воздуха колебаниям не в чем распространяться', correct: true },
+    ],
+    right: 'Верно! Звуку нужна среда. На Луне атмосферы нет — колокол дрожит, а волне бежать не по чему.',
+    wrong: 'Звук — это колебания среды. В вакууме среды нет, значит, и звука нет: колокол дрожит беззвучно.',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  hook: () => `
+    <div class="snd-row">
+      <button class="snd-btn" id="btnMosquito"><span class="icon">🦟</span>Комар<span class="freq">~600 взмахов/сек</span></button>
+      <button class="snd-btn" id="btnBumblebee"><span class="icon">🐝</span>Шмель<span class="freq">~130 взмахов/сек</span></button>
+    </div>
+    <div class="canvas-panel" style="margin-top:14px;"><canvas id="hookCanvas" height="150"></canvas></div>
+    <p class="canvas-hint" id="hookHint">Нажми на комара и на шмеля — <b>услышь и увидь</b> разницу</p>`,
+  particles: () => `
+    <div class="canvas-panel"><canvas id="particlesCanvas" height="170"></canvas></div>
+    <div class="ctl">
+      <div class="ctl-label"><span>Скорость колебаний динамика</span><b id="pumpVal">обычная</b></div>
+      <input type="range" id="pumpSlider" min="1" max="10" value="4" step="1">
+    </div>`,
+  speaker: () => `
+    <svg viewBox="0 0 260 150" xmlns="http://www.w3.org/2000/svg">
+      <rect x="26" y="34" width="58" height="82" rx="10" fill="#F4F1FF" stroke="#C9CEDA" stroke-width="3"/>
+      <circle cx="55" cy="62" r="12" fill="#DDE1EC" stroke="#9AA0AA" stroke-width="2"/>
+      <circle cx="55" cy="94" r="17" fill="#6240FF">
+        <animate attributeName="r" values="17;19;17" dur="0.6s" repeatCount="indefinite"/>
+      </circle>
+      <g fill="none" stroke="#6240FF" stroke-width="3" stroke-linecap="round">
+        <path d="M100 60 q14 15 0 30"><animate attributeName="opacity" values=".25;1;.25" dur="1.2s" repeatCount="indefinite"/></path>
+        <path d="M120 48 q22 27 0 54"><animate attributeName="opacity" values=".25;1;.25" dur="1.2s" begin=".2s" repeatCount="indefinite"/></path>
+        <path d="M140 36 q30 39 0 78"><animate attributeName="opacity" values=".25;1;.25" dur="1.2s" begin=".4s" repeatCount="indefinite"/></path>
+      </g>
+      <text x="212" y="82" text-anchor="middle" font-size="34">👂</text>
+      <text x="130" y="140" text-anchor="middle" font-family="system-ui" font-size="13" fill="#6B7180">сжатия воздуха бегут к уху</text>
+    </svg>`,
+  vacuum: () => `
+    <svg viewBox="0 0 260 150" xmlns="http://www.w3.org/2000/svg">
+      <path d="M50 118 a52 52 0 0 1 0 -74 a52 60 0 0 1 74 0 a52 52 0 0 1 0 74 Z" transform="translate(43 0)" fill="#EEF6FF" stroke="#C9CEDA" stroke-width="3" opacity=".9"/>
+      <rect x="72" y="118" width="116" height="10" rx="5" fill="#C9CEDA"/>
+      <path d="M118 62 q12 -14 24 0 l-4 26 h-16 z" fill="#F0B23C" stroke="#B98A4A" stroke-width="2"/>
+      <line x1="130" y1="52" x2="130" y2="62" stroke="#B98A4A" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="130" cy="92" r="4" fill="#B98A4A">
+        <animate attributeName="cx" values="126;134;126" dur="0.4s" repeatCount="indefinite"/>
+      </circle>
+      <text x="130" y="30" text-anchor="middle" font-family="system-ui" font-weight="600" font-size="13" fill="#6B7180">вакуум под колпаком</text>
+      <g font-family="system-ui" font-weight="700" font-size="16" fill="#C9CEDA">
+        <text x="62" y="80">🔇</text>
+      </g>
+      <text x="130" y="144" text-anchor="middle" font-family="system-ui" font-size="13" fill="#6B7180">колокольчик дрожит — но звука нет</text>
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'hook') startHook(ctx.root, ctx.done);
+  if (step.id === 'particles') startParticles(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'vibration',
+  storageKey: 'sound-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-frequency/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

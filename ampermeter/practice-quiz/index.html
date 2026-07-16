@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Тест по теории · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="/assets/lesson/practice.css?v=4">
+<style>
+  .task-icon{ font-size: 64px; line-height: 1; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">5</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '/assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Тест по теории» — банк вопросов про амперметр.
+   Вопросы выбираются случайно из пула, варианты перемешивает
+   движок. Легко — 3 вопроса, средне — 5, сложно — 7.
+   ============================================================ */
+
+const TASKS = [
+  { icon: '🔌',
+    text: 'Как включают амперметр в электрическую цепь?',
+    options: [
+      { text: 'Последовательно, в разрыв цепи', correct: true },
+      { text: 'Параллельно участку цепи', correct: false },
+      { text: 'Как удобнее — разницы нет', correct: false },
+      { text: 'Параллельно источнику тока', correct: false },
+    ],
+    right: '✓ Верно! Амперметр включают последовательно, чтобы весь ток цепи прошёл через прибор.',
+    wrong: 'Только последовательно: амперметр измеряет ток, который течёт через него самого. Параллельно включают вольтметр.' },
+  { icon: '💥',
+    text: 'Что случится, если включить амперметр параллельно лампе, как вольтметр?',
+    options: [
+      { text: 'Короткое замыкание — прибор может сгореть', correct: true },
+      { text: 'Ничего, он покажет то же самое', correct: false },
+      { text: 'Лампа станет светить ярче', correct: false },
+      { text: 'Он измерит напряжение на лампе', correct: false },
+    ],
+    right: '✓ Именно! У амперметра почти нет сопротивления: параллельно — это короткое замыкание.',
+    wrong: 'Это опасная ошибка: через амперметр хлынет огромный ток — короткое замыкание, прибор сгорит.' },
+  { icon: '⚡',
+    text: 'В каких единицах измеряют силу тока?',
+    options: [
+      { text: 'В амперах', correct: true },
+      { text: 'В вольтах', correct: false },
+      { text: 'В омах', correct: false },
+      { text: 'В ваттах', correct: false },
+    ],
+    right: '✓ Да! Ампер — единица силы тока, названа в честь Андре-Мари Ампера.',
+    wrong: 'Сила тока измеряется в амперах. Вольты — напряжение, омы — сопротивление.' },
+  { icon: '🎛',
+    text: 'Что измеряет амперметр?',
+    options: [
+      { text: 'Силу тока — сколько заряда проходит за секунду', correct: true },
+      { text: 'Напряжение на участке цепи', correct: false },
+      { text: 'Сопротивление проводника', correct: false },
+      { text: 'Мощность, потребляемую лампой', correct: false },
+    ],
+    right: '✓ Верно! Амперметр показывает силу тока: сколько заряда проходит по цепи за одну секунду.',
+    wrong: 'Амперметр измеряет силу тока. Напряжение — работа вольтметра.' },
+  { icon: '✏️',
+    text: 'Как амперметр обозначают на электрической схеме?',
+    options: [
+      { text: 'Кружок с буквой A', correct: true },
+      { text: 'Кружок с буквой V', correct: false },
+      { text: 'Квадрат с буквой A', correct: false },
+      { text: 'Треугольник с буквой A', correct: false },
+    ],
+    right: '✓ Точно! Кружок с буквой A. Кружок с V — это вольтметр.',
+    wrong: 'Амперметр — кружок с буквой A. Кружок с буквой V — вольтметр.' },
+  { icon: '📏',
+    text: 'Шкала амперметра от 0 до 3 А, между соседними числами 5 делений. Какова цена деления?',
+    options: [
+      { text: '0,2 А', correct: true },
+      { text: '0,5 А', correct: false },
+      { text: '5 А', correct: false },
+      { text: '0,6 А', correct: false },
+    ],
+    right: '✓ Верно! (1 − 0) ÷ 5 = 0,2 А на одно деление.',
+    wrong: 'Разность соседних чисел делим на число делений: (1 − 0) ÷ 5 = 0,2 А.' },
+  { icon: '🧭',
+    text: 'Стрелка амперметра остановилась на 4-м делении, цена деления 0,5 А. Каково показание?',
+    options: [
+      { text: '2 А', correct: true },
+      { text: '0,5 А', correct: false },
+      { text: '4 А', correct: false },
+      { text: '1,5 А', correct: false },
+    ],
+    right: '✓ Да! 4 деления × 0,5 А = 2 А.',
+    wrong: 'Показание = номер деления × цена деления: 4 × 0,5 = 2 А.' },
+  { icon: '🔴',
+    text: 'Куда подключают клемму «+» амперметра?',
+    options: [
+      { text: 'К проводу, идущему от «+» источника тока', correct: true },
+      { text: 'К проводу от «−» источника', correct: false },
+      { text: 'Без разницы — прибору всё равно', correct: false },
+      { text: 'Прямо к клемме лампы, минуя источник', correct: false },
+    ],
+    right: '✓ Верно! Плюс — к плюсу, минус — к минусу. Полярность важна.',
+    wrong: 'Плюс — к плюсу: клемму «+» соединяют с проводом от «+» источника, иначе стрелка пойдёт не туда.' },
+  { icon: '↩️',
+    text: 'Что будет, если перепутать клеммы «+» и «−» при подключении?',
+    options: [
+      { text: 'Стрелка пойдёт в обратную сторону, за ноль', correct: true },
+      { text: 'Ничего не изменится', correct: false },
+      { text: 'Прибор покажет вдвое больше', correct: false },
+      { text: 'Ток в цепи полностью прекратится', correct: false },
+    ],
+    right: '✓ Именно! Стрелку уведёт влево за ноль — так и прибор сломать недолго.',
+    wrong: 'При обратной полярности стрелка отклоняется в обратную сторону — за ноль. Прибор может сломаться.' },
+  { icon: '👨‍🔬',
+    text: 'В честь кого названа единица силы тока?',
+    options: [
+      { text: 'Андре-Мари Ампера', correct: true },
+      { text: 'Алессандро Вольты', correct: false },
+      { text: 'Георга Ома', correct: false },
+      { text: 'Джеймса Джоуля', correct: false },
+    ],
+    right: '✓ Да! Ампер создал науку об электрическом токе — электродинамику. Единицу назвали в его честь в 1881 году.',
+    wrong: 'Ампер — в честь Андре-Мари Ампера. Вольта дал имя вольту, Ом — ому.' },
+];
+
+function pickRandom(arr, n, rnd) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a.slice(0, n);
+}
+
+function buildSteps(level, rnd) {
+  const n = level === 'easy' ? 3 : level === 'medium' ? 5 : 7;
+  const pool = pickRandom(TASKS, n, rnd);
+
+  return pool.map((t, i) => ({
+    type: 'choice',
+    title: `Вопрос ${i + 1} из ${pool.length}`,
+    text: t.text,
+    render: host => { host.innerHTML = `<div class="task-icon">${t.icon}</div>`; },
+    options: t.options.map(o => ({ text: o.text, correct: o.correct })),
+    right: t.right,
+    wrong: t.wrong,
+  }));
+}
+
+runPractice({
+  practiceId: 'quiz',
+  storageKey: 'ampermeter-progress',
+  homeHref: '../demo/',
+  title: 'Тест по теории',
+  subtitle: 'Подключение, единицы, значок на схеме и цена деления. Вопросы каждый раз новые — из банка выпадает случайный набор.',
+  levels: {
+    easy:   { label: 'Разминка',  desc: '3 случайных вопроса из банка.', xp: 25 },
+    medium: { label: 'Уверенный', desc: '5 случайных вопросов подряд.', xp: 40 },
+    hard:   { label: 'Физик',     desc: '7 вопросов — почти весь банк без права на ошибку.', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

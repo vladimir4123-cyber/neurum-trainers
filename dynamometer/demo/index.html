@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Динамометр · Урок для класса</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪝</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@48,500,1&display=block">
+<style>
+  *{ box-sizing: border-box; }
+  body{
+    margin: 0; font-family: var(--font-sans);
+    background: var(--white); color: var(--fg-1);
+    min-height: 100vh; -webkit-font-smoothing: antialiased;
+  }
+  .ms{ font-family: 'Material Symbols Rounded'; font-variation-settings: 'FILL' 1, 'wght' 500; line-height: 1; }
+
+  /* ============ TOP BAR ============ */
+  .topbar{
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    max-width: 1120px; margin: 0 auto; padding: 18px 24px;
+    background: var(--white);
+  }
+  .home-link{
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 16px; border-radius: 9999px;
+    background: var(--white); color: var(--fg-1);
+    text-decoration: none; font-weight: 500; font-size: 14px;
+    box-shadow: 0 1px 2px rgba(35,35,35,.05), 0 4px 12px rgba(35,35,35,.06), inset 0 0 0 1px rgba(35,35,35,.05);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .home-link:hover{ background: var(--purple-3); }
+  .home-link:active{ transform: scale(0.96); }
+  .share-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: 9999px;
+    background: var(--purple-1); color: #fff;
+    border: 0; cursor: pointer;
+    font-family: var(--font-sans); font-weight: 500; font-size: 14px;
+    box-shadow: 0 4px 12px rgba(101,31,255,.28);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .share-btn .ms{ font-size: 18px; }
+  .share-btn:hover{ background: var(--purple-2); }
+  .share-btn:active{ transform: scale(0.96); }
+  .share-toast{
+    position: fixed; left: 50%; bottom: 24px;
+    transform: translateX(-50%) translateY(20px);
+    padding: 12px 20px; border-radius: 12px;
+    background: var(--fg-1); color: #fff;
+    font-family: var(--font-sans); font-weight: 500; font-size: 15px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.2);
+    opacity: 0; pointer-events: none; z-index: 100;
+    transition: opacity 200ms var(--ease-standard), transform 200ms var(--ease-standard);
+  }
+  .share-toast.is-open{ opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  main.kit{ max-width: 1120px; margin: 0 auto; padding: 0 24px 120px; }
+
+  /* ============ HERO ============ */
+  .hero{
+    width: 100%;
+    background: var(--white);
+    box-shadow: 0 4px 16px rgba(0,0,0,.06);
+  }
+  .hero-inner{
+    max-width: 1120px; margin: 0 auto;
+    padding: 32px 24px;
+    display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 32px; align-items: stretch;
+  }
+  @media (max-width: 860px){ .hero-inner{ grid-template-columns: 1fr; gap: 22px; padding: 24px; } }
+  .hero-preview{
+    width: 100%; aspect-ratio: 4 / 3;
+    border-radius: var(--radius-2xl); overflow: hidden;
+    background: linear-gradient(180deg, #EEF0FF, #FBF8FF);
+    display: grid; place-items: center; padding: 28px;
+  }
+  .hero-preview iframe{ width: 100%; height: 100%; border: 0; display: block; }
+  .hero-body{ display: flex; flex-direction: column; padding: 12px 0; }
+  .hero h1{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(28px, 3.4vw, 40px); line-height: 1.05;
+    letter-spacing: -0.02em; margin: 0 0 12px; text-wrap: balance;
+  }
+  .hero-value{
+    font-size: var(--t-base); line-height: var(--lh-base); color: var(--fg-2);
+    margin: 0 0 18px; text-wrap: pretty;
+  }
+  .hero-meta{ display: flex; flex-wrap: wrap; gap: 18px; margin: 0 0 22px; }
+  .hero-meta .meta-item{ display: inline-flex; align-items: center; gap: 7px; color: var(--fg-2); font-size: 14px; font-weight: 500; }
+  .hero-meta .meta-item .ms{ font-size: 19px; color: var(--purple-1); }
+  .hero-cta{ display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: auto; }
+  .btn-primary{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 14px 32px;
+    border-radius: var(--radius-md);
+    background: var(--purple-1);
+    color: var(--white); text-decoration: none;
+    font-family: var(--font-sans); font-weight: 500; font-size: 16px;
+    box-shadow: var(--shadow-purple);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .btn-primary .ms{ font-size: 20px; }
+  .btn-primary:hover{ background: var(--purple-2); }
+  .btn-primary:active{ transform: scale(0.96); }
+  .btn-text{
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 17px 32px; border-radius: 9999px;
+    background: transparent; border: 0;
+    color: var(--fg-1); text-decoration: none;
+    font-family: var(--font-display); font-weight: 500; font-size: 19px;
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .btn-text .ms{ font-size: 24px; }
+  .btn-text:hover{ background: var(--purple-4); }
+  .btn-text:active{ transform: scale(0.97); }
+
+  /* ============ SECTIONS ============ */
+  .sec{ margin-top: 52px; }
+  .sec-head{ margin-bottom: 20px; }
+  .sec-head h2{
+    margin: 0;
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(24px, 3.4vw, 32px); letter-spacing: -0.02em;
+  }
+
+  /* ============ КАРТОЧКА ТЕМЫ ============ */
+  .topic-grid{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  @media (max-width: 780px){ .topic-grid{ grid-template-columns: 1fr; } }
+  .topic{
+    display: grid; grid-template-columns: 168px 1fr; gap: 20px; align-items: center;
+    padding: 22px; border-radius: var(--radius-2xl);
+    background: var(--white); text-decoration: none; color: var(--fg-1);
+    border: 1px solid var(--purple-4);
+    transition: transform 160ms var(--ease-standard), box-shadow 160ms var(--ease-standard);
+  }
+  .topic:hover{ transform: translateY(-4px); box-shadow: 0 8px 28px rgba(0,0,0,.12); }
+  .topic:active{ transform: translateY(-1px) scale(0.99); }
+  @media (max-width: 520px){
+    .topic{ grid-template-columns: 1fr; padding: 20px; }
+    .topic__illus{ order: -1; }
+  }
+  .topic__illus{
+    width: 168px; height: 138px; border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    display: grid; place-items: center; overflow: hidden;
+    padding: 12px;
+  }
+  .topic__illus svg{ width: 100%; height: 100%; }
+  .topic__body{ display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .topic__step{
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 500; color: var(--purple-1);
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .topic__title{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: 22px; line-height: 1.15; letter-spacing: -0.01em; margin: 0;
+    text-wrap: balance;
+  }
+  .topic__desc{ margin: 0; color: var(--fg-2); font-size: 15px; line-height: 1.4; text-wrap: pretty; }
+
+  /* ============ КАРТОЧКА ПРАКТИКИ ============ */
+  .practice-grid{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; max-width: 740px; }
+  @media (max-width: 600px){ .practice-grid{ grid-template-columns: 1fr; } }
+  .practice{
+    display: flex; flex-direction: column; gap: 14px;
+    padding: 20px; border-radius: var(--radius-2xl);
+    background: var(--white); text-decoration: none; color: var(--fg-1);
+    border: 1px solid var(--purple-4);
+    transition: transform 160ms var(--ease-standard), box-shadow 160ms var(--ease-standard);
+  }
+  .practice:hover{ transform: translateY(-4px); box-shadow: 0 8px 28px rgba(0,0,0,.12); }
+  .practice__illus{
+    width: 100%; height: 180px;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    display: grid; place-items: center; overflow: hidden;
+    padding: 10px;
+  }
+  .practice__illus svg{ max-width: 100%; max-height: 100%; }
+  .practice__top{ display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .practice__kind{
+    font-size: 12px; font-weight: 500; color: var(--fg-3);
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .practice__xp{
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 13px; font-weight: 500; color: var(--purple-1);
+    background: var(--purple-4); padding: 5px 10px; border-radius: 9999px;
+  }
+  .practice__xp .ms{ font-size: 15px; }
+  .practice__title{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: 20px; line-height: 1.15; letter-spacing: -0.01em; margin: 0;
+    text-wrap: balance;
+  }
+  .practice__desc{ margin: 0; color: var(--fg-2); font-size: 15px; line-height: 1.4; text-wrap: pretty; flex: 1; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="home-link" href="../../">← Все тренажёры</a>
+  <button class="share-btn" id="shareBtn">
+    <span class="ms">share</span>
+    Поделиться с учениками
+  </button>
+</div>
+<div class="share-toast" id="shareToast">Ссылка скопирована</div>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-preview">
+      <iframe src="../device/?embed=1" title="3D-динамометр" loading="lazy"></iframe>
+    </div>
+    <div class="hero-body">
+      <h1>Динамометр</h1>
+      <p class="hero-value">Готовый интерактивный урок для 7 класса. Покажите классу, что такое сила и как её измеряют: подвесьте грузики на виртуальный динамометр, найдите цену деления и снимите показания. Закон Гука — на пальцах: груз вдвое тяжелее, пружина растягивается вдвое сильнее. Ученики закрепят на «Взвешивании улова» и тесте по теории.</p>
+      <div class="hero-meta" id="heroMeta"></div>
+      <div class="hero-cta">
+        <a class="btn-primary" id="startBtn" href="../lesson-force/"><span class="ms">play_arrow</span> Провести урок</a>
+        <a class="btn-text" href="../device/?embed=1&back=1&panel=1"><span class="ms">360</span> Показать прибор</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<main class="kit">
+
+  <section class="sec">
+    <div class="sec-head"><h2>Темы урока</h2></div>
+    <div class="topic-grid" id="topicGrid"></div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><h2>Практика для учеников</h2></div>
+    <div class="practice-grid" id="practiceGrid"></div>
+  </section>
+
+</main>
+
+<script type="module">
+
+/* Мини-иллюстрации тем — инлайн-SVG в светлой палитре */
+const ILLUS = {
+  force: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="74" cy="12" r="7" fill="none" stroke="#8A8F9C" stroke-width="3.5"/>
+      <rect x="52" y="21" width="44" height="66" rx="10" fill="#FDFCF7" stroke="#C9CEDA" stroke-width="2.5"/>
+      <rect x="74" y="27" width="10" height="54" rx="5" fill="#EEF0F6" stroke="#D5D9E2" stroke-width="1"/>
+      <g stroke="#2B2B33" stroke-width="1.5">
+        <line x1="60" y1="32" x2="70" y2="32"/><line x1="60" y1="43" x2="67" y2="43"/>
+        <line x1="60" y1="54" x2="70" y2="54"/><line x1="60" y1="65" x2="67" y2="65"/>
+        <line x1="60" y1="76" x2="70" y2="76"/>
+      </g>
+      <g>
+        <animateTransform attributeName="transform" type="translate" values="0,0;0,9;0,0" dur="2.6s" repeatCount="indefinite" calcMode="spline" keySplines=".4 0 .6 1;.4 0 .6 1" keyTimes="0;.5;1"/>
+        <polygon points="66,43 74,39 74,47" fill="#E5484D"/>
+        <line x1="79" y1="45" x2="79" y2="88" stroke="#8A8F9C" stroke-width="3.5" stroke-linecap="round"/>
+        <path d="M79 88 q 9 3 8 11 q -1 8 -9 8 q -7 0 -8 -6" fill="none" stroke="#8A8F9C" stroke-width="3" stroke-linecap="round"/>
+        <rect x="61" y="104" width="36" height="14" rx="4" fill="#C4C9D4" stroke="#8A8F9C" stroke-width="1.5"/>
+      </g>
+    </svg>`,
+  price: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <rect x="10" y="32" width="140" height="42" rx="10" fill="#FDFCF7" stroke="#C9CEDA" stroke-width="2.5"/>
+      <g stroke="#2B2B33" stroke-width="2">
+        <line x1="28" y1="42" x2="28" y2="64"/>
+        <line x1="49" y1="42" x2="49" y2="56"/>
+        <line x1="70" y1="42" x2="70" y2="56"/>
+        <line x1="91" y1="42" x2="91" y2="56"/>
+        <line x1="112" y1="42" x2="112" y2="56"/>
+        <line x1="133" y1="42" x2="133" y2="64"/>
+      </g>
+      <text x="28" y="90" text-anchor="middle" font-family="system-ui" font-weight="700" font-size="16" fill="#2B2B33">1</text>
+      <text x="133" y="90" text-anchor="middle" font-family="system-ui" font-weight="700" font-size="16" fill="#2B2B33">2</text>
+      <circle cy="37" r="4.5" fill="#6240FF">
+        <animate attributeName="cx" values="28;49;70;91;112;133" calcMode="discrete" dur="3s" repeatCount="indefinite"/>
+      </circle>
+      <text x="80" y="118" text-anchor="middle" font-family="system-ui" font-weight="700" font-size="15" fill="#6240FF">(2 − 1) : 5 = 0,2 Н</text>
+    </svg>`,
+  reading: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <rect x="42" y="12" width="46" height="106" rx="10" fill="#FDFCF7" stroke="#C9CEDA" stroke-width="2.5"/>
+      <rect x="66" y="20" width="10" height="90" rx="5" fill="#EEF0F6" stroke="#D5D9E2" stroke-width="1"/>
+      <g stroke="#2B2B33" stroke-width="1.5">
+        <line x1="50" y1="26" x2="61" y2="26"/><line x1="50" y1="42" x2="57" y2="42"/>
+        <line x1="50" y1="58" x2="61" y2="58"/><line x1="50" y1="74" x2="57" y2="74"/>
+        <line x1="50" y1="90" x2="61" y2="90"/><line x1="50" y1="106" x2="57" y2="106"/>
+      </g>
+      <g>
+        <animateTransform attributeName="transform" type="translate" values="0,0;0,32;0,32;0,0;0,0" keyTimes="0;.3;.55;.85;1" dur="4.5s" repeatCount="indefinite" calcMode="spline" keySplines=".4 0 .6 1;.4 0 .6 1;.4 0 .6 1;.4 0 .6 1"/>
+        <polygon points="56,42 66,37 66,47" fill="#E5484D"/>
+      </g>
+      <text x="122" y="72" text-anchor="middle" font-family="system-ui" font-weight="700" font-size="22" fill="#6240FF">?
+        <animate attributeName="opacity" values="1;1;0;0;1" keyTimes="0;.3;.45;.85;1" dur="4.5s" repeatCount="indefinite"/>
+      </text>
+      <text x="122" y="72" text-anchor="middle" font-family="system-ui" font-weight="700" font-size="20" fill="#07BE7E" opacity="0">1,4
+        <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;.35;.5;.8;1" dur="4.5s" repeatCount="indefinite"/>
+      </text>
+    </svg>`,
+  catch: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <line x1="80" y1="4" x2="80" y2="24" stroke="#8A8F9C" stroke-width="3.5" stroke-linecap="round"/>
+      <g>
+        <animateTransform attributeName="transform" type="rotate" values="-6 80 24;6 80 24;-6 80 24" dur="3.2s" repeatCount="indefinite" calcMode="spline" keySplines=".4 0 .6 1;.4 0 .6 1"/>
+        <path d="M80 24 q 10 4 9 13 q -1 9 -10 9 q -8 0 -9 -7" fill="none" stroke="#8A8F9C" stroke-width="3.5" stroke-linecap="round"/>
+        <ellipse cx="80" cy="80" rx="16" ry="27" fill="#A8D4F0" stroke="#2F80ED" stroke-width="2.5"/>
+        <polygon points="80,104 68,122 92,122" fill="#A8D4F0" stroke="#2F80ED" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M64 80 q 8 6 16 0" fill="none" stroke="#2F80ED" stroke-width="2"/>
+        <circle cx="74" cy="66" r="2.6" fill="#2B2B33"/>
+      </g>
+    </svg>`,
+  quiz: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <rect x="30" y="12" width="100" height="106" rx="12" fill="#FDFCF7" stroke="#C9CEDA" stroke-width="2.5"/>
+      <g>
+        <circle cx="50" cy="38" r="9" fill="#EEF0FF" stroke="#8B6FFF" stroke-width="2"/>
+        <line x1="68" y1="38" x2="114" y2="38" stroke="#C9CEDA" stroke-width="5" stroke-linecap="round"/>
+        <path d="M45 38 l4 4 l7 -8" fill="none" stroke="#07BE7E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;.1;.2;1" dur="4.5s" repeatCount="indefinite"/>
+        </path>
+      </g>
+      <g>
+        <circle cx="50" cy="66" r="9" fill="#EEF0FF" stroke="#8B6FFF" stroke-width="2"/>
+        <line x1="68" y1="66" x2="114" y2="66" stroke="#C9CEDA" stroke-width="5" stroke-linecap="round"/>
+        <path d="M45 66 l4 4 l7 -8" fill="none" stroke="#07BE7E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;.35;.45;1" dur="4.5s" repeatCount="indefinite"/>
+        </path>
+      </g>
+      <g>
+        <circle cx="50" cy="94" r="9" fill="#EEF0FF" stroke="#8B6FFF" stroke-width="2"/>
+        <line x1="68" y1="94" x2="114" y2="94" stroke="#C9CEDA" stroke-width="5" stroke-linecap="round"/>
+        <path d="M45 94 l4 4 l7 -8" fill="none" stroke="#07BE7E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;.6;.7;1" dur="4.5s" repeatCount="indefinite"/>
+        </path>
+      </g>
+    </svg>`,
+};
+
+const TOPICS = [
+  { title: 'Что такое сила и как её поймать', desc: 'Вешаем грузики на пружину и смотрим, как прибор ловит силу в ньютонах.', href: '../lesson-force/',   illus: 'force' },
+  { title: 'Цена деления',                    desc: 'Учимся читать шкалу: разность чисел, число делений — и цена одного шага.', href: '../lesson-price/',   illus: 'price' },
+  { title: 'Как снять показания',             desc: 'Считаем деления, называем силу и выясняем, почему пружине можно верить.', href: '../lesson-reading/', illus: 'reading' },
+];
+
+const PRACTICES = [
+  { title: 'Взвешивание улова', kind: 'лаборатория', xp: '+50 XP', href: '../practice-catch/', illus: 'catch',
+    desc: 'Безмен в руках: определи цену деления и взвесь всё — от окуня до учебника физики.' },
+  { title: 'Тест по теории', kind: 'викторина', xp: '+40 XP', href: '../practice-quiz/', illus: 'quiz',
+    desc: 'Десять вопросов о силе, ньютонах и пружине — каждый запуск новая случайная подборка.' },
+];
+
+/* ---------- hero-мета ---------- */
+const heroMeta = [
+  { ic: 'auto_stories', text: `${TOPICS.length} интерактивные темы` },
+  { ic: 'science',      text: '3 живых опыта' },
+  { ic: 'construction', text: `${PRACTICES.length} практики` },
+];
+document.getElementById('heroMeta').innerHTML = heroMeta.map(m =>
+  `<span class="meta-item"><span class="ms">${m.ic}</span> ${m.text}</span>`
+).join('');
+document.getElementById('startBtn').href = TOPICS[0].href;
+
+/* ---------- темы ---------- */
+document.getElementById('topicGrid').innerHTML = TOPICS.map((t, i) => `
+  <a class="topic" href="${t.href}">
+    <div class="topic__illus">${ILLUS[t.illus]}</div>
+    <div class="topic__body">
+      <span class="topic__step">Тема ${i + 1}</span>
+      <h3 class="topic__title">${t.title}</h3>
+      <p class="topic__desc">${t.desc}</p>
+    </div>
+  </a>`).join('');
+
+/* ---------- практика ---------- */
+document.getElementById('practiceGrid').innerHTML = PRACTICES.map(p => `
+  <a class="practice" href="${p.href}">
+    <div class="practice__illus">${ILLUS[p.illus]}</div>
+    <div class="practice__top">
+      <span class="practice__kind">${p.kind}</span>
+      <span class="practice__xp"><span class="ms">bolt</span> ${p.xp}</span>
+    </div>
+    <h3 class="practice__title">${p.title}</h3>
+    <p class="practice__desc">${p.desc}</p>
+  </a>`).join('');
+
+/* ---------- поделиться ---------- */
+const shareBtn = document.getElementById('shareBtn');
+const shareToast = document.getElementById('shareToast');
+let toastTimer;
+function showToast(text){
+  shareToast.textContent = text;
+  shareToast.classList.add('is-open');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => shareToast.classList.remove('is-open'), 2200);
+}
+shareBtn.addEventListener('click', async () => {
+  const url = location.origin + location.pathname;
+  const title = 'Динамометр — интерактивный урок';
+  if (navigator.share) {
+    try { await navigator.share({ title, url }); return; } catch(e) {}
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Ссылка скопирована');
+  } catch(e){
+    showToast('Скопируйте: ' + url);
+  }
+});
+
+</script>
+
+</body>
+</html>

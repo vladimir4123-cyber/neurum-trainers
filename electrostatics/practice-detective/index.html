@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Зарядовый детектив · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕵️</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="/assets/lesson/practice.css?v=4">
+<style>
+  .canvas-panel{
+    width: 100%; max-width: 520px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '/assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Зарядовый детектив».
+   Два шарика на нитях: заряд левого известен, правого — нет.
+   Определи его по одному поведению. Раунды случайные, среди
+   них — ловушки (притяжение не доказывает заряд!).
+   ============================================================ */
+
+const PLUS = '#E5484D', MINUS = '#2F80ED';
+
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+function chargeColors(q) {
+  if (q > 0) return { l: '#FFD2C5', m: PLUS };
+  if (q < 0) return { l: '#CFE6FF', m: MINUS };
+  return { l: '#E6E9F2', m: '#8A8F9C' };
+}
+function drawBall(ctx, x, y, r, cols, sign, glow) {
+  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.1, x, y, r * 1.2);
+  g.addColorStop(0, cols.l);
+  g.addColorStop(1, cols.m);
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  if (glow) { ctx.shadowColor = cols.m; ctx.shadowBlur = glow; }
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  if (sign) {
+    ctx.font = '800 ' + Math.round(r * 0.95) + 'px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = sign === '?' ? '#5A5F6E' : 'rgba(255,255,255,0.92)';
+    ctx.fillText(sign, x, y + 1);
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
+  }
+}
+function drawArrow(ctx, x, y, dir, len, color) {
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + dir * len, y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x + dir * len, y);
+  ctx.lineTo(x + dir * (len - 9), y - 6);
+  ctx.lineTo(x + dir * (len - 9), y + 6);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/* живой кадр детектива: маятники + стрелки сил */
+function startDetScene(host, round) {
+  host.innerHTML = `<div class="canvas-panel"><canvas id="detCanvas" height="190"></canvas></div>`;
+  const canvas = host.querySelector('#detCanvas');
+  const ctx = canvas.getContext('2d');
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 190);
+    ctx.clearRect(0, 0, w, h);
+    const p1x = w * 0.38, p2x = w * 0.62, py = h * 0.07;
+    const L = Math.min(h * 0.55, w * 0.30);
+    const r = Math.min(h * 0.16, w * 0.07);
+    const gapHalf = (p2x - p1x) / 2;
+    const aIn = Math.asin(Math.min(0.6, Math.max(0.02, (gapHalf - r * 1.05) / L)));
+    const sway = Math.sin(t * 1.6) * 0.02;
+    const a = round.mode === 'repel' ? 0.34 + sway : -(aIn - Math.abs(sway));
+
+    ctx.strokeStyle = '#C9CEDA';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(w * 0.24, py);
+    ctx.lineTo(w * 0.76, py);
+    ctx.stroke();
+
+    const b1x = p1x - Math.sin(a) * L, b1y = py + Math.cos(a) * L;
+    const b2x = p2x + Math.sin(a) * L, b2y = py + Math.cos(a) * L;
+    ctx.strokeStyle = '#9AA0AA';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(p1x, py); ctx.lineTo(b1x, b1y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p2x, py); ctx.lineTo(b2x, b2y); ctx.stroke();
+
+    drawBall(ctx, b1x, b1y, r, round.known === '+' ? chargeColors(1) : chargeColors(-1), round.known, 14);
+    const pulse = 1 + Math.sin(t * 3) * 0.06;
+    drawBall(ctx, b2x, b2y, r * pulse, chargeColors(0), '?', 0);
+
+    const attract = round.mode === 'attract';
+    const ay = (b1y + b2y) / 2;
+    const col = attract ? MINUS : '#E8590C';
+    drawArrow(ctx, attract ? b1x + r * 1.15 : b1x - r * 1.15, ay, attract ? 1 : -1, r * 0.9, col);
+    drawArrow(ctx, attract ? b2x - r * 1.15 : b2x + r * 1.15, ay, attract ? -1 : 1, r * 0.9, col);
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ---------- генератор раундов ---------- */
+function makeRounds(level, rnd) {
+  const n = level === 'easy' ? 3 : level === 'medium' ? 4 : 5;
+  const traps = level === 'easy' ? 0 : level === 'medium' ? 1 : 2;
+  const rounds = [];
+  const flip = () => (rnd() < 0.5 ? '+' : '−');
+  const opposite = s => (s === '+' ? '−' : '+');
+
+  // обычные раунды: отталкивание или «притяжение, оба заряжены»
+  for (let i = 0; i < n - traps; i++) {
+    const known = flip();
+    if (rnd() < 0.55) {
+      rounds.push({
+        mode: 'repel', known, correct: known,
+        note: `Шарики отталкиваются. Левый заряжен «${known}». Каков заряд правого?`,
+        explain: `Отталкиваются только заряды одного знака — правый тоже «${known}». И раз оттолкнулись, заряжены точно оба.`,
+      });
+    } else {
+      rounds.push({
+        mode: 'attract', known, correct: opposite(known),
+        note: `Шарики притягиваются. Известно: ОБА заряжены, левый — «${known}».`,
+        explain: `Оба заряжены и притягиваются — значит, знаки разные. Правый «${opposite(known)}».`,
+      });
+    }
+  }
+  // ловушки: притяжение без информации о правом
+  for (let i = 0; i < traps; i++) {
+    const known = flip();
+    rounds.push({
+      mode: 'attract', known, correct: '?',
+      note: `Притягиваются. Левый «${known}», а про правый не известно НИЧЕГО.`,
+      explain: 'Ловушка! Притягиваться может и противоположный заряд, и совершенно нейтральный шарик (вспомни струю воды). По одному притяжению заряд не определить.',
+    });
+  }
+  // перемешать
+  for (let i = rounds.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [rounds[i], rounds[j]] = [rounds[j], rounds[i]];
+  }
+  return rounds;
+}
+
+/* ---------- сборка шагов ---------- */
+function buildSteps(level, rnd) {
+  const rounds = makeRounds(level, rnd);
+  return rounds.map((round, i) => ({
+    type: 'choice',
+    title: `Раунд ${i + 1} из ${rounds.length}`,
+    text: round.note,
+    render: host => startDetScene(host, round),
+    options: [
+      { text: 'Заряд «+»', correct: round.correct === '+' },
+      { text: 'Заряд «−»', correct: round.correct === '−' },
+      { text: '🤷 Нельзя определить', correct: round.correct === '?' },
+    ],
+    right: '✓ ' + round.explain,
+    wrong: round.explain,
+  }));
+}
+
+runPractice({
+  practiceId: 'detective',
+  storageKey: 'electrostatics-progress',
+  homeHref: '../demo/',
+  title: 'Зарядовый детектив',
+  subtitle: 'Два шарика на нитях. Заряд левого известен, правого — нет. Определи его по одному только поведению — и не попадись в ловушку.',
+  levels: {
+    easy:   { label: 'Стажёр',    desc: 'Три раунда, все честные — без ловушек.', xp: 30 },
+    medium: { label: 'Сыщик',     desc: 'Четыре раунда, и одна улика — обманка.', xp: 40 },
+    hard:   { label: 'Шерлок',    desc: 'Пять раундов, две ловушки. Притяжение — ещё не улика!', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

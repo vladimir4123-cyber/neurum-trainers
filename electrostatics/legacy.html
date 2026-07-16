@@ -1,0 +1,2287 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Интерактивный микротренажёр по электризации: два вида зарядов, притяжение и отталкивание, индукция, электроскоп. 7 минут — и тема понятна.">
+    <title>Микротренажёр: Электризация</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --amber: #fdcb6e;
+            --amber-l: #ffe3a6;
+            --orange: #e17055;
+            --orange-l: #fab1a0;
+            --blue: #74b9ff;
+            --green: #00b894;
+            --bg: #070714;
+            --panel: #12122acc;
+            --panel-solid: #12122a;
+            --border: #2a2a3e;
+            --text: #e0e0e0;
+            --muted: #b0b0c0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            min-height: 100dvh;
+            overflow-x: hidden;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        /* ═══ Background: starfield + aurora ═══ */
+        #bgCanvas {
+            position: fixed; inset: 0;
+            width: 100vw; height: 100vh;
+            z-index: 0; pointer-events: none;
+        }
+        .aurora {
+            position: fixed; z-index: 0; pointer-events: none;
+            width: 60vmax; height: 60vmax; border-radius: 50%;
+            filter: blur(90px); opacity: 0.14;
+        }
+        .aurora-1 { background: #e17055; top: -25vmax; left: -20vmax; animation: drift1 26s ease-in-out infinite alternate; }
+        .aurora-2 { background: #fdcb6e; bottom: -30vmax; right: -22vmax; animation: drift2 32s ease-in-out infinite alternate; }
+        @keyframes drift1 { from { transform: translate(0,0) scale(1); } to { transform: translate(8vmax, 6vmax) scale(1.15); } }
+        @keyframes drift2 { from { transform: translate(0,0) scale(1.1); } to { transform: translate(-7vmax, -5vmax) scale(0.95); } }
+
+        #confettiCanvas {
+            position: fixed; inset: 0;
+            width: 100vw; height: 100vh;
+            z-index: 200; pointer-events: none;
+        }
+
+        .container {
+            position: relative; z-index: 1;
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 44px 24px 40px;
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            perspective: 1200px;
+        }
+
+        /* ═══ Progress + HUD ═══ */
+        .progress-bar {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 4px;
+            background: #1a1a2e; z-index: 100;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #e17055, #fdcb6e, #ffeaa7);
+            transition: width 0.5s ease;
+            width: 0%;
+            box-shadow: 0 0 12px #fdcb6eaa;
+        }
+
+        #hud {
+            position: fixed; top: 12px; right: 14px; z-index: 110;
+            display: flex; align-items: center; gap: 6px;
+            background: #12122ae8;
+            border: 1px solid #fdcb6e50;
+            border-radius: 999px;
+            padding: 7px 14px;
+            font-size: 14px; font-weight: 700;
+            color: var(--amber);
+            box-shadow: 0 4px 18px #00000060;
+            transition: transform 0.2s ease;
+        }
+        #hud.bump { transform: scale(1.22); }
+        .float-point {
+            position: fixed; z-index: 111;
+            font-weight: 800; font-size: 16px; color: var(--amber);
+            pointer-events: none;
+            animation: floatUp 0.9s ease forwards;
+            text-shadow: 0 0 12px #fdcb6e90;
+        }
+        @keyframes floatUp {
+            from { opacity: 1; transform: translateY(0) scale(1); }
+            to { opacity: 0; transform: translateY(-44px) scale(1.3); }
+        }
+
+        .steps-indicator {
+            display: flex; gap: 6px;
+            margin-bottom: 30px;
+            justify-content: center; flex-wrap: wrap;
+        }
+        .step-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #2a2a3e;
+            transition: all 0.3s ease;
+        }
+        .step-dot.active { background: var(--amber); box-shadow: 0 0 10px #fdcb6e; transform: scale(1.3); }
+        .step-dot.completed { background: #d9a94f; }
+
+        /* ═══ Screens ═══ */
+        .screen { display: none; flex: 1; }
+        .screen.active { display: flex; flex-direction: column; animation: screenIn 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
+        @keyframes screenIn {
+            from { opacity: 0; transform: translateY(28px) rotateX(6deg) scale(0.985); }
+            to { opacity: 1; transform: translateY(0) rotateX(0) scale(1); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(14px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ═══ Typography ═══ */
+        .screen-label {
+            font-size: 11px; text-transform: uppercase;
+            letter-spacing: 2.5px; color: var(--amber);
+            margin-bottom: 12px;
+        }
+        h1 { font-size: 26px; font-weight: 800; line-height: 1.3; margin-bottom: 18px;
+             background: linear-gradient(120deg, #ffffff, #ffe3b3);
+             -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+        h2 { font-size: 20px; font-weight: 700; margin-bottom: 14px; color: #fff; }
+        p { font-size: 16px; line-height: 1.7; color: var(--muted); margin-bottom: 14px; }
+        .highlight { color: var(--amber); font-weight: 600; }
+        .hl-plus { color: #ff9d85; font-weight: 700; }
+        .hl-minus { color: #a8d4ff; font-weight: 700; }
+
+        /* ═══ Cards ═══ */
+        .concept-card {
+            position: relative;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 20px;
+            margin-bottom: 14px;
+            overflow: hidden;
+        }
+        .concept-card::before {
+            content: '';
+            position: absolute; inset: 0; border-radius: 18px;
+            padding: 1px;
+            background: linear-gradient(135deg, #fdcb6e40, transparent 40%, transparent 70%, #fdcb6e20);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor; mask-composite: exclude;
+            pointer-events: none;
+        }
+        .concept-card .emoji { font-size: 28px; margin-bottom: 10px; }
+        .concept-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: #fff; }
+        .concept-card p { font-size: 14px; margin-bottom: 0; }
+        .concept-card p + p { margin-top: 10px; }
+
+        .note-box {
+            background: var(--panel); border: 1px solid var(--border);
+            border-radius: 12px; padding: 14px; margin-bottom: 14px;
+        }
+        .note-box p { margin: 0; font-size: 14px; }
+
+        /* ═══ Buttons ═══ */
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 16px 28px; border-radius: 14px;
+            font-size: 16px; font-weight: 700;
+            border: none; cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: auto;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #e17055, #fdcb6e);
+            color: #231402;
+            box-shadow: 0 6px 22px #fdcb6e30;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 28px #fdcb6e50; }
+        .btn-secondary { background: #1a1a2ecc; color: var(--amber); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: #22223a; }
+        .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn:active { transform: scale(0.97); }
+
+        /* ═══ Promo ═══ */
+        .promo-icon-wrap { position: relative; width: 110px; height: 110px; margin: 4px auto 24px; }
+        .promo-icon {
+            position: relative; z-index: 2;
+            width: 110px; height: 110px;
+            background: linear-gradient(135deg, #fdcb6e28, #e1705518);
+            border-radius: 30px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 52px;
+            border: 1px solid #fdcb6e45;
+            box-shadow: 0 10px 40px #fdcb6e28, inset 0 0 30px #fdcb6e12;
+            animation: iconFloat 4s ease-in-out infinite;
+        }
+        @keyframes iconFloat {
+            0%, 100% { transform: translateY(0) rotate(-2deg); }
+            50% { transform: translateY(-8px) rotate(2deg); }
+        }
+        .pulse-ring {
+            position: absolute; inset: 0; z-index: 1;
+            border: 2px solid #fdcb6e;
+            border-radius: 30px;
+            animation: pulseRing 2.6s ease-out infinite;
+        }
+        .pulse-ring:nth-child(2) { animation-delay: 1.3s; }
+        @keyframes pulseRing {
+            from { transform: scale(1); opacity: 0.7; }
+            to { transform: scale(1.65); opacity: 0; }
+        }
+        .promo-title { text-align: center; font-size: 32px; margin-bottom: 8px; }
+        .promo-subtitle { text-align: center; font-size: 17px; color: #8888a0; margin-bottom: 26px; }
+        .hero-canvas-wrap { margin: 0 0 24px; }
+        .hero-canvas-wrap canvas { width: 100%; display: block; }
+        .promo-features { display: flex; flex-direction: column; gap: 12px; margin-bottom: 26px; }
+        .promo-feature {
+            display: flex; align-items: flex-start; gap: 14px;
+            padding: 16px;
+            background: var(--panel);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+        .promo-feature-icon {
+            flex-shrink: 0; width: 44px; height: 44px;
+            border-radius: 13px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 21px;
+        }
+        .promo-feature-text h4 { font-size: 15px; color: #fff; margin-bottom: 3px; }
+        .promo-feature-text p { font-size: 13px; margin-bottom: 0; color: #8888a0; line-height: 1.5; }
+        .promo-meta {
+            display: flex; justify-content: center; gap: 22px;
+            margin-bottom: 26px; font-size: 13px; color: #66667a;
+        }
+        .promo-meta span { display: flex; align-items: center; gap: 6px; }
+
+        /* ═══ Canvas panels ═══ */
+        .canvas-panel {
+            background: #0c0c1eb8;
+            border-radius: 16px;
+            padding: 10px;
+            margin: 12px 0 10px;
+            border: 1px solid #1c1c34;
+        }
+        .canvas-panel canvas { width: 100%; display: block; border-radius: 10px; touch-action: none; }
+        .canvas-hint { font-size: 12px; color: #66667a; text-align: center; margin: 8px 0 14px; }
+
+        /* ═══ Mini controls ═══ */
+        .mini-control { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+        .mini-control-label { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+        .mini-control-label span:first-child { color: #8888a0; }
+        .mini-control-label .mc-value { color: var(--amber); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%; height: 6px;
+            border-radius: 3px;
+            background: linear-gradient(90deg, #fdcb6e50, #1a1a2e);
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 26px; height: 26px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #ffe3a6, #e5a94d);
+            cursor: pointer;
+            box-shadow: 0 0 14px #fdcb6e80, 0 2px 6px #00000080;
+        }
+
+        .chip {
+            padding: 8px 13px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: #181830;
+            color: var(--muted);
+            font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .chip:hover { border-color: var(--amber); color: #fff; }
+
+        .mini-play-btn {
+            margin-top: 12px;
+            padding: 11px 20px;
+            border: 1px solid var(--amber);
+            background: #fdcb6e14;
+            color: var(--amber);
+            border-radius: 10px;
+            font-size: 14px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .mini-play-btn:hover { background: #fdcb6e28; }
+        .mini-play-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ═══ Charge selectors (screen 3) ═══ */
+        .charge-row { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+        .charge-row .cr-label { font-size: 13px; color: var(--muted); min-width: 106px; }
+        .charge-chips { display: flex; gap: 8px; }
+        .charge-chip {
+            width: 48px; height: 42px;
+            border-radius: 12px;
+            border: 2px solid var(--border);
+            background: #181830;
+            color: var(--text);
+            font-size: 19px; font-weight: 800;
+            cursor: pointer; transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .charge-chip:hover { border-color: var(--amber); }
+        .charge-chip.active-plus { border-color: #e17055; background: #e1705522; color: #ff9d85; box-shadow: 0 0 12px #e1705540; }
+        .charge-chip.active-minus { border-color: #74b9ff; background: #74b9ff22; color: #a8d4ff; box-shadow: 0 0 12px #74b9ff40; }
+        .charge-chip.active-zero { border-color: #9aa0b5; background: #9aa0b522; color: #cfd4e4; }
+
+        /* ═══ Quiz ═══ */
+        .quiz-option {
+            background: var(--panel);
+            border: 2px solid var(--border);
+            border-radius: 14px;
+            padding: 16px 18px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 15px;
+            color: var(--text);
+            text-align: left;
+            width: 100%;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .quiz-option:hover { border-color: var(--amber); background: #1a1a30; transform: translateX(3px); }
+        .quiz-option.correct { border-color: var(--green); background: #00b89418; color: #5fe8c8; animation: popCorrect 0.4s ease; }
+        .quiz-option.wrong { border-color: var(--orange); background: #e1705518; color: var(--orange-l); animation: shake 0.4s ease; }
+        .quiz-option.disabled { pointer-events: none; }
+        @keyframes popCorrect {
+            0% { transform: scale(1); } 40% { transform: scale(1.035); } 100% { transform: scale(1); }
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); } 75% { transform: translateX(6px); }
+        }
+
+        .feedback-box {
+            background: var(--panel);
+            border-radius: 12px;
+            padding: 16px;
+            margin: 12px 0;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        .feedback-box.show { display: block; }
+        .feedback-box.correct-fb { border-left: 4px solid var(--green); }
+        .feedback-box.wrong-fb { border-left: 4px solid var(--orange); }
+        .feedback-box p { margin-bottom: 0; font-size: 14px; }
+
+        /* ═══ Detective / practice stage ═══ */
+        .detective-stage {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 22px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .detective-round { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--amber); margin-bottom: 14px; }
+        .mystery-hint { font-size: 13.5px; color: #a9a9bd; margin-bottom: 16px; line-height: 1.55; }
+        .detective-options { display: flex; gap: 10px; }
+        .det-option {
+            flex: 1; padding: 14px 6px;
+            border-radius: 14px;
+            border: 2px solid var(--border);
+            background: #181830;
+            color: var(--text);
+            font-size: 20px; font-weight: 800;
+            cursor: pointer; transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .det-option small { display: block; font-size: 11px; color: #77778a; font-weight: 500; margin-top: 4px; }
+        .det-option:hover { border-color: var(--amber); }
+        .det-option.correct { border-color: var(--green); background: #00b89420; }
+        .det-option.wrong { border-color: var(--orange); background: #e1705520; animation: shake 0.4s ease; }
+        .det-option:disabled { pointer-events: none; }
+        .detective-feedback { min-height: 22px; font-size: 14px; margin-top: 14px; color: var(--muted); line-height: 1.55; }
+
+        /* ═══ Challenge box ═══ */
+        .challenge-box {
+            background: linear-gradient(135deg, #1a1a30e0, #12122ae0);
+            border: 1px solid #fdcb6e35;
+            border-radius: 16px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            transition: all 0.3s;
+        }
+        .challenge-box h3 { color: var(--amber); font-size: 15px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+        .challenge-box p { margin-bottom: 0; font-size: 14px; }
+        .challenge-progress { display: flex; gap: 5px; margin-top: 10px; }
+        .challenge-progress .cp-dot {
+            height: 5px; flex: 1; border-radius: 3px;
+            background: #2a2a3e; transition: background 0.3s;
+        }
+        .challenge-progress .cp-dot.done { background: var(--green); box-shadow: 0 0 8px #00b89460; }
+        .challenge-progress .cp-dot.miss { background: #e17055aa; }
+
+        .nav-row { display: flex; gap: 10px; margin-top: auto; padding-top: 16px; }
+        .nav-row .btn { flex: 1; margin-top: 0; }
+
+        /* ═══ Results ═══ */
+        .stars-row { display: flex; justify-content: center; gap: 14px; margin: 6px 0 20px; }
+        .star {
+            font-size: 52px;
+            filter: grayscale(1) brightness(0.4);
+            transform: scale(0.8);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .star.lit {
+            filter: none;
+            transform: scale(1);
+            text-shadow: 0 0 26px #fdcb6e90;
+            animation: starPop 0.5s cubic-bezier(0.34, 1.8, 0.64, 1);
+        }
+        @keyframes starPop {
+            0% { transform: scale(0.3) rotate(-30deg); }
+            70% { transform: scale(1.25) rotate(8deg); }
+            100% { transform: scale(1) rotate(0); }
+        }
+        .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+        .result-card {
+            background: var(--panel); border: 1px solid #1f1f36;
+            border-radius: 14px; padding: 18px; text-align: center;
+        }
+        .result-card .big-num { font-size: 30px; font-weight: 800; color: var(--amber); font-variant-numeric: tabular-nums; }
+        .result-card .label { font-size: 12px; color: #77778a; margin-top: 4px; }
+
+        /* ═══ Mobile ═══ */
+        @media (max-width: 480px) {
+            .container { padding: 36px 16px 28px; }
+            h1 { font-size: 22px; margin-bottom: 14px; }
+            h2 { font-size: 18px; }
+            p { font-size: 15px; margin-bottom: 12px; }
+            .promo-title { font-size: 25px; }
+            .promo-subtitle { font-size: 15px; margin-bottom: 20px; }
+            .promo-icon-wrap, .promo-icon { width: 88px; height: 88px; }
+            .promo-icon { font-size: 42px; border-radius: 24px; }
+            .promo-feature { padding: 14px 12px; gap: 12px; }
+            .promo-feature-icon { width: 38px; height: 38px; font-size: 18px; }
+            .promo-meta { gap: 14px; font-size: 12px; }
+            .concept-card { padding: 16px; }
+            .concept-card h3 { font-size: 15px; }
+            .concept-card p { font-size: 13px; }
+            .btn { padding: 14px 20px; font-size: 15px; }
+            .quiz-option { padding: 14px 16px; font-size: 14px; }
+            .canvas-panel { padding: 8px; }
+            .feedback-box { padding: 14px; }
+            .feedback-box p { font-size: 13px; }
+            .nav-row { gap: 8px; }
+            .nav-row .btn { padding: 14px 12px; font-size: 14px; }
+            .steps-indicator { gap: 4px; margin-bottom: 22px; }
+            .step-dot { width: 7px; height: 7px; }
+            .det-option { font-size: 17px; padding: 12px 4px; }
+            .charge-row .cr-label { min-width: 88px; font-size: 12px; }
+            .charge-chip { width: 42px; height: 38px; font-size: 17px; }
+            .star { font-size: 44px; }
+            #hud { top: 10px; right: 10px; padding: 6px 11px; font-size: 13px; }
+        }
+        @media (max-width: 360px) {
+            .container { padding: 32px 12px 24px; }
+            h1 { font-size: 20px; }
+            .promo-title { font-size: 22px; }
+            .detective-options { gap: 6px; }
+        }
+    </style>
+</head>
+<body>
+<a href="../" style="position:fixed;top:12px;left:12px;z-index:400;background:rgba(11,17,48,.85);border:1px solid rgba(255,255,255,.18);color:#eef1fb;text-decoration:none;font:600 13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:7px 13px;border-radius:999px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);">⚡ Все тренажёры</a>
+
+    <canvas id="bgCanvas"></canvas>
+    <div class="aurora aurora-1"></div>
+    <div class="aurora aurora-2"></div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div id="hud">⚡ <span id="hudScore">0</span></div>
+    <canvas id="confettiCanvas"></canvas>
+
+    <div class="container">
+        <div class="steps-indicator" id="stepsIndicator"></div>
+
+        <!-- ═══ SCREEN 0: Promo ═══ -->
+        <div class="screen active" id="screen-0">
+            <div class="promo-icon-wrap">
+                <div class="pulse-ring"></div>
+                <div class="pulse-ring"></div>
+                <div class="promo-icon">🎈</div>
+            </div>
+            <h1 class="promo-title">Электризация</h1>
+            <p class="promo-subtitle">Интерактивный микротренажёр · физика, 8 класс</p>
+
+            <div class="hero-canvas-wrap canvas-panel">
+                <canvas id="heroCanvas" height="140"></canvas>
+            </div>
+
+            <div class="promo-features">
+                <div class="promo-feature">
+                    <div class="promo-feature-icon" style="background:#fdcb6e22;">⚡</div>
+                    <div class="promo-feature-text">
+                        <h4>Поймёшь, откуда статическое электричество</h4>
+                        <p>Почему свитер трещит в темноте, а шарик прилипает к стене</p>
+                    </div>
+                </div>
+                <div class="promo-feature">
+                    <div class="promo-feature-icon" style="background:#e1705522;">🧲</div>
+                    <div class="promo-feature-text">
+                        <h4>Научишься предсказывать</h4>
+                        <p>Притянутся или оттолкнутся? Будешь отвечать заранее, как физик</p>
+                    </div>
+                </div>
+                <div class="promo-feature">
+                    <div class="promo-feature-icon" style="background:#74b9ff22;">🕵️</div>
+                    <div class="promo-feature-text">
+                        <h4>Игра «Зарядовый детектив»</h4>
+                        <p>Определи заряд шарика по одному его поведению. Осторожно: есть ловушка!</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="promo-meta">
+                <span>⏱ ~7 минут</span>
+                <span>🧪 5 интерактивов</span>
+                <span>🎯 13 очков</span>
+            </div>
+
+            <button class="btn btn-primary" onclick="goTo(1)" style="width:100%; padding:18px;">Начать тренажёр →</button>
+        </div>
+
+        <!-- ═══ SCREEN 1: Hook ═══ -->
+        <div class="screen" id="screen-1">
+            <div class="screen-label">Зацепка</div>
+            <h1>Почему волосы встают дыбом от воздушного шарика?</h1>
+            <p>Потри шарик о волосы и подними — волосы потянутся за ним, как живые. Попробуй прямо здесь: хватай шарик и повози им по волосам.</p>
+
+            <div class="canvas-panel">
+                <canvas id="hookCanvas" height="230"></canvas>
+            </div>
+            <p class="canvas-hint" id="hookHint">Тащи шарик 🎈 по волосам — следи за шкалой заряда</p>
+
+            <p>Невидимая сила, которая поднимает волосы, — это <span class="highlight">статическое электричество</span>. Сейчас разберём его на детали.</p>
+
+            <div class="note-box">
+                <p><span class="highlight">Кстати:</span> ещё 2600 лет назад грек Фалес заметил, что натёртый янтарь притягивает пылинки и нитки. «Электрон» по-гречески — янтарь. Так что «электричество» буквально значит «янтарность».</p>
+            </div>
+
+            <button class="btn btn-primary" onclick="goTo(2)">Разобраться →</button>
+        </div>
+
+        <!-- ═══ SCREEN 2: Two kinds of charge ═══ -->
+        <div class="screen" id="screen-2">
+            <div class="screen-label">Базовая модель · 1 / 3</div>
+            <h1>Заряды: два вида, и только два</h1>
+
+            <p>В природе есть заряды двух видов: <span class="hl-plus">«+»</span> и <span class="hl-minus">«−»</span>. В любом теле их поровну — поэтому тело нейтрально. Но при трении часть <span class="hl-minus">электронов («−»)</span> перескакивает с одного тела на другое.</p>
+
+            <div class="concept-card">
+                <h3>Потри шарик о свитер и следи за электронами</h3>
+                <div class="canvas-panel" style="margin-bottom:0;">
+                    <canvas id="rubCanvas" height="210"></canvas>
+                </div>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <button class="mini-play-btn" id="rubBtn" onclick="rubOnce()">🤝 Потереть шарик о свитер</button>
+                    <button class="chip" style="margin-top:12px;" onclick="resetRub()">↺ Сначала</button>
+                </div>
+                <p style="margin-top:12px;">Электроны ушли со свитера → на нём не хватает «−», он стал <span class="hl-plus">«+»</span>. Шарик получил лишние «−» — он <span class="hl-minus">«−»</span>. Протоны никуда не бегают: они заперты в ядрах атомов.</p>
+            </div>
+
+            <div class="note-box">
+                <p><span class="highlight">Факт:</span> знаки «+» и «−» придумал Бенджамин Франклин — задолго до открытия электрона (его нашёл Дж. Дж. Томсон только в 1897 году). Поэтому так вышло, что «бегают» именно минусы.</p>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(1)">← Назад</button>
+                <button class="btn btn-primary" onclick="goTo(3)">Дальше: силы →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 3: Attraction / repulsion ═══ -->
+        <div class="screen" id="screen-3">
+            <div class="screen-label">Базовая модель · 2 / 3</div>
+            <h1>Кто притягивается, а кто отталкивается?</h1>
+
+            <p>Правило простое: <span class="highlight">одноимённые отталкиваются, разноимённые притягиваются</span>. Проверь сам на двух шариках:</p>
+
+            <div class="concept-card">
+                <div class="canvas-panel" style="margin-top:4px;">
+                    <canvas id="pendCanvas" height="250"></canvas>
+                </div>
+                <div class="charge-row">
+                    <span class="cr-label">Левый шарик:</span>
+                    <div class="charge-chips">
+                        <button class="charge-chip" onclick="setCharge(1,-1,this)">−</button>
+                        <button class="charge-chip active-zero" onclick="setCharge(1,0,this)">0</button>
+                        <button class="charge-chip" onclick="setCharge(1,1,this)">+</button>
+                    </div>
+                </div>
+                <div class="charge-row">
+                    <span class="cr-label">Правый шарик:</span>
+                    <div class="charge-chips">
+                        <button class="charge-chip" onclick="setCharge(2,-1,this)">−</button>
+                        <button class="charge-chip active-zero" onclick="setCharge(2,0,this)">0</button>
+                        <button class="charge-chip" onclick="setCharge(2,1,this)">+</button>
+                    </div>
+                </div>
+                <p class="canvas-hint" id="pendStatus" style="min-height:18px; margin-top:14px; margin-bottom:0;">Оба нейтральны — висят спокойно. Задай заряды кнопками выше</p>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(2)">← Назад</button>
+                <button class="btn btn-primary" onclick="goTo(4)">Дальше: индукция →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 4: Induction ═══ -->
+        <div class="screen" id="screen-4">
+            <div class="screen-label">Базовая модель · 3 / 3</div>
+            <h1>Притяжение без заряда? Индукция!</h1>
+
+            <p>Самое хитрое: заряженное тело притягивает даже <span class="highlight">нейтральное</span>. Заряды внутри нейтрального тела сдвигаются: «плюсы» оказываются к палочке чуть ближе, чем «минусы», — и притяжение побеждает.</p>
+
+            <div class="concept-card">
+                <h3>Янтарная палочка против струи воды</h3>
+                <div class="canvas-panel" style="margin-top:8px;">
+                    <canvas id="waterCanvas" height="250"></canvas>
+                </div>
+                <p class="canvas-hint" style="margin-bottom:0;">Води пальцем или мышью — палочка следует за тобой. Поднеси её к струе и к бумажкам на столе</p>
+            </div>
+
+            <p>Именно поэтому натёртая расчёска поднимает бумажки, а шарик прилипает к стене: им <span class="highlight">не нужен</span> «встречный» заряд.</p>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(3)">← Назад</button>
+                <button class="btn btn-primary" onclick="goTo(5)">Проверь себя →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 5: Quiz 1 ═══ -->
+        <div class="screen" id="screen-5">
+            <div class="screen-label">Проверка понимания</div>
+            <h2>Вопрос 1 из 2</h2>
+            <p>Шарик потёрли о волосы, и он зарядился «−». Какой заряд получили волосы?</p>
+            <div id="quiz1">
+                <button class="quiz-option" onclick="checkAnswer(1, 0, false)">Тоже «−» — трение заряжает оба тела одинаково</button>
+                <button class="quiz-option" onclick="checkAnswer(1, 1, true)">«+» — волосы отдали электроны шарику</button>
+                <button class="quiz-option" onclick="checkAnswer(1, 2, false)">Никакой — волосы остались нейтральными</button>
+            </div>
+            <div class="feedback-box" id="feedback1"><p id="feedback1-text"></p></div>
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(4)">← Назад</button>
+                <button class="btn btn-primary" id="nextQ1" onclick="goTo(6)" disabled>Дальше →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 6: Quiz 2 ═══ -->
+        <div class="screen" id="screen-6">
+            <div class="screen-label">Проверка понимания</div>
+            <h2>Вопрос 2 из 2</h2>
+            <p>Два шарика подвесили рядом на нитях — и они оттолкнулись друг от друга. Что можно сказать об их зарядах?</p>
+            <div id="quiz2">
+                <button class="quiz-option" onclick="checkAnswer(2, 0, false)">Заряды разных знаков</button>
+                <button class="quiz-option" onclick="checkAnswer(2, 1, false)">Один заряжен, второй нейтральный</button>
+                <button class="quiz-option" onclick="checkAnswer(2, 2, true)">Оба заряжены, и заряды одного знака</button>
+            </div>
+            <div class="feedback-box" id="feedback2"><p id="feedback2-text"></p></div>
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(5)">← Назад</button>
+                <button class="btn btn-primary" id="nextQ2" onclick="goTo(7)" disabled>Дальше →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 7: Electroscope ═══ -->
+        <div class="screen" id="screen-7">
+            <div class="screen-label">Углубление</div>
+            <h1>Электроскоп — прибор, который видит заряд</h1>
+
+            <p>Внутри — металлический стержень с двумя лёгкими листочками. Поднеси заряженную палочку к шару: электроны в стержне сбегут вниз, листочки зарядятся <span class="highlight">одинаково</span> — и оттолкнутся друг от друга.</p>
+
+            <div class="concept-card">
+                <h3>Двигай палочку ползунком</h3>
+                <div class="canvas-panel" style="margin-top:8px;">
+                    <canvas id="scopeCanvas" height="250"></canvas>
+                </div>
+                <div class="mini-control">
+                    <div class="mini-control-label">
+                        <span>Расстояние до палочки</span>
+                        <span class="mc-value" id="scopeVal">26 см</span>
+                    </div>
+                    <input type="range" id="scopeSlider" min="0" max="100" value="85" step="1">
+                </div>
+                <p style="margin-top:12px;">Чем ближе палочка — тем сильнее перекос зарядов и тем шире расходятся листочки. Электроскоп позволяет <span class="highlight">сравнивать</span> заряды, а не верить на слово.</p>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(6)">← Назад</button>
+                <button class="btn btn-primary" onclick="goTo(8)">Дальше: игра →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 8: Charge Detective ═══ -->
+        <div class="screen" id="screen-8">
+            <div class="screen-label">Игра</div>
+            <h1>🕵️ Зарядовый детектив</h1>
+            <p>Два шарика на нитях. Заряд левого известен, правого — нет. Определи его по одному только поведению. 4 раунда, в одном спрятана ловушка!</p>
+
+            <div class="detective-stage">
+                <div class="detective-round" id="detRoundLbl">Раунд 1 из 4</div>
+                <div class="canvas-panel" style="margin:0 0 12px;">
+                    <canvas id="detCanvas" height="190"></canvas>
+                </div>
+                <div class="mystery-hint" id="detNote"></div>
+                <div class="detective-options" id="detOptions"></div>
+                <div class="detective-feedback" id="detFeedback"></div>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(7)">← Назад</button>
+                <button class="btn btn-primary" id="detNextBtn" onclick="goTo(9)" disabled>К практике →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 9: Practice challenge ═══ -->
+        <div class="screen" id="screen-9">
+            <div class="screen-label">Тренажёр</div>
+            <h1>Статика вокруг нас</h1>
+
+            <div class="challenge-box">
+                <h3>⚡ Практика: 5 жизненных задач</h3>
+                <p>Каждая ситуация — настоящая. Объясни её как физик.</p>
+                <div class="challenge-progress" id="taskProgress">
+                    <div class="cp-dot"></div><div class="cp-dot"></div><div class="cp-dot"></div><div class="cp-dot"></div><div class="cp-dot"></div>
+                </div>
+            </div>
+
+            <div class="detective-stage" id="taskStage">
+                <div class="detective-round" id="taskRound">Задача 1 из 5</div>
+                <div style="font-size:44px; margin-bottom:10px;" id="taskIcon">🪮</div>
+                <p id="taskText" style="font-size:15px; color:var(--text); line-height:1.55;"></p>
+                <div id="taskOptions" style="text-align:left;"></div>
+                <div class="feedback-box" id="taskFb"><p id="taskFbText"></p></div>
+                <button class="mini-play-btn" id="taskNextBtn" onclick="nextTask()" style="display:none;">Следующая задача →</button>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(8)">← Назад</button>
+                <button class="btn btn-primary" id="taskDoneBtn" onclick="goTo(10)" disabled>К финалу →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 10: Final Quiz ═══ -->
+        <div class="screen" id="screen-10">
+            <div class="screen-label">Финальная проверка</div>
+            <h1>Две задачи посложнее</h1>
+            <p>Здесь легко попасться. Думай как детектив.</p>
+
+            <div id="finalQuiz">
+                <div class="fq-block" id="fqBlock1">
+                    <p style="color:#fff; font-weight:600; margin-bottom:10px;">1. Заряженная палочка притянула лёгкую бумажную гильзу. Значит ли это, что гильза заряжена противоположно палочке?</p>
+                    <div id="fq1">
+                        <button class="quiz-option" onclick="checkFinal(1, 0, false)">Да: притяжение бывает только между разными зарядами</button>
+                        <button class="quiz-option" onclick="checkFinal(1, 1, true)">Нет: гильза может быть и нейтральной — заряды в ней просто перераспределились</button>
+                        <button class="quiz-option" onclick="checkFinal(1, 2, false)">Да, но только если палочка заряжена положительно</button>
+                    </div>
+                    <div class="feedback-box" id="fqFb1"><p id="fqFb1-text"></p></div>
+                </div>
+
+                <div class="fq-block" id="fqBlock2" style="display:none;">
+                    <p style="color:#fff; font-weight:600; margin-bottom:10px;">2. Стеклянную палочку потёрли о шёлк — она зарядилась «+». Что произошло с электронами и с общим зарядом системы «палочка + шёлк»?</p>
+                    <div id="fq2">
+                        <button class="quiz-option" onclick="checkFinal(2, 0, true)">Часть электронов перешла на шёлк; общий заряд системы не изменился</button>
+                        <button class="quiz-option" onclick="checkFinal(2, 1, false)">Электроны исчезли, поэтому общий заряд стал положительным</button>
+                        <button class="quiz-option" onclick="checkFinal(2, 2, false)">На шёлк перешли протоны, поэтому палочка стала «+»</button>
+                    </div>
+                    <div class="feedback-box" id="fqFb2"><p id="fqFb2-text"></p></div>
+                </div>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(9)">← Назад</button>
+                <button class="btn btn-primary" id="toResultsBtn" onclick="goTo(11)" disabled style="display:none;">Завершить →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 11: Results ═══ -->
+        <div class="screen" id="screen-11">
+            <div class="screen-label">Завершение</div>
+
+            <div style="text-align:center; font-size:60px; margin: 4px 0 10px;">⚡</div>
+            <h1 style="text-align:center;" id="resultTitle">Тренажёр пройден!</h1>
+
+            <div class="stars-row">
+                <span class="star" id="star1">⭐</span>
+                <span class="star" id="star2">⭐</span>
+                <span class="star" id="star3">⭐</span>
+            </div>
+
+            <div class="results-grid">
+                <div class="result-card">
+                    <div class="big-num" id="resultQuiz">0</div>
+                    <div class="label">проверка понимания</div>
+                </div>
+                <div class="result-card">
+                    <div class="big-num" id="resultDetective">0</div>
+                    <div class="label">зарядовый детектив</div>
+                </div>
+                <div class="result-card">
+                    <div class="big-num" id="resultTasks">0</div>
+                    <div class="label">практика</div>
+                </div>
+                <div class="result-card">
+                    <div class="big-num" id="resultFinal">0</div>
+                    <div class="label">финальная проверка</div>
+                </div>
+            </div>
+            <div class="note-box" style="text-align:center;">
+                <p>Общий итог: <span class="highlight" id="resultTotal" style="font-size:18px;">0 / 13</span></p>
+            </div>
+
+            <div class="concept-card" style="border-color: #fdcb6e40;">
+                <h3 style="font-size:17px; margin-bottom:10px;">Что ты теперь знаешь</h3>
+                <p>При трении <span class="hl-minus">электроны</span> переходят с одного тела на другое: одно становится «−», второе — «+». Заряд не создаётся и не исчезает.</p>
+                <p><span class="highlight">Одноимённые</span> заряды отталкиваются, <span class="highlight">разноимённые</span> — притягиваются.</p>
+                <p>Заряженное тело притягивает даже <span class="highlight">нейтральное</span> — это индукция. Поэтому притяжение ничего не доказывает, а отталкивание — железная улика.</p>
+                <p><span class="highlight">Молния</span> — гигантский разряд статического электричества, а электроскоп — прибор, которым заряд можно увидеть.</p>
+            </div>
+
+            <div class="concept-card" style="border-color: #00b89440;">
+                <h3 style="color:#00b894; font-size:16px; margin-bottom:8px;">Три факта, чтобы блеснуть</h3>
+                <p>Фалес тёр янтарь 2600 лет назад — отсюда слово «электричество» («электрон» = янтарь по-гречески).</p>
+                <p>Бенджамин Франклин придумал знаки «+» и «−» и в 1752 году доказал электрическую природу молнии опытом с воздушным змеем.</p>
+                <p>Сам электрон открыл Дж. Дж. Томсон в 1897 году — через полтора века после Франклина.</p>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:8px;">
+                <button class="btn btn-secondary" onclick="goTo(9)" style="flex:1; margin-top:0;">⚡ В практику</button>
+                <button class="btn btn-primary" onclick="restart()" style="flex:1; margin-top:0;">Пройти ещё раз</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    'use strict';
+    // ══════════════════ STATE ══════════════════
+    const TOTAL_SCREENS = 12;
+    const MAX_SCORE = 13;
+    let currentScreen = 0;
+    let score = 0;
+    let quizCorrect = 0;      // screens 5-6: 2
+    let detectiveScore = 0;   // game: 4
+    let taskScore = 0;        // practice: 5
+    let finalCorrect = 0;     // final: 2
+    let finalAnswered = 0;
+
+    // ══════════════════ AUDIO ENGINE ══════════════════
+    let actx = null, master = null;
+    let audioUnlocked = false;
+    const liveVoices = new Set();
+
+    function ac() {
+        if (!actx) {
+            actx = new (window.AudioContext || window.webkitAudioContext)();
+            const comp = actx.createDynamicsCompressor();
+            comp.threshold.value = -18;
+            comp.ratio.value = 6;
+            master = actx.createGain();
+            master.gain.value = 0.9;
+            master.connect(comp);
+            comp.connect(actx.destination);
+        }
+        if (actx.state === 'suspended') actx.resume().catch(() => {});
+        if (!audioUnlocked) {
+            const o = actx.createOscillator(), g = actx.createGain();
+            g.gain.value = 0.0001;
+            o.connect(g); g.connect(actx.destination);
+            o.start(0); o.stop(actx.currentTime + 0.05);
+            audioUnlocked = true;
+        }
+        return actx;
+    }
+    document.addEventListener('touchend', function unlock() {
+        ac();
+        document.removeEventListener('touchend', unlock);
+    }, { passive: true });
+    document.addEventListener('click', function unlockC() {
+        ac();
+        document.removeEventListener('click', unlockC);
+    });
+
+    function voice({ freq = 440, type = 'sine', gain = 0.15, dur = null, attack = 0.012, release = 0.09, when = 0, filterFreq = null }) {
+        ac();
+        const t0 = actx.currentTime + when;
+        const o = actx.createOscillator();
+        const g = actx.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(freq, t0);
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(Math.max(gain, 0.0001), t0 + attack);
+
+        if (filterFreq) {
+            const filter = actx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = filterFreq;
+            o.connect(filter); filter.connect(g);
+        } else {
+            o.connect(g);
+        }
+        g.connect(master);
+        o.start(t0);
+
+        const handle = {
+            osc: o, gain: g,
+            stop(rel = release) {
+                if (handle.stopped) return;
+                handle.stopped = true;
+                const t = actx.currentTime;
+                try {
+                    g.gain.cancelScheduledValues(t);
+                    g.gain.setValueAtTime(Math.max(g.gain.value, 0.0001), t);
+                    g.gain.exponentialRampToValueAtTime(0.0001, t + rel);
+                    o.stop(t + rel + 0.05);
+                } catch (e) {}
+                liveVoices.delete(handle);
+            }
+        };
+        if (dur != null) {
+            g.gain.setValueAtTime(gain, t0 + Math.max(attack, dur - release));
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+            o.stop(t0 + dur + 0.05);
+            handle.stopped = true;
+        } else {
+            liveVoices.add(handle);
+        }
+        return handle;
+    }
+
+    function stopAllSound() {
+        [...liveVoices].forEach(v => v.stop());
+        liveVoices.clear();
+    }
+
+    // ── crackle: короткий треск статического разряда ──
+    let noiseBuf = null;
+    function crackle(intensity) {
+        if (!audioUnlocked) return;
+        const ctx = ac();
+        if (!noiseBuf) {
+            const len = Math.floor(ctx.sampleRate * 0.06);
+            noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+            const d = noiseBuf.getChannelData(0);
+            for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.2);
+        }
+        const src = ctx.createBufferSource();
+        src.buffer = noiseBuf;
+        const f = ctx.createBiquadFilter();
+        f.type = 'highpass';
+        f.frequency.value = 2200 + Math.random() * 1800;
+        const g = ctx.createGain();
+        g.gain.value = 0.05 + 0.09 * Math.min(1, intensity || 1);
+        src.connect(f); f.connect(g); g.connect(master);
+        src.start();
+    }
+
+    const sfx = {
+        click() { voice({ freq: 740, type: 'triangle', gain: 0.05, dur: 0.07, attack: 0.005, release: 0.05 }); },
+        correct() {
+            [523.25, 659.25, 783.99].forEach((f, i) =>
+                voice({ freq: f, type: 'sine', gain: 0.13, dur: 0.22, when: i * 0.09, attack: 0.008, release: 0.12 }));
+            if (navigator.vibrate) navigator.vibrate(30);
+        },
+        wrong() {
+            voice({ freq: 170, type: 'sawtooth', gain: 0.07, dur: 0.12, attack: 0.006, release: 0.07, filterFreq: 600 });
+            voice({ freq: 140, type: 'sawtooth', gain: 0.07, dur: 0.16, when: 0.14, attack: 0.006, release: 0.09, filterFreq: 600 });
+        },
+        fanfare() {
+            const notes = [523.25, 659.25, 783.99, 1046.5];
+            notes.forEach((f, i) => voice({ freq: f, type: 'triangle', gain: 0.12, dur: 0.3, when: i * 0.13, attack: 0.01, release: 0.15 }));
+            notes.forEach(f => voice({ freq: f, type: 'sine', gain: 0.09, dur: 1.2, when: 0.55, attack: 0.02, release: 0.8 }));
+        }
+    };
+
+    // ══════════════════ SCORE HUD ══════════════════
+    function addPoint() {
+        score++;
+        const hud = document.getElementById('hud');
+        document.getElementById('hudScore').textContent = score;
+        hud.classList.add('bump');
+        setTimeout(() => hud.classList.remove('bump'), 220);
+        const fp = document.createElement('div');
+        fp.className = 'float-point';
+        fp.textContent = '+1';
+        const r = hud.getBoundingClientRect();
+        fp.style.left = (r.left + r.width / 2 - 10) + 'px';
+        fp.style.top = (r.bottom + 6) + 'px';
+        document.body.appendChild(fp);
+        setTimeout(() => fp.remove(), 950);
+    }
+
+    // ══════════════════ CONFETTI ══════════════════
+    const confettiCanvas = document.getElementById('confettiCanvas');
+    const confettiCtx = confettiCanvas.getContext('2d');
+    let confetti = [];
+    const CONF_COLORS = ['#fdcb6e', '#e17055', '#ffeaa7', '#00b894', '#74b9ff', '#ff7675', '#f39c12'];
+
+    function fitConfetti() {
+        confettiCanvas.width = window.innerWidth;
+        confettiCanvas.height = window.innerHeight;
+    }
+    fitConfetti();
+    window.addEventListener('resize', fitConfetti);
+
+    function confettiBurst(n = 60, xN = 0.5, yN = 0.35) {
+        const W = confettiCanvas.width, H = confettiCanvas.height;
+        for (let i = 0; i < n; i++) {
+            const a = Math.random() * Math.PI * 2, sp = 3 + Math.random() * 7;
+            confetti.push({
+                x: W * xN, y: H * yN,
+                vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 4,
+                w: 5 + Math.random() * 6, h: 3 + Math.random() * 5,
+                rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.3,
+                color: CONF_COLORS[(Math.random() * CONF_COLORS.length) | 0],
+                life: 1
+            });
+        }
+    }
+    function confettiRain(n = 130) {
+        const W = confettiCanvas.width;
+        for (let i = 0; i < n; i++) {
+            confetti.push({
+                x: Math.random() * W, y: -20 - Math.random() * 360,
+                vx: (Math.random() - 0.5) * 1.6, vy: 2 + Math.random() * 3,
+                w: 5 + Math.random() * 6, h: 3 + Math.random() * 5,
+                rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.25,
+                color: CONF_COLORS[(Math.random() * CONF_COLORS.length) | 0],
+                life: 1
+            });
+        }
+    }
+    function drawConfetti() {
+        if (!confetti.length) {
+            confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+            return;
+        }
+        const W = confettiCanvas.width, H = confettiCanvas.height;
+        confettiCtx.clearRect(0, 0, W, H);
+        confetti.forEach(p => {
+            p.x += p.vx; p.y += p.vy;
+            p.vy += 0.12; p.vx *= 0.99;
+            p.rot += p.vr;
+            p.life -= 0.004;
+            confettiCtx.save();
+            confettiCtx.translate(p.x, p.y);
+            confettiCtx.rotate(p.rot);
+            confettiCtx.globalAlpha = Math.max(0, Math.min(1, p.life));
+            confettiCtx.fillStyle = p.color;
+            confettiCtx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+            confettiCtx.restore();
+        });
+        confetti = confetti.filter(p => p.y < H + 30 && p.life > 0);
+    }
+
+    // ══════════════════ CANVAS HELPERS ══════════════════
+    function fit(c, cssH) {
+        const cssW = c.offsetWidth || 320;
+        const w = cssW * 2, h = cssH * 2;
+        if (c.width !== w) c.width = w;
+        if (c.height !== h) {
+            c.height = h;
+            c.style.height = cssH + 'px';
+        }
+        return { w: c.width, h: c.height };
+    }
+    function norm(x, y) {
+        const d = Math.hypot(x, y) || 1;
+        return { x: x / d, y: y / d };
+    }
+    function rr(ctx, x, y, w2, h2, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w2, y, x + w2, y + h2, r);
+        ctx.arcTo(x + w2, y + h2, x, y + h2, r);
+        ctx.arcTo(x, y + h2, x, y, r);
+        ctx.arcTo(x, y, x + w2, y, r);
+        ctx.closePath();
+    }
+    function chargeDot(ctx, x, y, r, sign, color, glow) {
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = color + '30';
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = color;
+        if (glow) { ctx.shadowColor = color; ctx.shadowBlur = 10; }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.font = '800 ' + Math.round(r * 1.5) + 'px -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = color;
+        ctx.fillText(sign, x, y + 0.5);
+        ctx.textAlign = 'start';
+        ctx.textBaseline = 'alphabetic';
+    }
+    function chargeColors(q) {
+        if (q > 0) return { l: '#ffc4b0', m: '#e17055' };
+        if (q < 0) return { l: '#cfe6ff', m: '#74b9ff' };
+        return { l: '#d8dbe6', m: '#8e93a8' };
+    }
+    function drawBall(ctx, x, y, r, cols, sign, glow) {
+        const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.1, x, y, r * 1.2);
+        g.addColorStop(0, cols.l);
+        g.addColorStop(1, cols.m);
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        if (glow) { ctx.shadowColor = cols.m; ctx.shadowBlur = glow; }
+        ctx.fillStyle = g;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        if (sign) {
+            ctx.font = '800 ' + Math.round(r * 0.95) + 'px -apple-system, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = 'rgba(15,12,30,0.72)';
+            ctx.fillText(sign, x, y + 1);
+            ctx.textAlign = 'start';
+            ctx.textBaseline = 'alphabetic';
+        }
+    }
+    function drawBalloon(ctx, x, y, r, light, main, sign, opts) {
+        opts = opts || {};
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(opts.tilt || 0);
+        if (opts.string !== false) {
+            ctx.beginPath();
+            ctx.moveTo(0, r * 1.28);
+            ctx.quadraticCurveTo(r * 0.4, r * 2.0, -r * 0.15, r * 2.8);
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = Math.max(1.2, r * 0.05);
+            ctx.stroke();
+        }
+        const g = ctx.createRadialGradient(-r * 0.35, -r * 0.45, r * 0.12, 0, 0, r * 1.35);
+        g.addColorStop(0, light);
+        g.addColorStop(1, main);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, r, r * 1.16, 0, 0, Math.PI * 2);
+        if (opts.glow) { ctx.shadowColor = main; ctx.shadowBlur = opts.glow; }
+        ctx.fillStyle = g;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.beginPath();
+        ctx.moveTo(0, r * 1.12);
+        ctx.lineTo(-r * 0.15, r * 1.3);
+        ctx.lineTo(r * 0.15, r * 1.3);
+        ctx.closePath();
+        ctx.fillStyle = main;
+        ctx.fill();
+        if (sign) {
+            ctx.font = '800 ' + Math.round(r * 0.95) + 'px -apple-system, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = 'rgba(15,12,30,0.72)';
+            ctx.fillText(sign, 0, 0);
+        }
+        ctx.restore();
+        ctx.textAlign = 'start';
+        ctx.textBaseline = 'alphabetic';
+    }
+    function drawArrow(ctx, x, y, dir, len, color) {
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + dir * len, y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x + dir * len, y);
+        ctx.lineTo(x + dir * (len - 9), y - 6);
+        ctx.lineTo(x + dir * (len - 9), y + 6);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    // ══════════════════ BG STARFIELD ══════════════════
+    const bgCanvas = document.getElementById('bgCanvas');
+    const bgCtx = bgCanvas.getContext('2d');
+    let stars = [];
+    function initStars() {
+        bgCanvas.width = window.innerWidth;
+        bgCanvas.height = window.innerHeight;
+        stars = [];
+        const n = Math.min(110, (bgCanvas.width * bgCanvas.height) / 9000);
+        for (let i = 0; i < n; i++) {
+            stars.push({
+                x: Math.random() * bgCanvas.width,
+                y: Math.random() * bgCanvas.height,
+                r: 0.4 + Math.random() * 1.4,
+                tw: Math.random() * Math.PI * 2,
+                sp: 0.02 + Math.random() * 0.06
+            });
+        }
+    }
+    initStars();
+    window.addEventListener('resize', initStars);
+    function drawStars(t) {
+        bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+        stars.forEach(s => {
+            const a = 0.22 + 0.5 * (0.5 + 0.5 * Math.sin(t * 1.6 + s.tw));
+            bgCtx.beginPath();
+            bgCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+            bgCtx.fillStyle = 'rgba(255,228,175,' + a + ')';
+            bgCtx.fill();
+            s.y += s.sp;
+            if (s.y > bgCanvas.height + 2) s.y = -2;
+        });
+    }
+
+    // ══════════════════ SCREEN 0: hero balloon with sparks ══════════════════
+    const heroCanvas = document.getElementById('heroCanvas');
+    const heroCtx = heroCanvas.getContext('2d');
+    let heroSparks = [], lastHeroSpark = 0;
+    const heroMinus = [];
+    for (let i = 0; i < 7; i++) {
+        heroMinus.push({ sp: 0.35 + Math.random() * 0.5, ph: Math.random() * 6.28, rr: Math.random() * 0.6 });
+    }
+    function makeSpark(bx, by, r, t) {
+        const a = Math.random() * Math.PI * 2;
+        const pts = [];
+        let px = bx + Math.cos(a) * r;
+        let py = by + Math.sin(a) * r * 1.15;
+        for (let i = 0; i < 5; i++) {
+            pts.push([px, py]);
+            px += Math.cos(a + (Math.random() - 0.5) * 1.3) * (9 + Math.random() * 15);
+            py += Math.sin(a + (Math.random() - 0.5) * 1.3) * (9 + Math.random() * 15);
+        }
+        return { pts: pts, born: t };
+    }
+    function drawHero(t) {
+        const { w, h } = fit(heroCanvas, 140);
+        heroCtx.clearRect(0, 0, w, h);
+        const bx = w * 0.5 + Math.sin(t * 0.8) * w * 0.06;
+        const by = h * 0.44 + Math.sin(t * 1.3) * h * 0.05;
+        const r = h * 0.28;
+
+        if (t - lastHeroSpark > 0.3 + Math.random() * 0.3) {
+            lastHeroSpark = t;
+            heroSparks.push(makeSpark(bx, by, r, t));
+        }
+        heroSparks = heroSparks.filter(s => t - s.born < 0.35);
+        heroSparks.forEach(s => {
+            const alpha = Math.max(0, 1 - (t - s.born) / 0.35);
+            heroCtx.beginPath();
+            s.pts.forEach((p, i) => { i === 0 ? heroCtx.moveTo(p[0], p[1]) : heroCtx.lineTo(p[0], p[1]); });
+            heroCtx.strokeStyle = 'rgba(255,236,160,' + (alpha * 0.9) + ')';
+            heroCtx.lineWidth = 2;
+            heroCtx.shadowColor = '#ffeaa7';
+            heroCtx.shadowBlur = 12;
+            heroCtx.stroke();
+            heroCtx.shadowBlur = 0;
+        });
+
+        heroMinus.forEach(m => {
+            const mx = bx + Math.cos(t * m.sp + m.ph) * r * (1.7 + m.rr);
+            const my = by + Math.sin(t * m.sp * 0.85 + m.ph) * r * (1.0 + m.rr * 0.7);
+            chargeDot(heroCtx, mx, my, 8, '−', '#74b9ff');
+        });
+
+        drawBalloon(heroCtx, bx, by, r, '#ffe6ae', '#fdcb6e', '−', { glow: 26, tilt: Math.sin(t * 1.1) * 0.08 });
+    }
+
+    // ══════════════════ SCREEN 1: hook (hair + balloon) ══════════════════
+    const hookCanvas = document.getElementById('hookCanvas');
+    const hkCtx = hookCanvas.getContext('2d');
+    const HAIR_N = 30;
+    let hairDirs = null;
+    let hookBalloon = { x: 0.75, y: 0.22 };
+    let hookDragging = false, hookCharge = 0, hookMsgShown = false;
+    let lastPointer = null, lastCrackleT = 0;
+
+    function canvasPointer(c, e) {
+        const r = c.getBoundingClientRect();
+        return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+    }
+    hookCanvas.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        hookDragging = true;
+        const p = canvasPointer(hookCanvas, e);
+        hookBalloon.x = Math.min(0.97, Math.max(0.03, p.x));
+        hookBalloon.y = Math.min(0.9, Math.max(0.05, p.y));
+        lastPointer = p;
+        try { hookCanvas.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    hookCanvas.addEventListener('pointermove', e => {
+        if (!hookDragging || !lastPointer) return;
+        const p = canvasPointer(hookCanvas, e);
+        const move = Math.hypot(p.x - lastPointer.x, p.y - lastPointer.y);
+        hookBalloon.x = Math.min(0.97, Math.max(0.03, p.x));
+        hookBalloon.y = Math.min(0.9, Math.max(0.05, p.y));
+        const nearHair = p.y > 0.30 && Math.abs(p.x - 0.5) < 0.42;
+        if (nearHair && move > 0.004) {
+            hookCharge = Math.min(1, hookCharge + move * 1.6);
+            const now = performance.now();
+            if (now - lastCrackleT > 90 && hookCharge > 0.12) {
+                lastCrackleT = now;
+                crackle(0.4 + hookCharge * 0.7);
+            }
+        }
+        if (hookCharge > 0.55 && !hookMsgShown) {
+            hookMsgShown = true;
+            document.getElementById('hookHint').textContent = '⚡ Шарик зарядился! Теперь волосы сами тянутся за ним';
+        }
+        lastPointer = p;
+    });
+    ['pointerup', 'pointercancel'].forEach(ev => hookCanvas.addEventListener(ev, () => { hookDragging = false; }));
+
+    function drawHook(t) {
+        const { w, h } = fit(hookCanvas, 230);
+        hkCtx.clearRect(0, 0, w, h);
+        const hcx = w * 0.5, hcy = h * 1.30, R = h * 0.85;
+        const bx = hookBalloon.x * w, by = hookBalloon.y * h, br = h * 0.13;
+
+        // head
+        hkCtx.beginPath();
+        hkCtx.arc(hcx, hcy, R, 0, Math.PI * 2);
+        hkCtx.fillStyle = '#e0a878';
+        hkCtx.fill();
+        // face
+        hkCtx.strokeStyle = '#7a4a28';
+        hkCtx.lineWidth = 3;
+        hkCtx.lineCap = 'round';
+        [-1, 1].forEach(s => {
+            hkCtx.beginPath();
+            hkCtx.arc(hcx + s * R * 0.30, hcy - R * 0.70, R * 0.07, Math.PI * 1.15, Math.PI * 1.85);
+            hkCtx.stroke();
+        });
+        hkCtx.beginPath();
+        hkCtx.arc(hcx, hcy - R * 0.52, R * 0.12, Math.PI * 0.15, Math.PI * 0.85);
+        hkCtx.stroke();
+
+        // hair
+        if (!hairDirs) {
+            hairDirs = [];
+            for (let i = 0; i < HAIR_N; i++) {
+                const th = -2.65 + 2.16 * (i / (HAIR_N - 1));
+                hairDirs.push({ th: th, x: Math.cos(th), y: Math.sin(th) });
+            }
+        }
+        let minD = 1e9;
+        hairDirs.forEach(sd => {
+            const rx = hcx + Math.cos(sd.th) * R;
+            const ry = hcy + Math.sin(sd.th) * R;
+            const dx = bx - rx, dy = by - ry;
+            const d = Math.hypot(dx, dy);
+            if (d < minD) minD = d;
+            const reach = h * 1.05;
+            const s = Math.max(0, 1 - d / reach) * (0.18 + 0.82 * hookCharge);
+            const nx = Math.cos(sd.th), ny = Math.sin(sd.th);
+            const tb = norm(dx, dy);
+            const tg = norm(nx * (1 - s * 0.9) + tb.x * s * 0.9, ny * (1 - s * 0.9) + tb.y * s * 0.9);
+            sd.x += (tg.x - sd.x) * 0.14;
+            sd.y += (tg.y - sd.y) * 0.14;
+            const dir = norm(sd.x, sd.y);
+            const L = h * 0.20 * (1 + s * 0.6);
+            hkCtx.beginPath();
+            hkCtx.moveTo(rx, ry);
+            hkCtx.lineTo(rx + dir.x * L, ry + dir.y * L);
+            hkCtx.strokeStyle = s > 0.45 ? '#e8bd7a' : '#9c6b3f';
+            hkCtx.lineWidth = 3;
+            if (s > 0.45) { hkCtx.shadowColor = '#fdcb6e'; hkCtx.shadowBlur = 8; }
+            hkCtx.stroke();
+            hkCtx.shadowBlur = 0;
+        });
+
+        // spark between balloon and hair
+        if (hookCharge > 0.5 && minD < h * 0.5 && Math.random() < 0.22) {
+            const txp = hcx + (Math.random() - 0.5) * R * 1.1;
+            const typ = hcy - R * 0.92;
+            hkCtx.beginPath();
+            let px = bx, py = by + br;
+            hkCtx.moveTo(px, py);
+            for (let k = 1; k <= 4; k++) {
+                const f = k / 4;
+                px = bx + (txp - bx) * f + (Math.random() - 0.5) * 18;
+                py = (by + br) + (typ - (by + br)) * f + (Math.random() - 0.5) * 18;
+                hkCtx.lineTo(px, py);
+            }
+            hkCtx.strokeStyle = 'rgba(255,236,160,0.85)';
+            hkCtx.lineWidth = 2;
+            hkCtx.shadowColor = '#ffeaa7';
+            hkCtx.shadowBlur = 12;
+            hkCtx.stroke();
+            hkCtx.shadowBlur = 0;
+        }
+
+        // charge meter
+        const mw = w * 0.30;
+        hkCtx.fillStyle = '#ffffff18';
+        hkCtx.fillRect(w * 0.04, h * 0.06, mw, 10);
+        hkCtx.fillStyle = '#fdcb6e';
+        hkCtx.fillRect(w * 0.04, h * 0.06, mw * hookCharge, 10);
+        hkCtx.font = '600 ' + Math.min(20, w * 0.028) + 'px -apple-system, sans-serif';
+        hkCtx.fillStyle = '#ffffff70';
+        hkCtx.textAlign = 'left';
+        hkCtx.fillText('заряд шарика', w * 0.04, h * 0.06 + 34);
+        hkCtx.textAlign = 'start';
+
+        const sign = hookCharge > 0.3 ? '−' : '';
+        drawBalloon(hkCtx, bx, by, br, '#ffe6ae', '#fdcb6e', sign, { glow: 10 + hookCharge * 22, tilt: Math.sin(t * 2) * 0.05 });
+    }
+
+    // ══════════════════ SCREEN 2: rub (electron transfer) ══════════════════
+    const rubCanvas = document.getElementById('rubCanvas');
+    const rbCtx = rubCanvas.getContext('2d');
+    const RUB_MAX = 6;
+    let rubCharge = 0, rubFlights = [], rubPressT = -9;
+    const minusSlots = [[0.18, 0.30], [0.55, 0.20], [0.80, 0.42], [0.30, 0.62], [0.62, 0.74], [0.44, 0.44]];
+    const plusSlots = [[0.30, 0.22], [0.68, 0.30], [0.18, 0.48], [0.50, 0.56], [0.76, 0.62], [0.34, 0.80]];
+    const ballMinusSlots = [[-0.45, -0.35], [0.42, -0.5], [0.0, 0.12], [-0.35, 0.5], [0.48, 0.4], [0.05, -0.85]];
+
+    function rubOnce() {
+        const pending = rubCharge + rubFlights.length;
+        if (pending >= RUB_MAX) return;
+        sfx.click();
+        crackle(0.8);
+        rubPressT = performance.now() / 1000;
+        const n = Math.min(2, RUB_MAX - pending);
+        for (let k = 0; k < n; k++) {
+            rubFlights.push({ slot: RUB_MAX - 1 - (pending + k), p: -0.3 * k });
+        }
+        if (pending + n >= RUB_MAX) {
+            const b = document.getElementById('rubBtn');
+            b.disabled = true;
+            b.textContent = 'Шарик заряжен по полной! ⚡';
+        }
+    }
+    function resetRub() {
+        sfx.click();
+        rubCharge = 0;
+        rubFlights = [];
+        const b = document.getElementById('rubBtn');
+        b.disabled = false;
+        b.textContent = '🤝 Потереть шарик о свитер';
+    }
+
+    function drawRub(t) {
+        const { w, h } = fit(rubCanvas, 210);
+        rbCtx.clearRect(0, 0, w, h);
+
+        // sweater
+        const sx = w * 0.05, sy = h * 0.12, sw = w * 0.36, sh = h * 0.66;
+        rr(rbCtx, sx, sy, sw, sh, 20);
+        rbCtx.fillStyle = '#8f4a3e';
+        rbCtx.fill();
+        rbCtx.strokeStyle = '#c97a5e';
+        rbCtx.lineWidth = 2;
+        rbCtx.stroke();
+        // knit lines
+        rbCtx.strokeStyle = 'rgba(255,220,190,0.14)';
+        rbCtx.lineWidth = 1.5;
+        for (let yy = sy + 12; yy < sy + sh - 8; yy += 14) {
+            rbCtx.beginPath();
+            for (let xx = sx + 6; xx <= sx + sw - 6; xx += 6) {
+                const wy = yy + Math.sin(xx * 0.5) * 2;
+                xx === sx + 6 ? rbCtx.moveTo(xx, wy) : rbCtx.lineTo(xx, wy);
+            }
+            rbCtx.stroke();
+        }
+
+        // balloon (with rub animation)
+        const dt = t - rubPressT;
+        let shift = 0, wob = 0;
+        if (dt >= 0 && dt < 0.7) {
+            shift = -Math.sin(dt / 0.7 * Math.PI) * w * 0.16;
+            wob = Math.sin(dt * 40) * 0.06;
+        }
+        const bx = w * 0.72 + shift, by = h * 0.42, br = h * 0.17;
+        drawBalloon(rbCtx, bx, by, br, '#ffe6ae', '#fdcb6e', '', { glow: 8 + rubCharge * 4, tilt: wob });
+
+        // sweater plus charges (fixed, protons never move)
+        plusSlots.forEach(ps => {
+            chargeDot(rbCtx, sx + ps[0] * sw, sy + ps[1] * sh, 9, '+', '#ff8a70');
+        });
+        // sweater remaining electrons
+        const rem = RUB_MAX - rubCharge - rubFlights.length;
+        for (let i = 0; i < rem; i++) {
+            const ms = minusSlots[i];
+            chargeDot(rbCtx, sx + ms[0] * sw, sy + ms[1] * sh, 9, '−', '#74b9ff');
+        }
+        // flying electrons
+        rubFlights = rubFlights.filter(fl => {
+            fl.p += 0.022;
+            if (fl.p >= 1) { rubCharge++; return false; }
+            if (fl.p > 0) {
+                const ms = minusSlots[fl.slot];
+                const x0 = sx + ms[0] * sw, y0 = sy + ms[1] * sh;
+                const tsl = ballMinusSlots[fl.slot % ballMinusSlots.length];
+                const x1 = bx + tsl[0] * br, y1 = by + tsl[1] * br;
+                const mx = (x0 + x1) / 2, my = Math.min(y0, y1) - h * 0.25;
+                const u = fl.p;
+                const X = (1 - u) * (1 - u) * x0 + 2 * (1 - u) * u * mx + u * u * x1;
+                const Y = (1 - u) * (1 - u) * y0 + 2 * (1 - u) * u * my + u * u * y1;
+                chargeDot(rbCtx, X, Y, 9, '−', '#74b9ff', true);
+            }
+            return true;
+        });
+        // arrived electrons on the balloon
+        for (let i = 0; i < rubCharge; i++) {
+            const s = ballMinusSlots[i];
+            chargeDot(rbCtx, bx + s[0] * br, by + s[1] * br * 1.1, 9, '−', '#74b9ff');
+        }
+
+        // labels
+        rbCtx.font = '700 ' + Math.min(22, w * 0.032) + 'px -apple-system, sans-serif';
+        rbCtx.textAlign = 'center';
+        rbCtx.fillStyle = '#ff9d85';
+        rbCtx.fillText('Свитер: ' + (rubCharge > 0 ? '+' + rubCharge : '0'), sx + sw / 2, h * 0.93);
+        rbCtx.fillStyle = '#a8d4ff';
+        rbCtx.fillText('Шарик: ' + (rubCharge > 0 ? '−' + rubCharge : '0'), w * 0.72, h * 0.93);
+        if (rubCharge >= RUB_MAX) {
+            rbCtx.fillStyle = '#ffffff80';
+            rbCtx.font = '600 ' + Math.min(18, w * 0.026) + 'px -apple-system, sans-serif';
+            rbCtx.fillText('заряды равные и противоположные — ничего не потерялось', w * 0.5, h * 0.06 + 6);
+        }
+        rbCtx.textAlign = 'start';
+    }
+
+    // ══════════════════ SCREEN 3: two pendulum balls ══════════════════
+    const pendCanvas = document.getElementById('pendCanvas');
+    const pdCtx = pendCanvas.getContext('2d');
+    let q1 = 0, q2 = 0, pa1 = 0, pa2 = 0, pv1 = 0, pv2 = 0;
+
+    function setCharge(side, val, btn) {
+        sfx.click();
+        if (side === 1) q1 = val; else q2 = val;
+        btn.parentElement.querySelectorAll('.charge-chip').forEach(c => c.classList.remove('active-plus', 'active-minus', 'active-zero'));
+        btn.classList.add(val > 0 ? 'active-plus' : val < 0 ? 'active-minus' : 'active-zero');
+        updatePendStatus();
+    }
+    function updatePendStatus() {
+        const el = document.getElementById('pendStatus');
+        const prod = q1 * q2;
+        if (prod > 0) el.innerHTML = 'Заряды <span class="highlight">одного знака</span> — шарики отталкиваются';
+        else if (prod < 0) el.innerHTML = 'Заряды <span class="highlight">разных знаков</span> — притягиваются!';
+        else if (q1 !== 0 || q2 !== 0) el.innerHTML = 'Заряженный шарик <span class="highlight">чуть-чуть притягивает</span> даже нейтральный — почему, узнаешь на следующем экране';
+        else el.textContent = 'Оба нейтральны — висят спокойно. Задай заряды кнопками выше';
+    }
+
+    function drawPend(t) {
+        const { w, h } = fit(pendCanvas, 250);
+        pdCtx.clearRect(0, 0, w, h);
+        const p1x = w * 0.38, p2x = w * 0.62, py = h * 0.06;
+        const L = Math.min(h * 0.58, w * 0.34);
+        const r = Math.min(h * 0.115, w * 0.075);
+        const gapHalf = (p2x - p1x) / 2;
+        const aIn = Math.asin(Math.min(0.6, Math.max(0.02, (gapHalf - r * 1.05) / L)));
+        const prod = q1 * q2;
+        let tg;
+        if (prod > 0) tg = 0.42;
+        else if (prod < 0) tg = -aIn;
+        else if (q1 !== 0 || q2 !== 0) tg = -aIn * 0.35;
+        else tg = 0;
+        pv1 += (tg - pa1) * 0.015; pv1 *= 0.93; pa1 += pv1;
+        pv2 += (tg - pa2) * 0.015; pv2 *= 0.93; pa2 += pv2;
+
+        // ceiling
+        pdCtx.strokeStyle = '#3a3a55';
+        pdCtx.lineWidth = 4;
+        pdCtx.beginPath();
+        pdCtx.moveTo(w * 0.22, py);
+        pdCtx.lineTo(w * 0.78, py);
+        pdCtx.stroke();
+        pdCtx.lineWidth = 2;
+        for (let hx = w * 0.24; hx < w * 0.78; hx += w * 0.045) {
+            pdCtx.beginPath();
+            pdCtx.moveTo(hx, py);
+            pdCtx.lineTo(hx - 8, py - 10);
+            pdCtx.stroke();
+        }
+
+        const b1x = p1x - Math.sin(pa1) * L, b1y = py + Math.cos(pa1) * L;
+        const b2x = p2x + Math.sin(pa2) * L, b2y = py + Math.cos(pa2) * L;
+
+        pdCtx.strokeStyle = 'rgba(255,255,255,0.35)';
+        pdCtx.lineWidth = 2;
+        pdCtx.beginPath(); pdCtx.moveTo(p1x, py); pdCtx.lineTo(b1x, b1y); pdCtx.stroke();
+        pdCtx.beginPath(); pdCtx.moveTo(p2x, py); pdCtx.lineTo(b2x, b2y); pdCtx.stroke();
+
+        drawBall(pdCtx, b1x, b1y, r, chargeColors(q1), q1 > 0 ? '+' : q1 < 0 ? '−' : '', q1 ? 14 : 0);
+        drawBall(pdCtx, b2x, b2y, r, chargeColors(q2), q2 > 0 ? '+' : q2 < 0 ? '−' : '', q2 ? 14 : 0);
+
+        // force arrows
+        if (prod !== 0 || (q1 !== 0) !== (q2 !== 0)) {
+            const attract = prod <= 0;
+            const ay = (b1y + b2y) / 2;
+            const alen = prod === 0 ? r * 0.55 : r * 0.95;
+            const col = attract ? '#74b9ff' : '#e17055';
+            drawArrow(pdCtx, attract ? b1x + r * 1.15 : b1x - r * 1.15, ay, attract ? 1 : -1, alen, col);
+            drawArrow(pdCtx, attract ? b2x - r * 1.15 : b2x + r * 1.15, ay, attract ? -1 : 1, alen, col);
+        }
+    }
+
+    // ══════════════════ SCREEN 4: induction (water + papers) ══════════════════
+    const waterCanvas = document.getElementById('waterCanvas');
+    const wtCtx = waterCanvas.getContext('2d');
+    let rodN = { x: 0.62, y: 0.38 };
+    let drops = [], papers = null;
+
+    function moveRod(e) {
+        const p = canvasPointer(waterCanvas, e);
+        rodN.x = Math.min(0.95, Math.max(0.05, p.x));
+        rodN.y = Math.min(0.9, Math.max(0.05, p.y));
+    }
+    waterCanvas.addEventListener('pointermove', moveRod);
+    waterCanvas.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        moveRod(e);
+        try { waterCanvas.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+
+    function drawWater(t) {
+        const { w, h } = fit(waterCanvas, 250);
+        wtCtx.clearRect(0, 0, w, h);
+        const spX = w * 0.20, spY = h * 0.14;
+
+        // faucet
+        wtCtx.fillStyle = '#565b78';
+        rr(wtCtx, -10, h * 0.02, spX + w * 0.02 + 10, h * 0.06, 8);
+        wtCtx.fill();
+        rr(wtCtx, spX - w * 0.018, h * 0.05, w * 0.036, h * 0.09, 6);
+        wtCtx.fill();
+
+        const tipX = rodN.x * w, tipY = rodN.y * h;
+
+        // water
+        for (let k = 0; k < 2; k++) {
+            drops.push({ x: spX + (Math.random() - 0.5) * w * 0.012, y: spY, vx: 0, vy: 2.2 + Math.random() * 0.8 });
+        }
+        drops = drops.filter(d => {
+            const dx = tipX - d.x, dy = tipY - d.y;
+            const d2 = dx * dx + dy * dy;
+            const dd = Math.sqrt(d2) + 1;
+            const F = Math.min(0.3, 9000 / (d2 + 3000));
+            d.vx += F * dx / dd;
+            d.vy += F * dy / dd * 0.35 + 0.13;
+            d.vx *= 0.99;
+            d.x += d.vx;
+            d.y += d.vy;
+            wtCtx.beginPath();
+            wtCtx.arc(d.x, d.y, 2.6, 0, Math.PI * 2);
+            wtCtx.fillStyle = 'rgba(116,185,255,0.85)';
+            wtCtx.fill();
+            return d.y < h + 10 && d.x > -10 && d.x < w + 10;
+        });
+        if (drops.length > 420) drops.splice(0, drops.length - 420);
+
+        // table + papers
+        wtCtx.fillStyle = '#2a2a44';
+        rr(wtCtx, w * 0.46, h * 0.93, w * 0.50, h * 0.05, 6);
+        wtCtx.fill();
+        if (!papers || papers.w !== w) {
+            papers = { w: w, list: [] };
+            for (let i = 0; i < 7; i++) {
+                const hx = w * (0.52 + 0.058 * i) + (i % 2) * 8;
+                const hy = h * 0.905 - (i % 3) * 5;
+                papers.list.push({ hx: hx, hy: hy, x: hx, y: hy, vx: 0, vy: 0, ang: Math.random() * 3 });
+            }
+        }
+        papers.list.forEach(p => {
+            const dx = tipX - p.x, dy = tipY - p.y;
+            const d = Math.hypot(dx, dy) + 1;
+            if (d < h * 0.55) {
+                p.vx += dx / d * 0.5;
+                p.vy += dy / d * 0.5;
+            } else {
+                p.vx += (p.hx - p.x) * 0.01;
+                p.vy += (p.hy - p.y) * 0.01 + 0.2;
+            }
+            p.vx *= 0.90; p.vy *= 0.90;
+            p.x += p.vx; p.y += p.vy;
+            if (p.y > p.hy) { p.y = p.hy; p.vy = 0; }
+            p.ang += p.vx * 0.02;
+            wtCtx.save();
+            wtCtx.translate(p.x, p.y);
+            wtCtx.rotate(p.ang);
+            wtCtx.fillStyle = '#f2ecd9';
+            wtCtx.fillRect(-7, -5, 14, 10);
+            wtCtx.restore();
+        });
+
+        // amber rod
+        const rodAng = -0.7, rl = w * 0.20, rw = Math.max(10, h * 0.035);
+        wtCtx.save();
+        wtCtx.translate(tipX, tipY);
+        wtCtx.rotate(rodAng);
+        const rg = wtCtx.createLinearGradient(0, 0, rl, 0);
+        rg.addColorStop(0, '#fdcb6e');
+        rg.addColorStop(1, '#c99742');
+        wtCtx.shadowColor = '#fdcb6e';
+        wtCtx.shadowBlur = 16;
+        rr(wtCtx, -rw * 0.4, -rw / 2, rl, rw, rw / 2);
+        wtCtx.fillStyle = rg;
+        wtCtx.fill();
+        wtCtx.shadowBlur = 0;
+        wtCtx.restore();
+        for (let i = 0; i < 3; i++) {
+            const f = 0.14 + i * 0.3;
+            chargeDot(wtCtx, tipX + Math.cos(rodAng) * rl * f, tipY + Math.sin(rodAng) * rl * f, 8, '−', '#4a3208');
+        }
+
+        wtCtx.font = '600 ' + Math.min(19, w * 0.026) + 'px -apple-system, sans-serif';
+        wtCtx.fillStyle = '#ffffff55';
+        wtCtx.textAlign = 'right';
+        wtCtx.fillText('янтарная палочка, заряд «−»', w * 0.97, h * 0.08);
+        wtCtx.textAlign = 'start';
+    }
+
+    // ══════════════════ SCREEN 7: electroscope ══════════════════
+    const scopeCanvas = document.getElementById('scopeCanvas');
+    const scCtx = scopeCanvas.getContext('2d');
+    const scopeSlider = document.getElementById('scopeSlider');
+    let scopeAng = 0.1;
+
+    function setScopeLabel() {
+        document.getElementById('scopeVal').textContent = Math.round(1 + 0.29 * (+scopeSlider.value)) + ' см';
+    }
+    scopeSlider.addEventListener('input', setScopeLabel);
+
+    function drawScope(t) {
+        const { w, h } = fit(scopeCanvas, 250);
+        scCtx.clearRect(0, 0, w, h);
+        const sx = w * 0.62;
+        const ballY = h * 0.14, ballR = h * 0.055;
+        const stemBot = h * 0.52;
+        const v = +scopeSlider.value;
+        const strength = Math.pow((100 - v) / 100, 1.7);
+        const target = 0.06 + 0.72 * strength;
+        scopeAng += (target - scopeAng) * 0.09;
+        const wob = Math.sin(t * 6) * 0.012 * strength;
+
+        // jar
+        rr(scCtx, sx - w * 0.17, h * 0.30, w * 0.34, h * 0.62, 24);
+        scCtx.fillStyle = 'rgba(150,170,255,0.05)';
+        scCtx.fill();
+        scCtx.strokeStyle = 'rgba(190,200,240,0.35)';
+        scCtx.lineWidth = 3;
+        scCtx.stroke();
+
+        // stem
+        scCtx.strokeStyle = '#c8ccda';
+        scCtx.lineWidth = 6;
+        scCtx.lineCap = 'round';
+        scCtx.beginPath();
+        scCtx.moveTo(sx, ballY + ballR);
+        scCtx.lineTo(sx, stemBot);
+        scCtx.stroke();
+
+        // leaves with induced minus charges
+        const leafL = h * 0.30;
+        const nCh = Math.round(strength * 3);
+        [-1, 1].forEach(s => {
+            const a = (scopeAng + wob) * s;
+            const lx = sx + Math.sin(a) * leafL;
+            const ly = stemBot + Math.cos(a) * leafL;
+            scCtx.beginPath();
+            scCtx.moveTo(sx, stemBot);
+            scCtx.lineTo(lx, ly);
+            scCtx.strokeStyle = '#e8ecf8';
+            scCtx.lineWidth = 5;
+            if (strength > 0.4) { scCtx.shadowColor = '#fdcb6e'; scCtx.shadowBlur = 10; }
+            scCtx.stroke();
+            scCtx.shadowBlur = 0;
+            const fr = [0.45, 0.68, 0.9];
+            for (let i = 0; i < nCh; i++) {
+                chargeDot(scCtx, sx + Math.sin(a) * leafL * fr[i], stemBot + Math.cos(a) * leafL * fr[i], 7, '−', '#74b9ff');
+            }
+        });
+
+        // ball with induced plus charges (facing rod)
+        const bg = scCtx.createRadialGradient(sx - ballR * 0.3, ballY - ballR * 0.35, ballR * 0.1, sx, ballY, ballR * 1.2);
+        bg.addColorStop(0, '#f0f2fa');
+        bg.addColorStop(1, '#9aa0b5');
+        scCtx.beginPath();
+        scCtx.arc(sx, ballY, ballR, 0, Math.PI * 2);
+        scCtx.fillStyle = bg;
+        scCtx.fill();
+        const nPl = Math.max(0, Math.min(3, 1 + Math.round(strength * 2)));
+        for (let i = 0; i < nPl; i++) {
+            const aa = Math.PI + (i - (nPl - 1) / 2) * 0.7;
+            chargeDot(scCtx, sx + Math.cos(aa) * ballR * 0.62, ballY + Math.sin(aa) * ballR * 0.62, 7, '+', '#ff8a70');
+        }
+
+        // rod (approaches from the left)
+        const closeX = sx - ballR - 16;
+        const farX = w * 0.04;
+        const tipX = closeX - (v / 100) * (closeX - farX);
+        const rw = Math.max(10, h * 0.04), rl = w * 0.30;
+        const rg2 = scCtx.createLinearGradient(tipX - rl, 0, tipX, 0);
+        rg2.addColorStop(0, '#c99742');
+        rg2.addColorStop(1, '#fdcb6e');
+        scCtx.shadowColor = '#fdcb6e';
+        scCtx.shadowBlur = 14;
+        rr(scCtx, tipX - rl, ballY - rw / 2, rl, rw, rw / 2);
+        scCtx.fillStyle = rg2;
+        scCtx.fill();
+        scCtx.shadowBlur = 0;
+        for (let i = 0; i < 3; i++) {
+            chargeDot(scCtx, tipX - rl * (0.15 + i * 0.3), ballY, 7, '−', '#4a3208');
+        }
+
+        scCtx.font = '600 ' + Math.min(19, w * 0.026) + 'px -apple-system, sans-serif';
+        scCtx.fillStyle = '#ffffff55';
+        scCtx.textAlign = 'center';
+        scCtx.fillText('листочки заряжены одинаково — и отталкиваются', sx, h * 0.97);
+        scCtx.textAlign = 'start';
+    }
+
+    // ══════════════════ SCREEN 8: Charge Detective ══════════════════
+    const detCanvas = document.getElementById('detCanvas');
+    const dtCtx = detCanvas.getContext('2d');
+    const detRounds = [
+        { mode: 'repel', known: '+',
+          note: 'Шарики отталкиваются. Левый заряжен «+». Каков заряд правого?',
+          correct: '+',
+          explain: 'Отталкиваются только заряды одного знака — правый тоже «+». И раз оттолкнулись, заряжены точно оба.' },
+        { mode: 'repel', known: '−',
+          note: 'Снова отталкиваются, но теперь левый — «−».',
+          correct: '−',
+          explain: 'Одного знака! Раз левый «−», правый тоже «−».' },
+        { mode: 'attract', known: '−',
+          note: 'Шарики притягиваются. Известно: ОБА заряжены, левый — «−».',
+          correct: '+',
+          explain: 'Оба заряжены и притягиваются — значит, знаки разные. Правый «+».' },
+        { mode: 'attract', known: '+',
+          note: 'Притягиваются. Левый «+», а про правый не известно НИЧЕГО.',
+          correct: '?',
+          explain: 'Ловушка! Притягиваться может и «−», и совершенно нейтральный шарик (вспомни струю воды). По одному притяжению заряд не определить.' }
+    ];
+    let detRound = 0, detAnswered = false, detStarted = false, detDone = false;
+
+    function renderDetective() {
+        const rd = detRounds[detRound];
+        detAnswered = false;
+        document.getElementById('detRoundLbl').textContent = 'Раунд ' + (detRound + 1) + ' из 4';
+        document.getElementById('detNote').textContent = rd.note;
+        document.getElementById('detFeedback').textContent = '';
+        const wrap = document.getElementById('detOptions');
+        wrap.innerHTML = '';
+        [['+', 'плюс'], ['−', 'минус'], ['?', 'нельзя определить']].forEach(op => {
+            const b = document.createElement('button');
+            b.className = 'det-option';
+            b.innerHTML = (op[0] === '?' ? '🤷' : op[0]) + '<small>' + op[1] + '</small>';
+            b.onclick = () => answerDetective(op[0], b);
+            wrap.appendChild(b);
+        });
+    }
+
+    function answerDetective(val, btn) {
+        if (detAnswered) return;
+        detAnswered = true;
+        const rd = detRounds[detRound];
+        const ok = val === rd.correct;
+        const idx = rd.correct === '+' ? 0 : rd.correct === '−' ? 1 : 2;
+        const btns = document.querySelectorAll('#detOptions .det-option');
+        btns.forEach(b => { b.disabled = true; });
+        if (btns[idx]) btns[idx].classList.add('correct');
+        if (ok) {
+            sfx.correct();
+            detectiveScore++;
+            addPoint();
+            confettiBurst(24, 0.5, 0.45);
+        } else {
+            btn.classList.add('wrong');
+            sfx.wrong();
+        }
+        document.getElementById('detFeedback').textContent = (ok ? '✅ ' : '') + rd.explain;
+        setTimeout(() => {
+            detRound++;
+            if (detRound < detRounds.length) {
+                renderDetective();
+            } else {
+                detDone = true;
+                document.getElementById('detRoundLbl').textContent = 'Игра окончена';
+                document.getElementById('detNote').textContent = '';
+                document.getElementById('detOptions').innerHTML = '';
+                document.getElementById('detFeedback').innerHTML =
+                    '<b style="color:#fff;">Детектив, твой счёт: ' + detectiveScore + ' из 4.</b> ' +
+                    (detectiveScore === 4 ? 'Ни одна ловушка не сработала! 🕵️✨' : detectiveScore >= 2 ? 'Хороший нюх на заряды!' : 'Главная подсказка: притяжение — ещё не улика.');
+                document.getElementById('detNextBtn').disabled = false;
+                if (detectiveScore >= 3) confettiBurst(50, 0.5, 0.4);
+            }
+        }, ok ? 1700 : 3200);
+    }
+
+    function drawDet(t) {
+        const { w, h } = fit(detCanvas, 190);
+        dtCtx.clearRect(0, 0, w, h);
+        const rd = detRounds[Math.min(detRound, detRounds.length - 1)];
+        const p1x = w * 0.38, p2x = w * 0.62, py = h * 0.07;
+        const L = Math.min(h * 0.55, w * 0.30);
+        const r = Math.min(h * 0.16, w * 0.07);
+        const gapHalf = (p2x - p1x) / 2;
+        const aIn = Math.asin(Math.min(0.6, Math.max(0.02, (gapHalf - r * 1.05) / L)));
+        const sway = Math.sin(t * 1.6) * 0.02;
+        const a = rd.mode === 'repel' ? 0.34 + sway : -(aIn - Math.abs(sway));
+
+        dtCtx.strokeStyle = '#3a3a55';
+        dtCtx.lineWidth = 4;
+        dtCtx.beginPath();
+        dtCtx.moveTo(w * 0.24, py);
+        dtCtx.lineTo(w * 0.76, py);
+        dtCtx.stroke();
+
+        const b1x = p1x - Math.sin(a) * L, b1y = py + Math.cos(a) * L;
+        const b2x = p2x + Math.sin(a) * L, b2y = py + Math.cos(a) * L;
+        dtCtx.strokeStyle = 'rgba(255,255,255,0.35)';
+        dtCtx.lineWidth = 2;
+        dtCtx.beginPath(); dtCtx.moveTo(p1x, py); dtCtx.lineTo(b1x, b1y); dtCtx.stroke();
+        dtCtx.beginPath(); dtCtx.moveTo(p2x, py); dtCtx.lineTo(b2x, b2y); dtCtx.stroke();
+
+        const kc = rd.known === '+' ? chargeColors(1) : chargeColors(-1);
+        drawBall(dtCtx, b1x, b1y, r, kc, rd.known, 14);
+        const pulse = 1 + Math.sin(t * 3) * 0.06;
+        drawBall(dtCtx, b2x, b2y, r * pulse, chargeColors(0), '?', 0);
+
+        const attract = rd.mode === 'attract';
+        const ay = (b1y + b2y) / 2;
+        const col = attract ? '#74b9ff' : '#e17055';
+        drawArrow(dtCtx, attract ? b1x + r * 1.15 : b1x - r * 1.15, ay, attract ? 1 : -1, r * 0.9, col);
+        drawArrow(dtCtx, attract ? b2x - r * 1.15 : b2x + r * 1.15, ay, attract ? -1 : 1, r * 0.9, col);
+    }
+
+    // ══════════════════ SCREEN 9: practice tasks ══════════════════
+    const tasks = [
+        { icon: '🪮',
+          text: 'Расчёска, которой причесались, начинает притягивать мелкие бумажки. Почему?',
+          options: [
+            { t: 'Бумажки заранее заряжены от стола', ok: false },
+            { t: 'Расчёска зарядилась трением о волосы — и притягивает даже нейтральные бумажки', ok: true },
+            { t: 'Расчёска намагнитилась от волос', ok: false }
+          ],
+          fbOk: 'Именно! Трение зарядило расчёску, а нейтральные бумажки притянулись через индукцию: заряды внутри них сдвинулись.',
+          fbNo: 'Не то. Бумажки обычные, нейтральные, и магнетизм ни при чём. Расчёска зарядилась трением — а нейтральное само тянется к заряженному (индукция).' },
+        { icon: '📺',
+          text: 'Экран старого телевизора собирает пыль быстрее, чем стена рядом с ним. Почему?',
+          options: [
+            { t: 'Экран тёплый, а пыль липнет к теплу', ok: false },
+            { t: 'Пыль магнитится к металлу внутри', ok: false },
+            { t: 'Экран накапливает статический заряд и притягивает нейтральные пылинки', ok: true }
+          ],
+          fbOk: 'Верно! Экран электризуется, и пылинки летят к нему точно так же, как бумажки к расчёске.',
+          fbNo: 'Нет: ни тепло, ни магнетизм. Экран накапливает статический заряд и притягивает пыль — та же индукция.' },
+        { icon: '✈️',
+          text: 'Перед заправкой самолёт обязательно соединяют металлическим тросом с землёй. Зачем?',
+          options: [
+            { t: 'Чтобы самолёт не укатился со стоянки', ok: false },
+            { t: 'Топливо при перекачке электризуется трением — заземление отводит заряд, чтобы не проскочила искра', ok: true },
+            { t: 'Чтобы топливо текло по шлангу быстрее', ok: false }
+          ],
+          fbOk: 'Точно! Топливо трётся о стенки шланга и электризуется. Одна искра в парах топлива — пожар. Трос отводит заряд в землю.',
+          fbNo: 'Опасная версия! На самом деле топливо электризуется трением о шланг, и искра могла бы поджечь пары. Заземление снимает заряд заранее.' },
+        { icon: '🌩',
+          text: 'Что такое молния с точки зрения физики?',
+          options: [
+            { t: 'Гигантский искровой разряд: облака электризуются, и накопленный заряд пробивает воздух', ok: true },
+            { t: 'Свечение воздуха от трения тёплого фронта о холодный', ok: false },
+            { t: 'Отражение солнечного света от ледяных кристаллов в туче', ok: false }
+          ],
+          fbOk: 'Да! Капли и льдинки в туче электризуются при столкновениях, заряд копится и пробивает километры воздуха. Электрическую природу молнии доказал Бенджамин Франклин опытом с воздушным змеем в 1752 году.',
+          fbNo: 'Нет. Молния — колоссальный разряд статического электричества между тучей и землёй. Франклин доказал это в 1752-м опытом со змеем (не повторяй!).' },
+        { icon: '🧴',
+          text: 'Как работает антистатик для одежды?',
+          options: [
+            { t: 'Он намагничивает ткань в обратную сторону', ok: false },
+            { t: 'Он делает ткань чуть проводящей — заряд стекает и не накапливается', ok: true },
+            { t: 'Он охлаждает ткань, а холодная ткань не электризуется', ok: false }
+          ],
+          fbOk: 'Верно! Антистатик делает поверхность слегка проводящей: заряд стекает, не успевая накопиться. Ни треска, ни прилипшей одежды.',
+          fbNo: 'Не так. Секрет проще: антистатик делает ткань слегка проводящей, и заряд стекает, не накапливаясь.' }
+    ];
+    let taskIdx = 0, taskAnswered = false, taskStarted = false;
+    let taskResults = [];
+
+    function updateTaskDots() {
+        document.querySelectorAll('#taskProgress .cp-dot').forEach((d, i) => {
+            d.classList.toggle('done', taskResults[i] === true);
+            d.classList.toggle('miss', taskResults[i] === false);
+        });
+    }
+
+    function renderTask() {
+        const task = tasks[taskIdx];
+        taskAnswered = false;
+        document.getElementById('taskRound').textContent = 'Задача ' + (taskIdx + 1) + ' из 5';
+        document.getElementById('taskIcon').textContent = task.icon;
+        document.getElementById('taskText').textContent = task.text;
+        const fb = document.getElementById('taskFb');
+        fb.classList.remove('show', 'correct-fb', 'wrong-fb');
+        document.getElementById('taskNextBtn').style.display = 'none';
+        const wrap = document.getElementById('taskOptions');
+        wrap.innerHTML = '';
+        task.options.forEach((op, i) => {
+            const b = document.createElement('button');
+            b.className = 'quiz-option';
+            b.textContent = op.t;
+            b.onclick = () => answerTask(i, b);
+            wrap.appendChild(b);
+        });
+        updateTaskDots();
+    }
+
+    function answerTask(i, btn) {
+        if (taskAnswered) return;
+        taskAnswered = true;
+        const task = tasks[taskIdx];
+        const opts = document.querySelectorAll('#taskOptions .quiz-option');
+        opts.forEach((o, j) => {
+            o.classList.add('disabled');
+            if (task.options[j].ok) o.classList.add('correct');
+        });
+        const ok = task.options[i].ok;
+        if (ok) {
+            taskScore++;
+            addPoint();
+            sfx.correct();
+            confettiBurst(20, 0.5, 0.45);
+        } else {
+            btn.classList.add('wrong');
+            sfx.wrong();
+        }
+        taskResults[taskIdx] = ok;
+        updateTaskDots();
+        document.getElementById('taskFbText').textContent = ok ? task.fbOk : task.fbNo;
+        const fb = document.getElementById('taskFb');
+        fb.classList.add('show', ok ? 'correct-fb' : 'wrong-fb');
+        const nb = document.getElementById('taskNextBtn');
+        nb.style.display = '';
+        nb.textContent = taskIdx < tasks.length - 1 ? 'Следующая задача →' : 'Готово!';
+    }
+
+    function nextTask() {
+        sfx.click();
+        taskIdx++;
+        if (taskIdx < tasks.length) {
+            renderTask();
+        } else {
+            document.getElementById('taskRound').textContent = 'Практика пройдена';
+            document.getElementById('taskIcon').textContent = '🏁';
+            document.getElementById('taskText').innerHTML =
+                '<b style="color:#fff;">Твой результат: ' + taskScore + ' из 5.</b> ' +
+                (taskScore >= 4 ? 'Статикой тебя не удивить!' : taskScore >= 2 ? 'Неплохо! Самое хитрое здесь — заземление и индукция.' : 'Загляни ещё раз на экраны про заряды и индукцию — и всё сложится.');
+            document.getElementById('taskOptions').innerHTML = '';
+            document.getElementById('taskFb').classList.remove('show', 'correct-fb', 'wrong-fb');
+            document.getElementById('taskNextBtn').style.display = 'none';
+            document.getElementById('taskDoneBtn').disabled = false;
+            if (taskScore >= 4) confettiBurst(50, 0.5, 0.4);
+        }
+    }
+
+    // ══════════════════ QUIZZES (screens 5-6) ══════════════════
+    const feedbackCorrect = {
+        1: 'Да! Электроны перешли с волос на шарик. Волосы потеряли часть «−» — остался перевес «+». Заряды всегда возникают парой: сколько «−» ушло, столько «+» осталось.',
+        2: 'Точно! Отталкиваются только одноимённые заряды. И бонус-вывод: оба шарика точно заряжены — нейтральный шарик оттолкнуться не может.'
+    };
+    const feedbackWrong = {
+        1: 'Не совсем. При трении электроны перебежали с волос на шарик. У шарика лишние «−» — значит, у волос недостача, то есть «+».',
+        2: 'Не совсем. Разноимённые притягиваются, а нейтральный вообще не отталкивается. Раз оттолкнулись — оба заряжены, и знак у них один.'
+    };
+
+    function checkAnswer(quizNum, optionIdx, isCorrect) {
+        const options = document.querySelectorAll('#quiz' + quizNum + ' .quiz-option');
+        options.forEach((o, i) => {
+            o.classList.add('disabled');
+            if (i === optionIdx) o.classList.add(isCorrect ? 'correct' : 'wrong');
+        });
+        const fb = document.getElementById('feedback' + quizNum);
+        document.getElementById('feedback' + quizNum + '-text').textContent = isCorrect ? feedbackCorrect[quizNum] : feedbackWrong[quizNum];
+        fb.classList.add('show', isCorrect ? 'correct-fb' : 'wrong-fb');
+        if (isCorrect) {
+            quizCorrect++;
+            addPoint();
+            sfx.correct();
+            confettiBurst(22, 0.5, 0.4);
+        } else {
+            sfx.wrong();
+        }
+        document.getElementById('nextQ' + quizNum).disabled = false;
+    }
+
+    // ══════════════════ FINAL QUIZ ══════════════════
+    const fqCorrectTexts = {
+        1: 'Верно! Притяжение — не улика: нейтральная гильза притягивается из-за индукции. Стопроцентно доказывает заряд только отталкивание.',
+        2: 'Именно! Электроны ушли со стекла на шёлк: стекло «+», шёлк «−». Сумма не изменилась — заряд не создаётся и не исчезает, а только переходит. Это закон сохранения заряда.'
+    };
+    const fqWrongTexts = {
+        1: 'Ловушка! Вспомни струю воды: она нейтральна, но притягивается к палочке. Притяжение заряд не доказывает — доказывает только отталкивание.',
+        2: 'Не совсем. Протоны не путешествуют, а заряды не исчезают. Электроны перешли со стекла на шёлк, и суммарный заряд системы остался прежним.'
+    };
+
+    function checkFinal(qNum, optIdx, isCorrect) {
+        const options = document.querySelectorAll('#fq' + qNum + ' .quiz-option');
+        options.forEach((o, i) => {
+            o.classList.add('disabled');
+            if (i === optIdx) o.classList.add(isCorrect ? 'correct' : 'wrong');
+        });
+        const fb = document.getElementById('fqFb' + qNum);
+        document.getElementById('fqFb' + qNum + '-text').textContent = isCorrect ? fqCorrectTexts[qNum] : fqWrongTexts[qNum];
+        fb.classList.add('show', isCorrect ? 'correct-fb' : 'wrong-fb');
+        if (isCorrect) { finalCorrect++; addPoint(); sfx.correct(); } else { sfx.wrong(); }
+        finalAnswered++;
+
+        if (qNum < 2) {
+            setTimeout(() => {
+                const nextBlock = document.getElementById('fqBlock' + (qNum + 1));
+                nextBlock.style.display = 'block';
+                nextBlock.style.animation = 'fadeIn 0.4s ease';
+                nextBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 600);
+        }
+        if (finalAnswered === 2) {
+            setTimeout(() => {
+                const btn = document.getElementById('toResultsBtn');
+                btn.style.display = '';
+                btn.disabled = false;
+                btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 800);
+        }
+    }
+
+    // ══════════════════ NAVIGATION ══════════════════
+    const renderers = {
+        0: drawHero, 1: drawHook, 2: drawRub, 3: drawPend,
+        4: drawWater, 7: drawScope, 8: drawDet
+    };
+
+    function goTo(n) {
+        stopAllSound();
+        document.getElementById('screen-' + currentScreen).classList.remove('active');
+        currentScreen = n;
+        document.getElementById('screen-' + n).classList.add('active');
+        updateProgress();
+        if (n === 8 && !detStarted) { detStarted = true; renderDetective(); }
+        if (n === 9 && !taskStarted) { taskStarted = true; renderTask(); }
+        if (n === 11) showResults();
+        window.scrollTo(0, 0);
+    }
+
+    function updateProgress() {
+        const pct = (currentScreen / (TOTAL_SCREENS - 1)) * 100;
+        document.getElementById('progressFill').style.width = pct + '%';
+        const indicator = document.getElementById('stepsIndicator');
+        indicator.innerHTML = '';
+        for (let i = 0; i < TOTAL_SCREENS; i++) {
+            const dot = document.createElement('div');
+            dot.className = 'step-dot';
+            if (i === currentScreen) dot.classList.add('active');
+            if (i < currentScreen) dot.classList.add('completed');
+            indicator.appendChild(dot);
+        }
+    }
+
+    // ══════════════════ RESULTS ══════════════════
+    function showResults() {
+        document.getElementById('resultQuiz').textContent = quizCorrect + '/2';
+        document.getElementById('resultDetective').textContent = detectiveScore + '/4';
+        document.getElementById('resultTasks').textContent = taskScore + '/5';
+        document.getElementById('resultFinal').textContent = finalCorrect + '/2';
+        const total = quizCorrect + detectiveScore + taskScore + finalCorrect;
+        document.getElementById('resultTotal').textContent = total + ' / ' + MAX_SCORE;
+
+        const title = document.getElementById('resultTitle');
+        let starsCount;
+        if (total >= 13) { title.textContent = '⚡ Повелитель статики!'; starsCount = 3; }
+        else if (total >= 10) { title.textContent = '🏆 Мастер зарядов!'; starsCount = 3; }
+        else if (total >= 6) { title.textContent = 'Хорошая работа!'; starsCount = 2; }
+        else { title.textContent = 'Тренажёр пройден!'; starsCount = 1; }
+
+        [1, 2, 3].forEach(i => document.getElementById('star' + i).classList.remove('lit'));
+        for (let i = 1; i <= starsCount; i++) {
+            setTimeout(() => {
+                document.getElementById('star' + i).classList.add('lit');
+                voice({ freq: 660 + i * 160, type: 'sine', gain: 0.1, dur: 0.3, attack: 0.01, release: 0.18 });
+            }, 500 + i * 420);
+        }
+        sfx.fanfare();
+        confettiRain(150);
+        setTimeout(() => confettiRain(80), 1200);
+    }
+
+    function restart() {
+        score = 0; quizCorrect = 0; detectiveScore = 0; taskScore = 0;
+        finalCorrect = 0; finalAnswered = 0;
+        document.getElementById('hudScore').textContent = '0';
+
+        // quizzes 5-6
+        for (let i = 1; i <= 2; i++) {
+            document.querySelectorAll('#quiz' + i + ' .quiz-option').forEach(o => o.classList.remove('correct', 'wrong', 'disabled'));
+            document.getElementById('feedback' + i).classList.remove('show', 'correct-fb', 'wrong-fb');
+            document.getElementById('nextQ' + i).disabled = true;
+        }
+        // final quiz
+        for (let i = 1; i <= 2; i++) {
+            document.querySelectorAll('#fq' + i + ' .quiz-option').forEach(o => o.classList.remove('correct', 'wrong', 'disabled'));
+            document.getElementById('fqFb' + i).classList.remove('show', 'correct-fb', 'wrong-fb');
+            if (i > 1) document.getElementById('fqBlock' + i).style.display = 'none';
+        }
+        document.getElementById('toResultsBtn').disabled = true;
+        document.getElementById('toResultsBtn').style.display = 'none';
+
+        // detective
+        detRound = 0; detAnswered = false; detStarted = false; detDone = false;
+        document.getElementById('detNextBtn').disabled = true;
+        document.getElementById('detOptions').innerHTML = '';
+        document.getElementById('detFeedback').textContent = '';
+        document.getElementById('detNote').textContent = '';
+        document.getElementById('detRoundLbl').textContent = 'Раунд 1 из 4';
+
+        // tasks
+        taskIdx = 0; taskAnswered = false; taskStarted = false; taskResults = [];
+        document.getElementById('taskDoneBtn').disabled = true;
+        document.getElementById('taskNextBtn').style.display = 'none';
+        updateTaskDots();
+
+        // hook
+        hookCharge = 0; hookMsgShown = false; hairDirs = null;
+        hookBalloon = { x: 0.75, y: 0.22 };
+        document.getElementById('hookHint').textContent = 'Тащи шарик 🎈 по волосам — следи за шкалой заряда';
+
+        // rub
+        rubCharge = 0; rubFlights = [];
+        const rb = document.getElementById('rubBtn');
+        rb.disabled = false;
+        rb.textContent = '🤝 Потереть шарик о свитер';
+
+        // pendulums
+        q1 = 0; q2 = 0; pa1 = 0; pa2 = 0; pv1 = 0; pv2 = 0;
+        document.querySelectorAll('.charge-chips').forEach(g => {
+            const chips = g.querySelectorAll('.charge-chip');
+            chips.forEach(c => c.classList.remove('active-plus', 'active-minus', 'active-zero'));
+            if (chips[1]) chips[1].classList.add('active-zero');
+        });
+        updatePendStatus();
+
+        // electroscope
+        scopeSlider.value = 85;
+        scopeAng = 0.1;
+        setScopeLabel();
+
+        goTo(0);
+    }
+
+    // ══════════════════ MASTER LOOP ══════════════════
+    function masterLoop() {
+        const t = performance.now() / 1000;
+        drawStars(t);
+        const fn = renderers[currentScreen];
+        if (fn) fn(t);
+        drawConfetti();
+        requestAnimationFrame(masterLoop);
+    }
+
+    // ══════════════════ INIT ══════════════════
+    updateProgress();
+    setScopeLabel();
+    updatePendStatus();
+    masterLoop();
+    </script>
+</body>
+</html>

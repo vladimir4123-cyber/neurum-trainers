@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Частота и высота звука · Звуковые волны</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔊</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 560px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; touch-action: none; }
+  .canvas-hint{
+    margin: 10px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+
+  .ctl{ width: 100%; max-width: 560px; margin: 14px auto 0; text-align: left; }
+  .ctl-label{ display: flex; justify-content: space-between; font-size: 14px; color: var(--fg-2); margin-bottom: 8px; }
+  .ctl-label b{ color: var(--purple-1); font-weight: 500; font-variant-numeric: tabular-nums; }
+  input[type="range"]{
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 6px; border-radius: 3px;
+    background: linear-gradient(90deg, #D9D2FF, #EEF0FF); outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance: none;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #8B6FFF, #6240FF);
+    cursor: pointer; box-shadow: 0 2px 8px rgba(98,64,255,.35);
+  }
+
+  .mini-actions{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  .mini-play-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border: 0; border-radius: var(--radius-md);
+    background: var(--purple-1); color: #fff; cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    box-shadow: var(--shadow-purple);
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .mini-play-btn:hover{ background: var(--purple-2); }
+  .mini-play-btn:active{ transform: scale(0.96); }
+  .chip-btn{
+    padding: 10px 14px; border: 1px solid var(--purple-4); border-radius: 9999px;
+    background: var(--white); color: var(--fg-2); cursor: pointer;
+    font-family: var(--font-sans); font-size: 14px; font-weight: 500;
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .chip-btn:hover{ background: var(--purple-4); }
+  .chip-btn:active{ transform: scale(0.96); }
+  .chip-btn.active{ border-color: var(--purple-1); background: var(--purple-4); color: var(--purple-1); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '/assets/lesson/lesson-engine.js?v=4';
+import { voice, stopAll } from '/sound/audio.js?v=1';
+
+/* ============================================================
+   ТЕМА 2 «Частота и высота звука».
+   Интерактив «двигай частоту и слушай» перенесён из монолита
+   sound/ и перекрашен в светлую Neuroom-тему.
+   ============================================================ */
+
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+
+/* ============================================================
+   ИНТЕРАКТИВ: частота — двигай и слушай
+   ============================================================ */
+function startFreq(root, done) {
+  const canvas = root.querySelector('#freqCanvas');
+  const slider = root.querySelector('#freqSlider');
+  const valEl = root.querySelector('#freqVal');
+  const playBtn = root.querySelector('#freqPlayBtn');
+  const ctx = canvas.getContext('2d');
+
+  let voiceH = null;
+  let played = false, moved = false;
+  const maybeDone = () => { if (played && moved) done(); };
+
+  function stopTone() {
+    if (voiceH) { voiceH.stop(); voiceH = null; }
+    playBtn.textContent = '▶ Послушать';
+  }
+  playBtn.addEventListener('click', () => {
+    if (voiceH) { stopTone(); return; }
+    voiceH = voice({ freq: +slider.value, type: 'triangle', gain: 0.15 });
+    playBtn.textContent = '■ Остановить';
+    played = true;
+    maybeDone();
+  });
+
+  function setVal() {
+    valEl.textContent = slider.value + ' Гц';
+    if (voiceH) voiceH.setFreq(+slider.value);
+  }
+  slider.addEventListener('input', () => {
+    setVal();
+    moved = true;
+    root.querySelectorAll('.chip-btn').forEach(c => c.classList.remove('active'));
+    maybeDone();
+  });
+  root.querySelectorAll('.chip-btn').forEach(chip => {
+    chip.addEventListener('click', () => {
+      slider.value = chip.dataset.f;
+      setVal();
+      moved = true;
+      root.querySelectorAll('.chip-btn').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      // пресет сразу озвучиваем — пользователь явно попросил звук
+      if (!voiceH) {
+        voiceH = voice({ freq: +slider.value, type: 'triangle', gain: 0.15 });
+        playBtn.textContent = '■ Остановить';
+        played = true;
+      }
+      maybeDone();
+    });
+  });
+
+  function draw(t) {
+    if (!canvas.isConnected) { stopAll(); return; }
+    const { w, h } = fit(canvas, 120);
+    ctx.clearRect(0, 0, w, h);
+    const freq = +slider.value;
+
+    ctx.beginPath();
+    ctx.strokeStyle = '#C9CEDA';
+    ctx.lineWidth = 1.5;
+    ctx.moveTo(0, h / 2);
+    ctx.lineTo(w, h / 2);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.strokeStyle = '#6240FF';
+    ctx.lineWidth = 3;
+    for (let x = 0; x <= w; x += 2) {
+      const y = h / 2 + Math.sin(2 * Math.PI * (freq / 110) * (x / w) - t * freq * 0.016) * (h * 0.36);
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // частицы «едут» по волне
+    for (let i = 0; i < 7; i++) {
+      const xn = (i + 0.5) / 7;
+      const y = h / 2 + Math.sin(2 * Math.PI * (freq / 110) * xn - t * freq * 0.016) * (h * 0.36);
+      ctx.beginPath();
+      ctx.arc(xn * w, y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#E8590C';
+      ctx.fill();
+    }
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'info', visual: 'hz', big: true,
+    title: 'Частота — число колебаний в секунду',
+    text: 'Помнишь комара и шмеля? Крыло комара бьёт по воздуху 600 раз в секунду, крыло шмеля — 130. Число колебаний в секунду называется <b>частотой</b> и измеряется в <b>герцах (Гц)</b>. Чем больше герц — тем выше звук.',
+  },
+  {
+    phase: 'theory', type: 'interact', id: 'freq', visual: 'freq',
+    title: 'Покрути частоту — услышь высоту',
+    text: 'Нажми ▶ и двигай ползунок. Вправо — волна «сжимается», колебаний больше, звук <b>выше</b>. Попробуй все пресеты: от гула шмеля до сигнала «точного времени».',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'range', big: true,
+    title: 'Что слышит человек',
+    text: 'Человеческое ухо ловит от <b>20 Гц до 20 000 Гц</b>. Ниже — инфразвук (его «слышат» слоны), выше — ультразвук: собаки слышат до 40 кГц, дельфины и летучие мыши — выше 100 кГц. С возрастом верхняя граница снижается — школьники слышат писки, которые учитель уже не слышит.',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Два вопроса — и тема твоя.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 1',
+    text: 'Гитарную струну натянули сильнее, и она стала колебаться быстрее. Что произошло со звуком?',
+    options: [
+      { id: 'a', text: 'Звук стал выше', correct: true },
+      { id: 'b', text: 'Звук стал громче', correct: false },
+      { id: 'c', text: 'Звук стал ниже', correct: false },
+    ],
+    right: 'Быстрее колебания → больше герц → выше звук. Именно так гитару и настраивают.',
+    wrong: 'Колебания стали быстрее — выросла частота. А частота — это высота звука, не громкость.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 2',
+    text: 'Ультразвуковой свисток для дрессировки издаёт 25 000 Гц. Кто его услышит?',
+    options: [
+      { id: 'a', text: 'И человек, и собака', correct: false },
+      { id: 'b', text: 'Собака услышит, а человек — нет', correct: true },
+      { id: 'c', text: 'Никто: такой звук не существует', correct: false },
+    ],
+    right: 'Верно! 25 кГц выше границы человеческого слуха (20 кГц), а собака слышит до ~40 кГц.',
+    wrong: 'Человек слышит только до 20 000 Гц, а собака — до ~40 000 Гц. Свисток «немой» лишь для нас.',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  freq: () => `
+    <div class="canvas-panel"><canvas id="freqCanvas" height="120"></canvas></div>
+    <div class="ctl">
+      <div class="ctl-label"><span>Частота</span><b id="freqVal">200 Гц</b></div>
+      <input type="range" id="freqSlider" min="80" max="1200" value="200" step="1">
+    </div>
+    <div class="mini-actions">
+      <button class="chip-btn" data-f="130">🐝 130</button>
+      <button class="chip-btn" data-f="440">🎵 440 «ля»</button>
+      <button class="chip-btn" data-f="600">🦟 600</button>
+      <button class="chip-btn" data-f="1000">📻 1000</button>
+    </div>
+    <div class="mini-actions" style="margin-top:10px;">
+      <button class="mini-play-btn" id="freqPlayBtn">▶ Послушать</button>
+    </div>`,
+  hz: () => `
+    <svg viewBox="0 0 260 150" xmlns="http://www.w3.org/2000/svg">
+      <text x="20" y="40" font-size="22">🦟</text>
+      <path d="M52 32 q5 -14 10 0 t10 0 t10 0 t10 0 t10 0 t10 0 t10 0 t10 0 t10 0 t10 0 t10 0 t10 0 t10 0 t10 0 t10 0 t10 0" fill="none" stroke="#6240FF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="5 3">
+        <animate attributeName="stroke-dashoffset" values="0;-32" dur="0.9s" repeatCount="indefinite"/>
+      </path>
+      <text x="248" y="38" text-anchor="end" font-family="system-ui" font-weight="700" font-size="13" fill="#6240FF">600 Гц</text>
+      <text x="20" y="106" font-size="24">🐝</text>
+      <path d="M52 98 q16 -26 32 0 t32 0 t32 0 t32 0 t32 0" fill="none" stroke="#E8590C" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="7 4">
+        <animate attributeName="stroke-dashoffset" values="0;-44" dur="2.2s" repeatCount="indefinite"/>
+      </path>
+      <text x="248" y="104" text-anchor="end" font-family="system-ui" font-weight="700" font-size="13" fill="#E8590C">130 Гц</text>
+      <text x="130" y="140" text-anchor="middle" font-family="system-ui" font-size="13" fill="#6B7180">1 Гц = 1 колебание в секунду</text>
+    </svg>`,
+  range: () => `
+    <svg viewBox="0 0 260 150" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="hearBand" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#E8590C"/><stop offset=".5" stop-color="#6240FF"/><stop offset="1" stop-color="#2F80ED"/>
+        </linearGradient>
+      </defs>
+      <rect x="20" y="66" width="220" height="16" rx="8" fill="#E6E9F2"/>
+      <rect x="64" y="66" width="118" height="16" rx="8" fill="url(#hearBand)">
+        <animate attributeName="opacity" values="1;.7;1" dur="2.4s" repeatCount="indefinite"/>
+      </rect>
+      <text x="64" y="58" text-anchor="middle" font-family="system-ui" font-weight="700" font-size="12" fill="#6B7180">20 Гц</text>
+      <text x="182" y="58" text-anchor="middle" font-family="system-ui" font-weight="700" font-size="12" fill="#6B7180">20 000 Гц</text>
+      <text x="123" y="98" text-anchor="middle" font-family="system-ui" font-weight="600" font-size="12" fill="#6B7180">слышит человек 👂</text>
+      <text x="36" y="122" text-anchor="middle" font-family="system-ui" font-size="12" fill="#6B7180">🐘 инфразвук</text>
+      <text x="216" y="122" text-anchor="middle" font-family="system-ui" font-size="12" fill="#6B7180">🦇 ультразвук</text>
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'freq') startFreq(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'frequency',
+  storageKey: 'sound-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-amplitude/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

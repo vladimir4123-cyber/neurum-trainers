@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Взвешивание улова · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐟</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="/assets/lesson/practice.css?v=4">
+<style>
+  .dyno-panel{
+    width: max-content; max-width: 100%;
+    margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 14px 30px;
+  }
+  .p-scene .dyno-panel svg{ width: auto; height: 380px; display: block; margin: 0 auto; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">6</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '/assets/lesson/practice-engine.js?v=4';
+import { dynoSVG, priceOf, fmt } from '../dyno-parts.js';
+
+/* ============================================================
+   ПРАКТИКА «Взвешивание улова» — как лабораторная с безменом.
+   Для каждого предмета ученик сам находит цену деления и сам
+   считывает показание (type:'reading'); на сложном уровне ещё
+   и пересчитывает силу в массу (m = F : 10). Предметы, шкалы
+   и значения случайные при каждом запуске.
+   ============================================================ */
+
+/* ---------- предметы (антураж, вес задаёт шкала) ---------- */
+const ITEMS = [
+  { e: '🐟', name: 'окунь с рыбалки' },
+  { e: '🍎', name: 'яблоко из сада' },
+  { e: '🥔', name: 'пакетик картошки' },
+  { e: '⚙️', name: 'гирька из шкафа физики' },
+  { e: '🧸', name: 'плюшевый мишка' },
+  { e: '📗', name: 'учебник физики' },
+  { e: '🥕', name: 'пучок морковки' },
+  { e: '🧃', name: 'сок в коробочке' },
+];
+
+/* ---------- шкалы: numStep всегда 1 Н, разные деления ---------- */
+const SCALES_EASY = [
+  { max: 2, numStep: 1, minor: 5 },   // цена 0,2 Н
+  { max: 5, numStep: 1, minor: 5 },   // цена 0,2 Н
+  { max: 4, numStep: 1, minor: 2 },   // цена 0,5 Н
+  { max: 1, numStep: 1, minor: 10 },  // цена 0,1 Н
+];
+const SCALES_TRICKY = [
+  { max: 2, numStep: 1, minor: 10 },  // цена 0,1 Н
+  { max: 5, numStep: 1, minor: 10 },  // цена 0,1 Н
+  { max: 2, numStep: 1, minor: 4 },   // цена 0,25 Н
+  { max: 3, numStep: 1, minor: 2 },   // цена 0,5 Н
+];
+
+function shuffle(arr, rnd) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+const pick = (arr, rnd) => arr[Math.floor(rnd() * arr.length)];
+
+/* ---------- сцена: прибор с предметом на крючке ---------- */
+function scene(spec, value, item, note) {
+  return (host) => {
+    host.innerHTML = `
+      <div class="dyno-panel">${dynoSVG({ spec, value, item: item.e, h: 660 })}</div>
+      ${note ? `<div class="p-hintline">${note}</div>` : ''}`;
+  };
+}
+
+/* ---------- шаги миссии ---------- */
+function buildSteps(level, rnd) {
+  const pool = level === 'easy' ? SCALES_EASY : [...SCALES_EASY, ...SCALES_TRICKY];
+  const count = level === 'medium' ? 4 : 3;   // предметов в серии
+  const items = shuffle(ITEMS, rnd).slice(0, count);
+  const steps = [];
+
+  items.forEach((it, idx) => {
+    const spec = pick(pool, rnd);
+    const price = priceOf(spec);
+    const N = Math.round(spec.max / spec.numStep) * spec.minor;
+    const k = 2 + Math.floor(rnd() * (N - 3));  // деление, на котором указатель
+    const value = k * price;                    // сила, Н
+    const no = `№${idx + 1} из ${count}`;
+
+    steps.push({
+      type: 'reading',
+      title: `${it.e} Груз ${no}: цена деления`,
+      text: `На крючке — ${it.name}. Сначала разберись со шкалой: чему равна цена одного деления?`,
+      render: scene(spec, value, it, 'Разность соседних чисел раздели на число делений между ними.'),
+      answer: price, tolerance: 0, unit: 'Н',
+      right: `✓ Точно: цена деления ${fmt(price)} Н.`,
+      hints: [
+        'Возьми два соседних подписанных числа (например, 0 и 1) и посчитай чёрточки-шаги между ними.',
+        `Между соседними числами ${spec.minor} делений: ${fmt(spec.numStep)} : ${spec.minor} = ${fmt(price)} Н.`,
+      ],
+    });
+
+    steps.push({
+      type: 'reading',
+      title: `${it.e} Груз ${no}: показание`,
+      text: 'Теперь считай деления от нуля до указателя и впиши силу.',
+      render: scene(spec, value, it),
+      answer: value, tolerance: 0, unit: 'Н',
+      right: `✓ Записали: ${fmt(value)} Н.`,
+      hints: [
+        `Цена деления — ${fmt(price)} Н. Сколько делений прошёл указатель, столько раз её и возьми.`,
+        `Указатель на ${k}-м делении: ${k} × ${fmt(price)} = ${fmt(value)} Н.`,
+      ],
+    });
+
+    if (level === 'hard') {
+      steps.push({
+        type: 'reading',
+        title: `${it.e} Груз ${no}: масса`,
+        text: `Сила известна: ${fmt(value)} Н. Найди массу груза в граммах (g = 10 Н/кг).`,
+        render: scene(spec, value, it),
+        answer: value * 100, tolerance: 0, unit: 'г',
+        right: `✓ Верно: m = ${fmt(value)} : 10 = ${fmt(value / 10)} кг = ${fmt(value * 100)} г.`,
+        hints: [
+          'm = F : 10 — это масса в килограммах. Чтобы получить граммы, умножь ещё на 1000.',
+          `F = ${fmt(value)} Н → m = ${fmt(value / 10)} кг = ${fmt(value * 100)} г.`,
+        ],
+      });
+    }
+  });
+
+  return steps;
+}
+
+/* ---------- запуск ---------- */
+runPractice({
+  practiceId: 'catch',
+  storageKey: 'dynamometer-progress',
+  homeHref: '../demo/',
+  title: 'Взвешивание улова',
+  subtitle: 'Дома нашёлся безмен — пружинный динамометр. Взвесь всё, что попадётся под руку: от окуня до учебника. Главное — не ошибись в показаниях.',
+  levels: {
+    easy:   { label: 'Разминка',  desc: '3 предмета, удобные шкалы и подсказки.', xp: 30 },
+    medium: { label: 'Уверенный', desc: '4 предмета — попадаются хитрые шкалы.', xp: 50 },
+    hard:   { label: 'Лаборант',  desc: '3 предмета, но для каждого ещё и масса: m = F : 10.', xp: 80 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

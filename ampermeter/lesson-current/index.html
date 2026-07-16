@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Что такое сила тока · Амперметр</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .ammeter-svg{ width: 100%; height: auto; display: block; }
+  .am-wrap{ width: 100%; max-width: 430px; margin: 0 auto; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '/assets/lesson/lesson-engine.js?v=4';
+import { ammeterSVG, setAmmeterNeedle } from '../ammeter.js';
+
+const fmt = v => String(Math.round(v * 100) / 100).replace('.', ',');
+
+/* =================== ШАГИ ТЕМЫ =================== */
+const STEPS = [
+  /* ---------- ТЕОРИЯ ---------- */
+  {
+    type: 'intro', phase: 'theory', visual: 'flow',
+    title: 'Что такое сила тока',
+    text: 'По проводу бежит поток заряженных частиц — это <b>электрический ток</b>. <b>Сила тока</b> показывает, сколько заряда проходит через провод за одну секунду. Измеряется она в <b>амперах (А)</b> — в честь физика Андре-Мари Ампера.',
+  },
+  {
+    type: 'reveal', phase: 'theory', visual: 'meterFull',
+    title: 'Зачем нужен амперметр',
+    text: 'Ток нельзя увидеть глазами. Без прибора не узнать, работает ли цепь и хватает ли тока лампочке. <b>Амперметр</b> измеряет силу тока — «ампер-метр» дословно значит «измеритель ампер». У него есть <b>шкала</b>, <b>стрелка</b> и две <b>клеммы</b>: красная «+» и чёрная «−».',
+  },
+  {
+    type: 'interact', phase: 'theory', visual: 'meterLab', check: 'meter',
+    title: 'Прибор оживает',
+    text: 'Двигайте ползунок — это ток в цепи. Чем больше ампер, тем дальше стрелка отклоняется по шкале. Загоните её в красную зону — узнаете, что такое «зашкаливает».',
+  },
+
+  /* ---------- SPLASH ---------- */
+  {
+    type: 'splash', phase: 'transition',
+    title: 'Проверь себя!',
+    text: 'С силой тока познакомились — закрепим парой вопросов.',
+  },
+
+  /* ---------- ПРАКТИКА ---------- */
+  {
+    type: 'question', phase: 'practice',
+    title: 'Что измеряет амперметр?',
+    text: 'У каждого электроизмерительного прибора своя работа.',
+    options: [
+      { id: 'a', text: 'Силу тока',      correct: true },
+      { id: 'b', text: 'Напряжение',     correct: false },
+      { id: 'c', text: 'Сопротивление',  correct: false },
+      { id: 'd', text: 'Мощность',       correct: false },
+    ],
+    right: 'Верно! Амперметр измеряет силу тока — сколько заряда проходит по цепи за секунду.',
+    wrong: 'Амперметр измеряет силу тока. Напряжение — работа вольтметра.',
+  },
+  {
+    type: 'question', phase: 'practice',
+    title: 'В каких единицах измеряют силу тока?',
+    text: 'Единица названа в честь учёного.',
+    options: [
+      { id: 'a', text: 'В амперах', correct: true },
+      { id: 'b', text: 'В вольтах', correct: false },
+      { id: 'c', text: 'В омах',    correct: false },
+      { id: 'd', text: 'В ваттах',  correct: false },
+    ],
+    right: 'Именно! Ампер — в честь Андре-Мари Ампера, создателя науки об электрическом токе.',
+    wrong: 'Сила тока измеряется в амперах. Вольты — про напряжение, омы — про сопротивление.',
+  },
+];
+
+/* =================== ВИЗУАЛЫ ТЕМЫ =================== */
+const visuals = {
+  flow() {
+    return `
+      <svg viewBox="0 0 560 210" class="circuit-svg circuit-svg--large">
+        <!-- секундомер: считаем заряды за секунду -->
+        <circle cx="280" cy="44" r="26" fill="#fff" stroke="#C9CEDA" stroke-width="3"/>
+        <rect x="272" y="8" width="16" height="7" rx="3" fill="#C9CEDA"/>
+        <line x1="280" y1="44" x2="280" y2="26" stroke="#6240FF" stroke-width="3" stroke-linecap="round">
+          <animateTransform attributeName="transform" type="rotate" from="0 280 44" to="360 280 44" dur="2s" repeatCount="indefinite"/>
+        </line>
+        <!-- батарейка -->
+        <rect x="18" y="118" width="46" height="64" rx="8" fill="#F5B93B" stroke="#D99A18" stroke-width="2"/>
+        <rect x="30" y="108" width="22" height="10" rx="3" fill="#C9CEDA"/>
+        <text x="41" y="158" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" font-size="20" fill="#7A5A18">+</text>
+        <!-- провод -->
+        <line x1="64" y1="150" x2="468" y2="150" stroke="#C9CEDA" stroke-width="6" stroke-linecap="round"/>
+        <!-- сечение под секундомером -->
+        <line x1="280" y1="122" x2="280" y2="178" stroke="#6240FF" stroke-width="2.5" stroke-dasharray="5 5"/>
+        <!-- заряды -->
+        <g fill="#F5B93B" stroke="#E8590C" stroke-width="1.6">
+          <circle r="6"><animateMotion dur="3s" repeatCount="indefinite" path="M64 150 L468 150"/></circle>
+          <circle r="6"><animateMotion dur="3s" begin=".5s" repeatCount="indefinite" path="M64 150 L468 150"/></circle>
+          <circle r="6"><animateMotion dur="3s" begin="1s" repeatCount="indefinite" path="M64 150 L468 150"/></circle>
+          <circle r="6"><animateMotion dur="3s" begin="1.5s" repeatCount="indefinite" path="M64 150 L468 150"/></circle>
+          <circle r="6"><animateMotion dur="3s" begin="2s" repeatCount="indefinite" path="M64 150 L468 150"/></circle>
+          <circle r="6"><animateMotion dur="3s" begin="2.5s" repeatCount="indefinite" path="M64 150 L468 150"/></circle>
+        </g>
+        <!-- лампа -->
+        <circle cx="505" cy="150" r="34" fill="#FFD769" opacity=".45">
+          <animate attributeName="opacity" values=".3;.6;.3" dur="1.6s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="505" cy="150" r="20" fill="#FFF6DC" stroke="#2B2B33" stroke-width="2.5"/>
+        <line x1="491" y1="136" x2="519" y2="164" stroke="#2B2B33" stroke-width="2"/>
+        <line x1="519" y1="136" x2="491" y2="164" stroke="#2B2B33" stroke-width="2"/>
+      </svg>`;
+  },
+  meterFull() {
+    return `<div class="am-wrap">${ammeterSVG({ max: 3, numStep: 1, minor: 10, value: 1.8 })}</div>`;
+  },
+  meterLab() {
+    return `
+      <div class="lamp-slider-wrap">
+        <div class="am-wrap" id="amHost">${ammeterSVG({ max: 3, numStep: 1, minor: 10, value: 0 })}</div>
+        <div class="big-slider">
+          <div class="big-slider__val"><span id="iVal">0</span> А</div>
+          <input type="range" id="iSlider" min="0" max="3.2" step="0.1" value="0" class="big-slider__input">
+        </div>
+      </div>`;
+  },
+};
+
+/* =================== ЗАПУСК =================== */
+runLesson({
+  lessonId: 'current',
+  storageKey: 'ampermeter-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-scale/',
+  steps: STEPS,
+  visuals,
+  onInteract(step, ctx) {
+    if (step.check === 'meter') {
+      const slider = document.getElementById('iSlider');
+      const val = document.getElementById('iVal');
+      const host = document.getElementById('amHost');
+      let moved = false;
+      slider.addEventListener('input', () => {
+        const v = parseFloat(slider.value);
+        val.textContent = fmt(Math.min(v, 3));
+        setAmmeterNeedle(host, v, 3);
+        if (!moved && v > 0) {
+          moved = true;
+          ctx.done();
+        }
+      });
+    }
+  },
+});
+</script>
+
+</body>
+</html>

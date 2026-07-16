@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Цена деления · Амперметр</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📏</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .ammeter-svg{ width: 100%; height: auto; display: block; }
+  .am-wrap{ width: 100%; max-width: 430px; margin: 0 auto; }
+  .formula-chip{
+    margin: 18px auto 0; padding: 14px 24px; max-width: 460px;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(18px, 3.4vw, 24px); color: var(--fg-1);
+    font-variant-numeric: tabular-nums;
+  }
+  .formula-chip b{ color: var(--purple-1); font-weight: 500; }
+  .div-btns{ display: flex; gap: 14px; justify-content: center; margin-top: 16px; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '/assets/lesson/lesson-engine.js?v=4';
+import { ammeterSVG, setAmmeterNeedle } from '../ammeter.js';
+
+const fmt = v => String(Math.round(v * 100) / 100).replace('.', ',');
+
+/* =================== ШАГИ ТЕМЫ =================== */
+const STEPS = [
+  /* ---------- ТЕОРИЯ ---------- */
+  {
+    type: 'intro', phase: 'theory', visual: 'mystery',
+    title: 'Стрелка встала между числами',
+    text: 'Стрелка редко останавливается ровно на подписанном числе — чаще где-то между. Чтобы прочитать такое показание, нужно знать <b>цену деления</b>: сколько ампер «стоит» одно маленькое деление шкалы.',
+  },
+  {
+    type: 'reveal', phase: 'theory', visual: 'formula',
+    title: 'Как найти цену деления',
+    text: 'Берём два <b>соседних подписанных числа</b> и делим их разность на <b>число делений между ними</b>. На этой шкале между 0 и 1 пять делений — значит, каждое деление стоит <b>0,2 А</b>.',
+  },
+  {
+    type: 'interact', phase: 'theory', visual: 'divSteps', check: 'divisions',
+    title: 'Шагаем по делениям',
+    text: 'Каждое нажатие двигает стрелку на одно деление — на 0,2 А. Поставьте стрелку ровно на <b>1 А</b>.',
+  },
+
+  /* ---------- SPLASH ---------- */
+  {
+    type: 'splash', phase: 'transition',
+    title: 'Проверь себя!',
+    text: 'Формула простая: разность чисел ÷ число делений. Проверим на новых шкалах.',
+  },
+
+  /* ---------- ПРАКТИКА ---------- */
+  {
+    type: 'question', phase: 'practice', visual: 'q1scale',
+    title: 'Какова цена деления этой шкалы?',
+    text: 'Соседние числа — 0 и 1, а делений между ними четыре.',
+    options: [
+      { id: 'a', text: '0,25 А', correct: true },
+      { id: 'b', text: '0,5 А',  correct: false },
+      { id: 'c', text: '1 А',    correct: false },
+      { id: 'd', text: '4 А',    correct: false },
+    ],
+    right: 'Точно! (1 − 0) ÷ 4 = 0,25 А на одно деление.',
+    wrong: 'Считаем: (1 − 0) ÷ 4 деления = 0,25 А. Разность чисел делим на число делений.',
+  },
+  {
+    type: 'question', phase: 'practice', visual: 'q2scale',
+    title: 'А у этой шкалы?',
+    text: 'Здесь числа идут через 2: между 0 и 2 — десять делений.',
+    options: [
+      { id: 'a', text: '0,2 А', correct: true },
+      { id: 'b', text: '0,5 А', correct: false },
+      { id: 'c', text: '2 А',   correct: false },
+      { id: 'd', text: '10 А',  correct: false },
+    ],
+    right: 'Верно! (2 − 0) ÷ 10 = 0,2 А. Разность чисел здесь не 1, а 2 — это ловушка.',
+    wrong: 'Внимание на числа: (2 − 0) ÷ 10 делений = 0,2 А.',
+  },
+];
+
+/* =================== ВИЗУАЛЫ ТЕМЫ =================== */
+const visuals = {
+  mystery() {
+    return `<div class="am-wrap">${ammeterSVG({ max: 3, numStep: 1, minor: 5, value: 1.4 })}</div>`;
+  },
+  formula() {
+    return `
+      <div class="am-wrap">${ammeterSVG({ max: 3, numStep: 1, minor: 5, value: 0 })}</div>
+      <div class="formula-chip">(1 − 0) ÷ 5 делений = <b>0,2 А</b></div>`;
+  },
+  divSteps() {
+    return `
+      <div class="am-wrap" id="amHost">${ammeterSVG({ max: 3, numStep: 1, minor: 5, value: 0 })}</div>
+      <div class="count-readout" style="margin-top:18px;"><b id="cntK">0</b> делений × 0,2 А = <span id="cntDiv"><b id="cntV">0</b> А</span></div>
+      <div class="div-btns">
+        <button class="polarity-btn" id="minusBtn">− деление</button>
+        <button class="polarity-btn" id="plusBtn">+ деление</button>
+      </div>
+      <div class="polarity-label" id="divHint">Цель: ровно 1 А. Сколько это делений?</div>`;
+  },
+  q1scale() {
+    return `<div class="am-wrap">${ammeterSVG({ max: 2, numStep: 1, minor: 4, value: 0 })}</div>`;
+  },
+  q2scale() {
+    return `<div class="am-wrap">${ammeterSVG({ max: 6, numStep: 2, minor: 10, value: 0 })}</div>`;
+  },
+};
+
+/* =================== ЗАПУСК =================== */
+runLesson({
+  lessonId: 'scale',
+  storageKey: 'ampermeter-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-reading/',
+  steps: STEPS,
+  visuals,
+  onInteract(step, ctx) {
+    if (step.check === 'divisions') {
+      const PRICE = 0.2, N = 15, TARGET = 5;
+      let k = 0, solved = false;
+      const host = document.getElementById('amHost');
+      const minusBtn = document.getElementById('minusBtn');
+      const plusBtn = document.getElementById('plusBtn');
+      const cntK = document.getElementById('cntK');
+      const cntV = document.getElementById('cntV');
+      const hint = document.getElementById('divHint');
+      const update = () => {
+        cntK.textContent = k;
+        cntV.textContent = fmt(k * PRICE);
+        setAmmeterNeedle(host, k * PRICE, 3);
+        minusBtn.disabled = k <= 0;
+        plusBtn.disabled = k >= N;
+        if (k === TARGET && !solved) {
+          solved = true;
+          hint.textContent = '✓ Ровно 1 А — пять делений по 0,2 А!';
+          hint.style.color = 'var(--green-1, #07BE7E)';
+          ctx.done();
+        }
+      };
+      minusBtn.addEventListener('click', () => { if (k > 0) { k--; update(); } });
+      plusBtn.addEventListener('click', () => { if (k < N) { k++; update(); } });
+      update();
+    }
+  },
+});
+</script>
+
+</body>
+</html>

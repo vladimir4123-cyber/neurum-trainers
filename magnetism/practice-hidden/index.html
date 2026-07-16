@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Найди спрятанный магнит · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕵️</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="/assets/lesson/practice.css?v=4">
+<style>
+  .canvas-panel{
+    width: 100%; max-width: 520px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">6</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '/assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Найди спрятанный магнит».
+   Магнит спрятан под одной из трёх крышек, позиция и ориентация
+   случайные. Улики — стрелки компасов вокруг: сначала находим
+   магнит, потом определяем его полюса. Чем сложнее уровень,
+   тем меньше компасов-подсказок.
+   ============================================================ */
+
+const POLE_N = '#E5484D', POLE_S = '#2F80ED', TXT = '#6B7180';
+const COVER_X = [0.19, 0.5, 0.81];
+const COVER_NAMES = ['А', 'Б', 'В'];
+
+/* компасы-улики: от «крупной сетки» до скупых шести */
+const COMPASS_SETS = {
+  easy: [
+    [0.08, 0.12], [0.36, 0.12], [0.64, 0.12], [0.92, 0.12],
+    [0.08, 0.88], [0.36, 0.88], [0.64, 0.88], [0.92, 0.88],
+    [0.345, 0.5], [0.655, 0.5],
+  ],
+  medium: [
+    [0.08, 0.12], [0.5, 0.12], [0.92, 0.12],
+    [0.08, 0.88], [0.5, 0.88], [0.92, 0.88],
+    [0.345, 0.5], [0.655, 0.5],
+  ],
+  hard: [
+    [0.08, 0.12], [0.92, 0.12],
+    [0.08, 0.88], [0.92, 0.88],
+    [0.345, 0.5], [0.655, 0.5],
+  ],
+};
+
+/* ---------- рисовалки ---------- */
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+function lerpAngle(cur, target, k) {
+  let d = target - cur;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return cur + d * k;
+}
+function rrectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function fieldAt(px, py, m) {
+  const ca = Math.cos(m.angle), sa = Math.sin(m.angle);
+  const nx = m.x + ca * m.half, ny = m.y + sa * m.half;
+  const sx = m.x - ca * m.half, sy = m.y - sa * m.half;
+  const dxn = px - nx, dyn = py - ny;
+  const dxs = px - sx, dys = py - sy;
+  const rn = Math.max(Math.hypot(dxn, dyn), 4);
+  const rs = Math.max(Math.hypot(dxs, dys), 4);
+  const in3 = 1 / (rn * rn * rn), is3 = 1 / (rs * rs * rs);
+  return { bx: dxn * in3 - dxs * is3, by: dyn * in3 - dys * is3 };
+}
+function drawCompass(ctx, x, y, r, ang, o = {}) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fill();
+  ctx.strokeStyle = o.ring || '#C9CEDA';
+  ctx.lineWidth = 1.8;
+  ctx.stroke();
+  const nx = Math.cos(ang), ny = Math.sin(ang);
+  const px = -ny, py = nx;
+  const L = r * 0.76, Wd = r * 0.22;
+  ctx.beginPath();
+  ctx.moveTo(x + nx * L, y + ny * L);
+  ctx.lineTo(x + px * Wd, y + py * Wd);
+  ctx.lineTo(x - px * Wd, y - py * Wd);
+  ctx.closePath();
+  ctx.fillStyle = POLE_N;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x - nx * L, y - ny * L);
+  ctx.lineTo(x + px * Wd, y + py * Wd);
+  ctx.lineTo(x - px * Wd, y - py * Wd);
+  ctx.closePath();
+  ctx.fillStyle = '#9AA0AA';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y, Math.max(1.4, r * 0.12), 0, Math.PI * 2);
+  ctx.fillStyle = TXT;
+  ctx.fill();
+}
+
+/* ---------- сцена раунда ---------- */
+function startScene(host, round, compassPts) {
+  host.innerHTML = `<div class="canvas-panel"><canvas id="hidCanvas" height="230"></canvas></div>`;
+  const canvas = host.querySelector('#hidCanvas');
+  const ctx = canvas.getContext('2d');
+  const needles = [];
+
+  function draw() {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 230);
+    ctx.clearRect(0, 0, w, h);
+    const len = w * 0.13;
+    const mag = { x: COVER_X[round.pos] * w, y: h * 0.5, angle: round.angle, half: len * 0.46 };
+
+    // компасы-улики
+    const cr = Math.min(w * 0.042, h * 0.11);
+    compassPts.forEach(([nx, ny], i) => {
+      const px = nx * w, py = ny * h;
+      const f = fieldAt(px, py, mag);
+      const target = Math.atan2(f.by, f.bx);
+      if (needles[i] === undefined) needles[i] = Math.random() * Math.PI * 2;
+      needles[i] = lerpAngle(needles[i], target, 0.10);
+      const mg = Math.hypot(f.bx, f.by);
+      const s = Math.min(1, mg * len * len * len * 0.10);
+      drawCompass(ctx, px, py, cr, needles[i], {
+        ring: `rgba(98,64,255,${0.25 + s * 0.65})`,
+      });
+    });
+
+    // крышки
+    const cw = w * 0.24, chh = h * 0.34;
+    for (let i = 0; i < 3; i++) {
+      const cx = COVER_X[i] * w, cy = h * 0.5;
+      rrectPath(ctx, cx - cw / 2, cy - chh / 2, cw, chh, 12);
+      const gr = ctx.createLinearGradient(cx, cy - chh / 2, cx, cy + chh / 2);
+      gr.addColorStop(0, '#FFFFFF');
+      gr.addColorStop(1, '#E6E9F2');
+      ctx.fillStyle = gr;
+      ctx.fill();
+      ctx.strokeStyle = '#C9CEDA';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.font = `700 ${Math.round(chh * 0.34)}px -apple-system, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = TXT;
+      ctx.fillText(COVER_NAMES[i], cx, cy);
+      ctx.textBaseline = 'alphabetic';
+      ctx.textAlign = 'start';
+    }
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+}
+
+/* ---------- генератор раундов ---------- */
+function makeRounds(level, rnd) {
+  const n = level === 'easy' ? 3 : level === 'medium' ? 4 : 5;
+  const rounds = [];
+  let prevPos = -1;
+  for (let i = 0; i < n; i++) {
+    let pos;
+    do { pos = Math.floor(rnd() * 3); } while (pos === prevPos && rnd() < 0.7);
+    prevPos = pos;
+    const nRight = rnd() < 0.5;
+    rounds.push({ pos, nRight, angle: nRight ? 0 : Math.PI });
+  }
+  return rounds;
+}
+
+/* ---------- сборка шагов: раунд = найти + определить полюса ---------- */
+function buildSteps(level, rnd) {
+  const rounds = makeRounds(level, rnd);
+  const pts = COMPASS_SETS[level];
+  const steps = [];
+  rounds.forEach((round, i) => {
+    const name = COVER_NAMES[round.pos];
+    // шаг 1: где магнит
+    steps.push({
+      type: 'choice',
+      title: `Раунд ${i + 1} из ${rounds.length}: где магнит?`,
+      text: 'Магнит спрятан под одной из крышек. Стрелки компасов честно встают вдоль его поля. Чем ближе компас к магниту, тем «увереннее» стрелка. Под какой крышкой он прячется?',
+      render: host => startScene(host, round, pts),
+      options: [
+        { text: 'Под крышкой А (левой)', correct: round.pos === 0 },
+        { text: 'Под крышкой Б (средней)', correct: round.pos === 1 },
+        { text: 'Под крышкой В (правой)', correct: round.pos === 2 },
+      ],
+      right: `✓ Найден! Ближние к крышке ${name} компасы развернулись резче всех — поле там сильнее всего.`,
+      wrong: `Магнит — под крышкой ${name}. Смотри, возле какой крышки стрелки развёрнуты сильнее и «смотрят» прямо на неё: там поле самое сильное.`,
+    });
+    // шаг 2: где какой полюс
+    steps.push({
+      type: 'choice',
+      title: `Раунд ${i + 1}: где у него север?`,
+      text: `Магнит — под крышкой ${name}, он лежит горизонтально. Красные (N) концы стрелок выстраиваются вдоль поля, а линии поля выходят из N и входят в S. Как повёрнут магнит?`,
+      render: host => startScene(host, round, pts),
+      options: [
+        { text: 'N справа, S слева', correct: round.nRight },
+        { text: 'N слева, S справа', correct: !round.nRight },
+      ],
+      right: round.nRight
+        ? '✓ Именно! Справа от магнита красные концы стрелок «разбегаются» от него — там линии выходят наружу, значит там N.'
+        : '✓ Именно! Слева от магнита красные концы стрелок «разбегаются» от него — там линии выходят наружу, значит там N.',
+      wrong: round.nRight
+        ? 'Смотри на компасы справа от магнита: их красные концы направлены ОТ него. Поле выходит из северного полюса — значит, N справа.'
+        : 'Смотри на компасы слева от магнита: их красные концы направлены ОТ него. Поле выходит из северного полюса — значит, N слева.',
+    });
+  });
+  return steps;
+}
+
+runPractice({
+  practiceId: 'hidden',
+  storageKey: 'magnetism-progress',
+  homeHref: '../demo/',
+  title: 'Найди спрятанный магнит',
+  subtitle: 'Магнит спрятан под одной из трёх крышек — позиция и полюса каждый раз новые. Улики — только стрелки компасов вокруг. Рассуждай как детектив.',
+  levels: {
+    easy:   { label: 'Новичок',   desc: '3 раунда, 10 компасов-подсказок.', xp: 30 },
+    medium: { label: 'Следопыт',  desc: '4 раунда, компасов уже 8.', xp: 40 },
+    hard:   { label: 'Магнитный детектив', desc: '5 раундов, всего 6 компасов. Только дедукция!', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

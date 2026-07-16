@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Два полюса — всегда · Магнитное поле</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧲</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<style>
+  /* панель+подсказка+кнопки визуала — колонкой, а не в ряд */
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 560px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; touch-action: none; cursor: grab; }
+  .canvas-hint{
+    margin: 14px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+  .mini-actions{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  .mini-play-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border: 0; border-radius: var(--radius-md);
+    background: var(--purple-1); color: #fff; cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    box-shadow: var(--shadow-purple);
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .mini-play-btn:hover:not(:disabled){ background: var(--purple-2); }
+  .mini-play-btn:active:not(:disabled){ transform: scale(0.96); }
+  .mini-play-btn:disabled{ opacity: .55; cursor: default; }
+  .chip-btn{
+    padding: 12px 18px; border: 1px solid var(--purple-4); border-radius: var(--radius-md);
+    background: var(--white); color: var(--fg-2); cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .chip-btn:hover{ background: var(--purple-4); }
+  .chip-btn:active{ transform: scale(0.96); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '/assets/lesson/lesson-engine.js?v=4';
+
+/* ============================================================
+   ТЕМА 1 «Два полюса — всегда».
+   Интерактивы перенесены из старого монолита magnetism/legacy.html
+   и перекрашены в светлую Neuroom-тему.
+   ============================================================ */
+
+/* ---------- палитра ---------- */
+const POLE_N = '#E5484D', POLE_S = '#2F80ED';
+const TXT = '#6B7180', FRAME = '#C9CEDA';
+
+/* ---------- общие рисовалки ---------- */
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+function canvasPoint(c, e) {
+  const rect = c.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left) * (c.width / rect.width),
+    y: (e.clientY - rect.top) * (c.height / rect.height),
+  };
+}
+function lerpAngle(cur, target, k) {
+  let d = target - cur;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return cur + d * k;
+}
+function angDiff(a, b) {
+  let d = a - b;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return d;
+}
+function rrectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+/* Плоский стиль: сплошные заливки, БЕЗ градиентов и свечения, БЕЗ чёрного
+   контура. Края — тонкие, того же цвета, но темнее (shade). */
+function tint(hex, t) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  r = Math.round(r + (255 - r) * t);
+  g = Math.round(g + (255 - g) * t);
+  b = Math.round(b + (255 - b) * t);
+  return `rgb(${r},${g},${b})`;
+}
+function shade(hex, t) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  r = Math.round(r * (1 - t)); g = Math.round(g * (1 - t)); b = Math.round(b * (1 - t));
+  return `rgb(${r},${g},${b})`;
+}
+
+/* магнит: ось +x (в системе поворота ang) = сторона N. Плоские заливки,
+   без свечения и чёрного контура — тонкий край shade() каждого полюса. */
+function drawMagnet(ctx, x, y, ang, len, wid, o = {}) {
+  const colN = o.colN || POLE_N, colS = o.colS || POLE_S;
+  const r = Math.min(9, wid * 0.28);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(ang);
+  // тело S — плоская заливка
+  rrectPath(ctx, -len / 2, -wid / 2, len, wid, r);
+  ctx.fillStyle = colS;
+  ctx.fill();
+  // половина N — обрезаем справа, свой тонкий край
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, -wid / 2 - 2, len / 2 + 2, wid + 4);
+  ctx.clip();
+  rrectPath(ctx, -len / 2, -wid / 2, len, wid, r);
+  ctx.fillStyle = colN;
+  ctx.fill();
+  rrectPath(ctx, -len / 2, -wid / 2, len, wid, r);
+  ctx.strokeStyle = shade(colN, 0.18);
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+  // тонкий край половины S
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(-len / 2 - 2, -wid / 2 - 2, len / 2 + 2, wid + 4);
+  ctx.clip();
+  rrectPath(ctx, -len / 2, -wid / 2, len, wid, r);
+  ctx.strokeStyle = shade(colS, 0.18);
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+  ctx.restore();
+  if (o.labels !== false) {
+    const ca = Math.cos(ang), sa = Math.sin(ang);
+    ctx.font = `700 ${Math.round(wid * 0.78)}px var(--font-display), sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = shade(colN, 0.45);
+    ctx.fillText(o.labelN || 'N', x + ca * len * 0.28, y + sa * len * 0.28);
+    ctx.fillStyle = shade(colS, 0.45);
+    ctx.fillText(o.labelS || 'S', x - ca * len * 0.28, y - sa * len * 0.28);
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'start';
+  }
+}
+
+/* ============================================================
+   ИНТЕРАКТИВ 1: компас, который знает север
+   ============================================================ */
+function startHook(root, done) {
+  const canvas = root.querySelector('#hookCanvas');
+  const btn = root.querySelector('#shakeBtn');
+  const hint = root.querySelector('#hookHint');
+  const ctx = canvas.getContext('2d');
+  const hook = { a: -Math.PI / 2 + 2.4, v: 0, last: 0 };
+  let shakes = 0;
+
+  function hookReset() {
+    hook.a = -Math.PI / 2 + (Math.random() < 0.5 ? -1 : 1) * (1.8 + Math.random() * 2.2);
+    hook.v = (Math.random() - 0.5) * 6;
+  }
+  btn.addEventListener('click', () => {
+    hookReset();
+    shakes++;
+    if (shakes === 1) {
+      hint.innerHTML = 'Стрелка дрожит, но каждый раз находит север. <b>Кто ей подсказывает?</b>';
+      done();
+    }
+  });
+
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 210);
+    ctx.clearRect(0, 0, w, h);
+    const dt = Math.min(0.033, hook.last ? t - hook.last : 0.016);
+    hook.last = t;
+    const target = -Math.PI / 2;
+    const d = angDiff(target, hook.a);
+    hook.v += (d * 26 - hook.v * 3.2) * dt;
+    hook.a += hook.v * dt;
+    const tremble = Math.sin(t * 12.7) * 0.012 + Math.sin(t * 7.3) * 0.008;
+
+    const cx = w / 2, cy = h / 2;
+    const R = Math.min(w * 0.22, h * 0.40);
+    // корпус
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 1.18, 0, Math.PI * 2);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fill();
+    ctx.strokeStyle = FRAME;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 1.06, 0, Math.PI * 2);
+    ctx.strokeStyle = '#E4E7F0';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // деления
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      const big = i % 6 === 0;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * R * (big ? 0.86 : 0.94), cy + Math.sin(a) * R * (big ? 0.86 : 0.94));
+      ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R);
+      ctx.strokeStyle = big ? '#9AA0AA' : FRAME;
+      ctx.lineWidth = big ? 2.5 : 1.2;
+      ctx.stroke();
+    }
+    // буквы
+    ctx.font = `700 ${Math.round(R * 0.24)}px var(--font-display), sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = POLE_N;
+    ctx.fillText('С', cx, cy - R * 0.68);
+    ctx.fillStyle = TXT;
+    ctx.fillText('Ю', cx, cy + R * 0.68);
+    ctx.fillText('В', cx + R * 0.68, cy);
+    ctx.fillText('З', cx - R * 0.68, cy);
+    // стрелка
+    const a = hook.a + tremble;
+    const nx = Math.cos(a), ny = Math.sin(a);
+    const px = -ny, py = nx;
+    ctx.beginPath();
+    ctx.moveTo(cx + nx * R * 0.8, cy + ny * R * 0.8);
+    ctx.lineTo(cx + px * R * 0.09, cy + py * R * 0.09);
+    ctx.lineTo(cx - px * R * 0.09, cy - py * R * 0.09);
+    ctx.closePath();
+    ctx.fillStyle = POLE_N;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx - nx * R * 0.8, cy - ny * R * 0.8);
+    ctx.lineTo(cx + px * R * 0.09, cy + py * R * 0.09);
+    ctx.lineTo(cx - px * R * 0.09, cy - py * R * 0.09);
+    ctx.closePath();
+    ctx.fillStyle = '#9AA0AA';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * 0.07, 0, Math.PI * 2);
+    ctx.fillStyle = TXT;
+    ctx.fill();
+    // подпись «север»
+    ctx.font = `700 ${Math.round(w * 0.036)}px var(--font-display), sans-serif`;
+    ctx.fillStyle = 'rgba(229,72,77,0.75)';
+    ctx.fillText('⬆ север', cx, cy - R * 1.38);
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'start';
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  hookReset();
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ============================================================
+   ИНТЕРАКТИВ 2: два магнита — притяжение и отталкивание
+   ============================================================ */
+function startMagnets(root, done) {
+  const canvas = root.querySelector('#magnetsCanvas');
+  const flipBtn = root.querySelector('#mFlip');
+  const resetBtn = root.querySelector('#mReset');
+  const hint = root.querySelector('#mHint');
+  const ctx = canvas.getContext('2d');
+  const m2 = { init: false, lastW: 0, A: null, B: null, pol: 1, stuck: false, dragging: false, last: 0, sparkT: -10 };
+  let clicked = false;
+  // pol = +1: у B полюс N справа (S смотрит на N магнита A → притяжение)
+  // pol = -1: N слева (N смотрит на N → отталкивание)
+
+  function m2Init(w, h) {
+    m2.A = { x: w * 0.27, y: h * 0.5 };
+    m2.B = { x: w * 0.76, y: h * 0.5, vx: 0, vy: 0 };
+    m2.stuck = false;
+    m2.init = true;
+    m2.lastW = w;
+  }
+  const setHint = s => { hint.innerHTML = s; };
+
+  flipBtn.addEventListener('click', () => {
+    m2.pol = -m2.pol;
+    if (m2.stuck) {
+      m2.stuck = false;
+      m2.B.vx = 60;
+    }
+    setHint(m2.pol === 1
+      ? 'Теперь S смотрит на N — попробуй сблизить'
+      : 'Теперь N смотрит на N — попробуй прижать!');
+  });
+  resetBtn.addEventListener('click', () => {
+    m2.init = false;
+    setHint('Подтащи правый магнит поближе к левому');
+  });
+
+  canvas.addEventListener('pointerdown', e => {
+    if (!m2.init) return;
+    const p = canvasPoint(canvas, e);
+    const { w } = fit(canvas, 190);
+    const len = w * 0.20;
+    if (Math.hypot(p.x - m2.B.x, p.y - m2.B.y) < len * 0.8) {
+      m2.dragging = true;
+      m2.stuck = false;
+      m2.B.vx = 0; m2.B.vy = 0;
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+      e.preventDefault();
+    }
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!m2.dragging || !m2.init) return;
+    const p = canvasPoint(canvas, e);
+    const prevX = m2.B.x, prevY = m2.B.y;
+    m2.B.x = p.x; m2.B.y = p.y;
+    m2.B.vx = (m2.B.x - prevX) * 30;
+    m2.B.vy = (m2.B.y - prevY) * 30;
+  });
+  ['pointerup', 'pointercancel'].forEach(ev => canvas.addEventListener(ev, () => { m2.dragging = false; }));
+
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 190);
+    ctx.clearRect(0, 0, w, h);
+    if (!m2.init || Math.abs(w - m2.lastW) > 4) m2Init(w, h);
+    const dt = Math.min(0.033, m2.last ? t - m2.last : 0.016);
+    m2.last = t;
+
+    const len = w * 0.20, wid = Math.min(h * 0.30, len * 0.5);
+    const half = len * 0.46;
+    const A = m2.A, B = m2.B;
+    const poles = [
+      { x: A.x + half, y: A.y, q: 1 }, { x: A.x - half, y: A.y, q: -1 },
+    ];
+    const bPoles = [
+      { dx: half * m2.pol, q: 1 }, { dx: -half * m2.pol, q: -1 },
+    ];
+
+    // физика
+    if (!m2.dragging && !m2.stuck) {
+      let fx = 0, fy = 0;
+      const C = w * w * 55;
+      poles.forEach(pa => {
+        bPoles.forEach(pb => {
+          const bx = B.x + pb.dx, by = B.y;
+          const dx = bx - pa.x, dy = by - pa.y;
+          const rt = Math.max(Math.hypot(dx, dy), 1);
+          const rc = Math.max(rt, wid * 0.5);
+          const F = C * pa.q * pb.q / (rc * rc);
+          fx += F * dx / rt;
+          fy += F * dy / rt;
+        });
+      });
+      const Fmax = w * 14;
+      const Fm = Math.hypot(fx, fy);
+      if (Fm > Fmax) { fx *= Fmax / Fm; fy *= Fmax / Fm; }
+      B.vx += fx * dt;
+      B.vy += fy * dt;
+      B.vx *= Math.pow(0.12, dt);
+      B.vy *= Math.pow(0.12, dt);
+      B.x += B.vx * dt;
+      B.y += B.vy * dt;
+      const gap = (B.x - half) - (A.x + half);
+      if (m2.pol === 1 && gap < len * 0.9) B.y += (A.y - B.y) * Math.min(1, dt * 6);
+      // прилипание
+      if (m2.pol === 1 && gap < 8 && Math.abs(B.y - A.y) < wid) {
+        m2.stuck = true;
+        B.x = A.x + half * 2 + 2;
+        B.y = A.y;
+        B.vx = 0; B.vy = 0;
+        m2.sparkT = t;
+        setHint('💥 Клац! Разноимённые притянулись. Теперь <b>переверни магнит</b> и попробуй прижать N к N');
+        if (!clicked) { clicked = true; done(); }
+      }
+      if (m2.pol === -1 && gap < len * 0.7 && Math.abs(B.vx) > 30) {
+        setHint('Одноимённые отталкиваются — прижать не выйдет!');
+      }
+      const m = len * 0.55;
+      if (B.x < m) { B.x = m; B.vx = Math.abs(B.vx) * 0.4; }
+      if (B.x > w - m) { B.x = w - m; B.vx = -Math.abs(B.vx) * 0.4; }
+      if (B.y < wid) { B.y = wid; B.vy = Math.abs(B.vy) * 0.4; }
+      if (B.y > h - wid) { B.y = h - wid; B.vy = -Math.abs(B.vy) * 0.4; }
+    }
+    if (m2.stuck) { B.x = A.x + half * 2 + 2; B.y = A.y; }
+
+    // стрелки силы между ближними полюсами
+    if (!m2.stuck) {
+      const gap = (B.x - half) - (A.x + half);
+      if (gap < len * 1.1 && gap > 0 && Math.abs(B.y - A.y) < h * 0.3) {
+        const midY = (A.y + B.y) / 2;
+        const attract = m2.pol === 1;
+        const ax1 = A.x + half + 8, ax2 = B.x - half - 8;
+        ctx.strokeStyle = attract ? '#07BE7E' : POLE_N;
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.lineWidth = 3;
+        const arrow = (x1, x2) => {
+          ctx.beginPath();
+          ctx.moveTo(x1, midY); ctx.lineTo(x2, midY);
+          ctx.stroke();
+          const dir = Math.sign(x2 - x1);
+          ctx.beginPath();
+          ctx.moveTo(x2, midY);
+          ctx.lineTo(x2 - dir * 9, midY - 6);
+          ctx.lineTo(x2 - dir * 9, midY + 6);
+          ctx.closePath();
+          ctx.fill();
+        };
+        const mid = (ax1 + ax2) / 2;
+        if (attract) { arrow(ax1, mid - 4); arrow(ax2, mid + 4); }
+        else { arrow(mid - 4, ax1); arrow(mid + 4, ax2); }
+      }
+    }
+
+    drawMagnet(ctx, A.x, A.y, 0, len, wid);
+    const jitter = (!m2.dragging && !m2.stuck && m2.pol === -1 && (B.x - half) - (A.x + half) < len * 0.5)
+      ? Math.sin(t * 40) * 2 : 0;
+    drawMagnet(ctx, B.x + jitter, B.y, m2.pol === 1 ? 0 : Math.PI, len, wid);
+
+    // искры при прилипании
+    if (t - m2.sparkT < 0.6) {
+      const k = (t - m2.sparkT) / 0.6;
+      const sx = A.x + half * 2 - len * 0.04, sy = A.y;
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        const r = k * wid * 1.3;
+        ctx.beginPath();
+        ctx.arc(sx + Math.cos(a) * r, sy + Math.sin(a) * r, 3 * (1 - k), 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(245,185,59,${1 - k})`;
+        ctx.fill();
+      }
+    }
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'interact', id: 'hook', visual: 'hook',
+    title: 'Почему компас в любой точке Земли знает, где север?',
+    text: 'В лесу, в океане, в пустыне — без батареек, без интернета, без GPS. Нажми <b>«Встряхнуть»</b>: стрелка подрожит и снова упрямо встанет на север. Чтобы разгадать этот фокус, нужно разобраться с магнитами.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'magnetite', big: true,
+    title: 'Всё началось со странного камня',
+    text: 'Слово «магнит» — от <b>Магнесии</b>, области в Древней Греции. Там нашли камень, который сам притягивал железо, — минерал <b>магнетит</b>. Из таких камней сделали первые компасы: подвешенный магнит всегда разворачивался в одну и ту же сторону.',
+  },
+  {
+    phase: 'theory', type: 'interact', id: 'magnets', visual: 'magnets',
+    title: 'У магнита всегда два полюса',
+    text: 'Северный <b>N</b> (красный) и южный <b>S</b> (синий). Правило одно: <b>разноимённые притягиваются, одноимённые отталкиваются</b>. Подтащи правый магнит к левому до щелчка — а потом переверни его и попробуй прижать снова.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'split', big: true,
+    title: 'А если распилить магнит пополам?',
+    text: 'Кажется, что получится отдельный «северный кусок» и отдельный «южный». Но нет: <b>каждая половинка станет полноценным магнитом</b> со своими N и S. Полюса нельзя разделить, сколько ни пили — хоть до отдельных атомов.',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Два вопроса — и тема твоя.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 1 из 2',
+    text: 'К северному полюсу магнита поднесли северный полюс другого магнита. Что произойдёт?',
+    options: [
+      { id: 'a', text: 'Притянутся — полюса же одинаково сильные', correct: false },
+      { id: 'b', text: 'Оттолкнутся', correct: true },
+      { id: 'c', text: 'Ничего: магниты действуют только на железо', correct: false },
+    ],
+    right: 'Одноимённые полюса отталкиваются. Прижать N к N силой можно, но магниты будут «выкручиваться» друг от друга.',
+    wrong: 'Вспомни правило магнитов: разноимённые притягиваются, одноимённые — отталкиваются. N и N оттолкнутся.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 2 из 2',
+    text: 'Магнит распилили ровно пополам. Что получится?',
+    options: [
+      { id: 'a', text: 'Отдельный полюс N и отдельный полюс S', correct: false },
+      { id: 'b', text: 'Две железки без магнетизма', correct: false },
+      { id: 'c', text: 'Два магнита поменьше, у каждого — свои N и S', correct: true },
+    ],
+    right: 'Полюса нельзя разделить: каждый кусочек магнита — снова полноценный магнит с двумя полюсами.',
+    wrong: 'Разделить N и S невозможно! Каждая половинка станет полноценным магнитом со своими двумя полюсами.',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  hook: () => `
+    <div class="canvas-panel"><canvas id="hookCanvas" height="210"></canvas></div>
+    <div class="mini-actions">
+      <button class="mini-play-btn" id="shakeBtn">🌀 Встряхнуть компас</button>
+    </div>
+    <p class="canvas-hint" id="hookHint">Крутанёшь, потрясёшь — а стрелка всё равно найдёт север</p>`,
+  magnets: () => `
+    <div class="canvas-panel"><canvas id="magnetsCanvas" height="190"></canvas></div>
+    <div class="mini-actions">
+      <button class="mini-play-btn" id="mFlip">🔄 Перевернуть магнит</button>
+      <button class="chip-btn" id="mReset">↺ Сбросить</button>
+    </div>
+    <p class="canvas-hint" id="mHint">Подтащи правый магнит поближе к левому</p>`,
+  magnetite: () => `
+    <svg viewBox="0 0 260 150" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="130" cy="126" rx="72" ry="9" fill="rgba(107,113,128,.14)"/>
+      <path d="M84 108 Q64 78 84 56 Q104 32 144 40 Q182 48 184 84 Q184 114 148 122 Q104 130 84 108 Z" fill="#9AA0AA" stroke="#7A7F8B" stroke-width="2.5" stroke-linejoin="round"/>
+      <g fill="#8A8F9C">
+        <rect x="34" y="40" width="14" height="5" rx="2.5" transform="rotate(28 41 42)">
+          <animateTransform attributeName="transform" type="translate" values="0,0; 46,34" dur="2s" repeatCount="indefinite" additive="sum"/>
+          <animate attributeName="opacity" values="1;0" dur="2s" repeatCount="indefinite"/>
+        </rect>
+        <rect x="216" y="52" width="13" height="5" rx="2.5" transform="rotate(-24 222 54)">
+          <animateTransform attributeName="transform" type="translate" values="0,0; -42,26" dur="2.4s" repeatCount="indefinite" additive="sum"/>
+          <animate attributeName="opacity" values="1;0" dur="2.4s" repeatCount="indefinite"/>
+        </rect>
+        <rect x="200" y="16" width="12" height="5" rx="2.5" transform="rotate(40 206 18)">
+          <animateTransform attributeName="transform" type="translate" values="0,0; -46,44" dur="2.8s" repeatCount="indefinite" additive="sum"/>
+          <animate attributeName="opacity" values="1;0" dur="2.8s" repeatCount="indefinite"/>
+        </rect>
+      </g>
+      <text x="130" y="146" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="13" fill="#6B7180">магнетит притягивает железо</text>
+    </svg>`,
+  split: () => `
+    <svg viewBox="0 0 260 150" xmlns="http://www.w3.org/2000/svg">
+      <g font-family="var(--font-display), sans-serif" font-weight="700" font-size="15" text-anchor="middle">
+        <g>
+          <rect x="20" y="30" width="52" height="30" rx="6" fill="#2F80ED"/>
+          <rect x="72" y="30" width="52" height="30" rx="6" fill="#E5484D"/>
+          <text x="46" y="50" fill="#1A4682">S</text>
+          <text x="98" y="50" fill="#7E282A">N</text>
+        </g>
+        <line x1="72" y1="20" x2="72" y2="70" stroke="#6B7180" stroke-width="2" stroke-dasharray="5 4"/>
+        <text x="72" y="14" font-size="16">✂️</text>
+        <g>
+          <rect x="140" y="100" width="24" height="26" rx="5" fill="#2F80ED"/>
+          <rect x="164" y="100" width="24" height="26" rx="5" fill="#E5484D"/>
+          <text x="152" y="118" font-size="12" fill="#1A4682">S</text>
+          <text x="176" y="118" font-size="12" fill="#7E282A">N</text>
+          <animateTransform attributeName="transform" type="translate" values="0,0;-4,0;0,0" dur="2s" repeatCount="indefinite"/>
+        </g>
+        <g>
+          <rect x="200" y="100" width="24" height="26" rx="5" fill="#2F80ED"/>
+          <rect x="224" y="100" width="24" height="26" rx="5" fill="#E5484D"/>
+          <text x="212" y="118" font-size="12" fill="#1A4682">S</text>
+          <text x="236" y="118" font-size="12" fill="#7E282A">N</text>
+          <animateTransform attributeName="transform" type="translate" values="0,0;4,0;0,0" dur="2s" repeatCount="indefinite"/>
+        </g>
+      </g>
+      <path d="M120 62 Q150 84 168 94" stroke="#6240FF" stroke-width="2.5" fill="none" stroke-dasharray="6 5">
+        <animate attributeName="stroke-dashoffset" values="0;-22" dur="1.6s" repeatCount="indefinite"/>
+      </path>
+      <text x="60" y="120" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="13" fill="#6B7180">каждая половинка —</text>
+      <text x="60" y="138" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="13" fill="#6B7180">снова магнит</text>
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'hook') startHook(ctx.root, ctx.done);
+  if (step.id === 'magnets') startMagnets(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'poles',
+  storageKey: 'magnetism-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-field/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>
