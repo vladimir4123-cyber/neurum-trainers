@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Испарение — при любой температуре · Испарение и кипение</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💨</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  /* панель+подсказка+кнопки визуала — колонкой, а не в ряд */
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 560px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; touch-action: none; }
+  .canvas-hint{
+    margin: 10px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+  .mini-actions{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  .mini-play-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border: 0; border-radius: var(--radius-md);
+    background: var(--purple-1); color: #fff; cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    box-shadow: var(--shadow-purple);
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .mini-play-btn:hover:not(:disabled){ background: var(--purple-2); }
+  .mini-play-btn:active:not(:disabled){ transform: scale(0.96); }
+  .mini-play-btn:disabled{ opacity: .55; cursor: default; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* canvas не понимает var() в ctx.font — разворачиваем токен шрифта заранее */
+const FONT = (getComputedStyle(document.documentElement).getPropertyValue('--font-display') || '').replace(/\s+/g, ' ').trim() || '"Aeonik Pro", sans-serif';
+
+/* ============================================================
+   ТЕМА 1 «Испарение — при любой температуре» (Пёрышкин §35).
+   Лужа сохнет в холод → молекулы-беглецы → испарение охлаждает.
+   ============================================================ */
+
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+
+const FRAME = '#C9CEDA', TXT = '#6B7180';
+const COLD = { r: 47, g: 128, b: 237 };   // #2F80ED
+const HOT  = { r: 229, g: 72, b: 77 };    // #E5484D
+
+function molColor(hot) {
+  const k = Math.max(0, Math.min(1, hot));
+  const R = Math.round(COLD.r + (HOT.r - COLD.r) * k);
+  const G = Math.round(COLD.g + (HOT.g - COLD.g) * k);
+  const B = Math.round(COLD.b + (HOT.b - COLD.b) * k);
+  return `rgb(${R},${G},${B})`;
+}
+
+/* ============================================================
+   ИНТЕРАКТИВ 1: лужа сохнет даже в холодный день
+   ============================================================ */
+function startPuddle(root, done) {
+  const canvas = root.querySelector('#pudCanvas');
+  const btn = root.querySelector('#pudBtn');
+  const hint = root.querySelector('#pudHint');
+  const ctx = canvas.getContext('2d');
+  let days = 0, finished = false;
+  let size = 1, sizeTarget = 1;   // доля лужи
+
+  btn.addEventListener('click', () => {
+    if (finished) return;
+    days++;
+    sizeTarget = Math.max(0, 1 - days / 3);
+    if (days === 1) hint.innerHTML = 'Лужа стала заметно меньше. И это при <b>+5 °C</b>, без всякого солнца!';
+    if (days === 2) hint.innerHTML = 'Ещё меньше. Вода куда-то уходит, хотя до кипения ей далеко.';
+    if (days >= 3) {
+      finished = true;
+      btn.disabled = true;
+      btn.textContent = 'Лужа исчезла';
+      hint.innerHTML = '🤔 Лужа <b>высохла в холод</b>. Кто унёс воду? Разберёмся на уровне молекул.';
+      done();
+    }
+  });
+
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 210);
+    ctx.clearRect(0, 0, w, h);
+    size += (sizeTarget - size) * 0.06;
+
+    // ── пасмурное небо: тучи ──
+    [[w * 0.2, h * 0.16, 1], [w * 0.55, h * 0.12, 1.25], [w * 0.85, h * 0.18, 0.9]].forEach(([cx, cy, s], i) => {
+      const dx = Math.sin(t * 0.3 + i * 2.1) * 6;
+      ctx.fillStyle = '#E8EAF2';
+      ctx.strokeStyle = FRAME;
+      ctx.lineWidth = 2;
+      [[0, 0, 30], [-26, 8, 20], [26, 8, 20]].forEach(([ox, oy, r]) => {
+        ctx.beginPath();
+        ctx.arc(cx + dx + ox * s, cy + oy * s, r * s, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    });
+
+    // ── табло температуры ──
+    ctx.font = '700 ' + Math.round(w * 0.042) + 'px ' + FONT;
+    ctx.fillStyle = '#2F80ED';
+    ctx.textAlign = 'left';
+    ctx.fillText('+5 °C, пасмурно', w * 0.04, h * 0.1);
+    ctx.font = '700 ' + Math.round(w * 0.036) + 'px ' + FONT;
+    ctx.fillStyle = '#6240FF';
+    ctx.fillText('прошло дней: ' + days, w * 0.04, h * 0.2);
+    ctx.textAlign = 'start';
+
+    // ── асфальт ──
+    const gy = h * 0.78;
+    ctx.fillStyle = '#D9DDE7';
+    ctx.fillRect(0, gy, w, h - gy);
+    ctx.strokeStyle = FRAME;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
+
+    // ── лужа ──
+    if (size > 0.02) {
+      const rx = w * 0.3 * size + w * 0.04;
+      const ry = h * 0.05 * size + h * 0.012;
+      ctx.beginPath();
+      ctx.ellipse(w * 0.5, gy + h * 0.07, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(191,220,249,0.95)';
+      ctx.fill();
+      ctx.strokeStyle = '#5D9BE0';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    } else {
+      ctx.font = '600 ' + Math.round(w * 0.036) + 'px ' + FONT;
+      ctx.fillStyle = TXT;
+      ctx.textAlign = 'center';
+      ctx.fillText('сухо!', w * 0.5, gy + h * 0.1);
+      ctx.textAlign = 'start';
+    }
+
+    // ── улетающий пар (пока лужа есть) ──
+    if (size > 0.02) {
+      for (let k = 0; k < 4; k++) {
+        const prog = ((t * 0.22 + k * 0.25) % 1);
+        const px = w * (0.38 + 0.08 * k) + Math.sin(prog * 7 + k) * 8;
+        const py = gy + h * 0.02 - prog * h * 0.42;
+        ctx.beginPath();
+        ctx.arc(px, py, 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(47,128,237,${0.7 * (1 - prog)})`;
+        ctx.fill();
+      }
+    }
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ============================================================
+   ИНТЕРАКТИВ 2: капля — быстрые молекулы вылетают с поверхности
+   ============================================================ */
+function startEscape(root, done) {
+  const canvas = root.querySelector('#escCanvas');
+  const btn = root.querySelector('#escBtn');
+  const hint = root.querySelector('#escHint');
+  const ctx = canvas.getContext('2d');
+  const N = 26;
+  const parts = [];        // молекулы в капле: полярные координаты внутри капли
+  const flying = [];       // улетевшие
+  let escaped = 0, finished = false, prevT = null;
+
+  for (let i = 0; i < N; i++) {
+    parts.push({
+      a: Math.random() * Math.PI * 2,      // угол в капле
+      r: Math.sqrt(Math.random()) * 0.82,  // радиус (доля)
+      sp: 0.35 + Math.random() * 0.65,     // «скорость» 0.35..1 — цвет и дрожь
+      ph: Math.random() * Math.PI * 2,
+    });
+  }
+
+  btn.addEventListener('click', () => {
+    if (finished) return;
+    // самый быстрый из верхней половины капли — беглец
+    let best = -1;
+    parts.forEach((p, i) => {
+      const up = Math.sin(p.a) < 0 || p.r > 0.5;   // ближе к поверхности/верху
+      if (!up) return;
+      if (best < 0 || p.sp > parts[best].sp) best = i;
+    });
+    if (best < 0) best = 0;
+    const p = parts.splice(best, 1)[0];
+    escaped++;
+    flying.push({ x: 0.5 + Math.cos(p.a) * p.r * 0.3, y: 0.42, vx: (Math.random() - 0.5) * 0.25, vy: -0.35 - p.sp * 0.2, sp: p.sp, life: 1 });
+    const avg = parts.reduce((s, q) => s + q.sp, 0) / parts.length;
+    if (escaped === 1) hint.innerHTML = 'Улетел самый быстрый! Смотри на шкалу: <b>средняя скорость оставшихся упала</b>.';
+    if (escaped === 2) hint.innerHTML = 'Ещё один беглец. В капле остаются всё более медленные молекулы.';
+    if (escaped >= 4) {
+      finished = true;
+      btn.disabled = true;
+      btn.textContent = 'Беглецы улетели';
+      hint.innerHTML = '💡 Быстрые улетают — средняя скорость падает. А скорость молекул — это температура: <b>капля охлаждается!</b>';
+      done();
+    } else if (escaped === 3) {
+      hint.innerHTML = 'Средняя скорость — уже ' + Math.round(avg * 100) + '% от начальной. Выпусти ещё одного.';
+    }
+  });
+
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 220);
+    ctx.clearRect(0, 0, w, h);
+    let dt = 0.016;
+    if (prevT !== null) dt = Math.min(0.05, Math.max(0, t - prevT));
+    prevT = t;
+
+    // ── капля ──
+    const cx = w * 0.42, cy = h * 0.56, R = h * 0.33;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - R * 1.45);
+    ctx.bezierCurveTo(cx + R * 0.95, cy - R * 0.5, cx + R, cy + R * 0.4, cx, cy + R * 0.72);
+    ctx.bezierCurveTo(cx - R, cy + R * 0.4, cx - R * 0.95, cy - R * 0.5, cx, cy - R * 1.45);
+    ctx.fillStyle = 'rgba(191,220,249,0.55)';
+    ctx.fill();
+    ctx.strokeStyle = '#5D9BE0';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // молекулы внутри
+    parts.forEach(p => {
+      p.a += Math.sin(t * 1.4 + p.ph) * 0.004 * p.sp * 60 * dt;
+      const jx = Math.sin(t * (4 + p.sp * 9) + p.ph) * 4 * p.sp;
+      const jy = Math.cos(t * (5 + p.sp * 8) + p.ph * 1.7) * 4 * p.sp;
+      const px = cx + Math.cos(p.a) * p.r * R * 0.8 + jx;
+      const py = cy - R * 0.2 + Math.sin(p.a) * p.r * R * 0.75 + jy;
+      ctx.beginPath();
+      ctx.arc(px, py, 7, 0, Math.PI * 2);
+      ctx.fillStyle = molColor((p.sp - 0.35) / 0.65);
+      ctx.fill();
+    });
+
+    // улетевшие
+    for (let i = flying.length - 1; i >= 0; i--) {
+      const f = flying[i];
+      f.x += f.vx * dt; f.y += f.vy * dt; f.life -= dt * 0.5;
+      if (f.life <= 0) { flying.splice(i, 1); continue; }
+      ctx.beginPath();
+      ctx.arc(cx + (f.x - 0.5) * w * 0.6, h * (f.y), 6.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(229,72,77,${Math.max(0, f.life)})`;
+      ctx.fill();
+    }
+
+    // ── шкала средней скорости = температуры капли ──
+    const avg = parts.length ? parts.reduce((s, q) => s + q.sp, 0) / parts.length : 0;
+    const bx = w * 0.78, byT = h * 0.16, bh = h * 0.6, bw = 16;
+    ctx.beginPath();
+    ctx.roundRect(bx, byT, bw, bh, 8);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fill();
+    ctx.strokeStyle = FRAME;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    const fillH = Math.max(0, Math.min(1, avg)) * (bh - 6);
+    ctx.beginPath();
+    ctx.roundRect(bx + 3, byT + bh - 3 - fillH, bw - 6, fillH, 5);
+    ctx.fillStyle = molColor(avg);
+    ctx.fill();
+    ctx.font = '600 ' + Math.round(w * 0.028) + 'px ' + FONT;
+    ctx.fillStyle = TXT;
+    ctx.textAlign = 'center';
+    ctx.fillText('средняя', bx + bw / 2, byT + bh + 24);
+    ctx.fillText('скорость', bx + bw / 2, byT + bh + 44);
+    ctx.textAlign = 'start';
+
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'interact', id: 'puddle', visual: 'puddle',
+    title: 'Лужи сохнут даже в холод',
+    text: 'Осень, +5 °C, солнца нет. А лужа после дождя всё равно исчезает. Понажимай кнопку — пусть идут дни — и следи за лужей.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'runners', big: true,
+    title: 'Молекулы-беглецы',
+    text: 'Молекулы в жидкости движутся с <b>разными скоростями</b>: есть медленные, есть шустрые. Самым быстрым у поверхности хватает энергии <b>вырваться и улететь</b> — притяжение соседок их не удерживает. Это и есть испарение. Быстрые молекулы находятся при любой температуре — поэтому испарение идёт всегда, даже в холод.',
+  },
+  {
+    phase: 'theory', type: 'interact', id: 'escape', visual: 'escape',
+    title: 'Выпусти беглецов из капли',
+    text: 'В капле молекулы раскрашены по скорости: синие — медленные, красные — быстрые. Нажимай кнопку — выпускай самого быстрого с поверхности — и следи за шкалой средней скорости.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'hand', big: true,
+    title: 'Испарение охлаждает',
+    text: 'Из жидкости сбегают <b>самые быстрые</b> молекулы — остаются медленные. А скорость молекул — это температура: значит, испаряясь, жидкость <b>охлаждается</b>. Поэтому мокрой руке на ветру зябко: вода испаряется и забирает тепло у кожи. Так же нас спасает пот в жару.',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Два вопроса — и тема твоя.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 1',
+    text: 'Почему лужа высыхает даже в холодную погоду?',
+    options: [
+      { id: 'a', text: 'В любой жидкости есть быстрые молекулы, которые вырываются с поверхности', correct: true },
+      { id: 'b', text: 'Вода в луже потихоньку закипает от асфальта', correct: false },
+      { id: 'c', text: 'Холодный воздух впитывает воду, как губка', correct: false },
+    ],
+    right: 'Именно! Молекулы движутся с разными скоростями, и самые быстрые улетают с поверхности при любой температуре — хоть в жару, хоть в холод.',
+    wrong: 'Кипение тут ни при чём — луже до 100 °C далеко. Испарение идёт при любой температуре: самые быстрые молекулы вырываются с поверхности.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 2',
+    text: 'Из стакана испарилась часть воды. Что стало с температурой оставшейся воды (если её не подогревали)?',
+    options: [
+      { id: 'a', text: 'Понизилась: улетели самые быстрые молекулы', correct: true },
+      { id: 'b', text: 'Повысилась: воды стало меньше, греться легче', correct: false },
+      { id: 'c', text: 'Не изменилась: молекулы улетели, а скорость оставшихся та же', correct: false },
+    ],
+    right: 'Верно! Сбегают самые быстрые — средняя скорость оставшихся падает, а значит падает и температура. Испарение охлаждает жидкость.',
+    wrong: 'Убегают не случайные молекулы, а самые быстрые. Средняя скорость оставшихся становится меньше — температура воды понижается.',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  puddle: () => `
+    <div class="canvas-panel"><canvas id="pudCanvas" height="210"></canvas></div>
+    <div class="mini-actions">
+      <button class="mini-play-btn" id="pudBtn">⏳ Прошёл день</button>
+    </div>
+    <p class="canvas-hint" id="pudHint">Холодный пасмурный день. Нажми кнопку — пусть пройдут сутки.</p>`,
+  escape: () => `
+    <div class="canvas-panel"><canvas id="escCanvas" height="220"></canvas></div>
+    <div class="mini-actions">
+      <button class="mini-play-btn" id="escBtn">💨 Выпустить беглеца</button>
+    </div>
+    <p class="canvas-hint" id="escHint">Красные молекулы — самые быстрые. Именно они могут вырваться с поверхности.</p>`,
+  runners: () => `
+    <svg viewBox="0 0 260 150" xmlns="http://www.w3.org/2000/svg">
+      <path d="M20 88 Q130 76 240 88 L240 132 Q130 142 20 132 Z" fill="rgba(191,220,249,0.6)" stroke="#5D9BE0" stroke-width="2.5"/>
+      <g fill="#2F80ED">
+        <circle cx="60" cy="112" r="7"><animateTransform attributeName="transform" type="translate" values="0,0;2,2;0,0" dur="2.6s" repeatCount="indefinite"/></circle>
+        <circle cx="110" cy="120" r="7"><animateTransform attributeName="transform" type="translate" values="0,0;-2,1;0,0" dur="2.9s" repeatCount="indefinite"/></circle>
+        <circle cx="168" cy="114" r="7"><animateTransform attributeName="transform" type="translate" values="0,0;1,-2;0,0" dur="2.4s" repeatCount="indefinite"/></circle>
+        <circle cx="214" cy="120" r="7"><animateTransform attributeName="transform" type="translate" values="0,0;-1,-2;0,0" dur="2.7s" repeatCount="indefinite"/></circle>
+        <circle cx="86" cy="98" r="7"><animateTransform attributeName="transform" type="translate" values="0,0;3,1;0,0" dur="2.2s" repeatCount="indefinite"/></circle>
+        <circle cx="192" cy="98" r="7"><animateTransform attributeName="transform" type="translate" values="0,0;-3,2;0,0" dur="2.5s" repeatCount="indefinite"/></circle>
+      </g>
+      <g fill="#E5484D">
+        <circle cx="140" cy="92" r="7">
+          <animateTransform attributeName="transform" type="translate" values="0,0; 14,-64" dur="2.4s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="1;1;0" dur="2.4s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="72" cy="90" r="7">
+          <animateTransform attributeName="transform" type="translate" values="0,0; -12,-58" dur="3s" repeatCount="indefinite" begin="1s"/>
+          <animate attributeName="opacity" values="1;1;0" dur="3s" repeatCount="indefinite" begin="1s"/>
+        </circle>
+      </g>
+      <path d="M150 60 l10 -18" stroke="#E5484D" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="3 5" opacity=".6"/>
+      <text x="130" y="22" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="14" fill="#E5484D" font-weight="600">быстрые вырываются</text>
+      <text x="130" y="148" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="13" fill="#6B7180">поверхность жидкости</text>
+    </svg>`,
+  hand: () => `
+    <svg viewBox="0 0 260 150" xmlns="http://www.w3.org/2000/svg">
+      <path d="M96 128 L96 74 Q96 62 106 62 Q114 62 114 72 L114 56 Q114 46 124 46 Q132 46 132 56 L132 52 Q132 42 142 42 Q150 42 150 52 L150 60 Q150 52 158 52 Q166 52 166 62 L166 106 Q166 128 140 132 Q110 136 96 128 Z"
+            fill="#FBE6D2" stroke="#E0B48C" stroke-width="2.5"/>
+      <g fill="#2F80ED">
+        <circle cx="118" cy="66" r="4.5"><animate attributeName="opacity" values=".9;.5;.9" dur="2s" repeatCount="indefinite"/></circle>
+        <circle cx="140" cy="60" r="4.5"><animate attributeName="opacity" values=".7;1;.7" dur="2.3s" repeatCount="indefinite"/></circle>
+        <circle cx="130" cy="90" r="4.5"><animate attributeName="opacity" values=".8;.5;.8" dur="1.8s" repeatCount="indefinite"/></circle>
+      </g>
+      <g fill="#E5484D">
+        <circle cx="126" cy="52" r="4.5">
+          <animateTransform attributeName="transform" type="translate" values="0,0;30,-30" dur="1.8s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="1;0" dur="1.8s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="150" cy="70" r="4.5">
+          <animateTransform attributeName="transform" type="translate" values="0,0;34,-22" dur="2.2s" repeatCount="indefinite" begin=".6s"/>
+          <animate attributeName="opacity" values="1;0" dur="2.2s" repeatCount="indefinite" begin=".6s"/>
+        </circle>
+      </g>
+      <g stroke="#8A8F9C" stroke-width="3" fill="none" stroke-linecap="round">
+        <path d="M18 56 q16 -10 34 0"><animateTransform attributeName="transform" type="translate" values="0,0;14,0;0,0" dur="1.6s" repeatCount="indefinite"/></path>
+        <path d="M14 84 q16 -10 34 0"><animateTransform attributeName="transform" type="translate" values="0,0;16,0;0,0" dur="1.9s" repeatCount="indefinite"/></path>
+      </g>
+      <rect x="206" y="34" width="12" height="72" rx="6" fill="#fff" stroke="#C9CEDA" stroke-width="2"/>
+      <rect x="210" y="58" width="4" height="44" rx="2" fill="#2F80ED">
+        <animate attributeName="y" values="48;70;48" dur="3s" repeatCount="indefinite"/>
+        <animate attributeName="height" values="54;32;54" dur="3s" repeatCount="indefinite"/>
+      </rect>
+      <circle cx="212" cy="112" r="10" fill="#2F80ED"/>
+      <text x="212" y="26" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="13" fill="#2F80ED" font-weight="600">зябко!</text>
+      <text x="130" y="148" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="13" fill="#6B7180">вода испаряется — рука мёрзнет</text>
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'puddle') startPuddle(ctx.root, ctx.done);
+  if (step.id === 'escape') startEscape(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'evaporation',
+  storageKey: 'evaporation-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-speed/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

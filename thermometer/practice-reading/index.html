@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Сними показания · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌡️</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .p-scene svg.thermo{ max-width: 320px; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">5</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА-ЛАБОРАТОРНАЯ «Сними показания термометра».
+   Ученик сам читает случайную температуру со шкалы и вписывает.
+   easy   — шкала 0–50, цена деления 1 °C, целые градусы;
+   medium — цена деления 2 °C, значения между подписями;
+   hard   — зима: −20…+10, подписи через 5, половинки делений.
+   Ответ ВСЕГДА равен значению, по которому построен столбик.
+   ============================================================ */
+
+const RED = '#E5484D', RED_EDGE = '#B93840', GLASS = '#C9CEDA', CH = '#EDEFF5';
+const fmt = v => String(Math.round(v * 100) / 100).replace('.', ',').replace('-', '−');
+const isMult = (t, m) => Math.abs(Math.round(t / m) * m - t) < 1e-6;
+
+/* ---------- вертикальный термометр со шкалой ----------
+   cfg: { tMin, tMax, price, labelStep, value, frost } */
+function thermoSVG(cfg) {
+  const { tMin, tMax, price, labelStep, value, frost } = cfg;
+  const yTop = 46, yBot = 396, cx = 190;
+  const pxDeg = (yBot - yTop) / (tMax - tMin);
+  const yOf = t => yBot - (t - tMin) * pxDeg;
+  const colY = yOf(value);
+
+  let ticks = '';
+  for (let t = tMin; t <= tMax + 1e-9; t += price) {
+    const y = yOf(t).toFixed(2);
+    const major = isMult(t, labelStep);
+    const mid = !major && isMult(t, labelStep / 2);
+    const len = major ? 26 : mid ? 18 : 11;
+    ticks += `<line x1="${cx - 26 - len}" y1="${y}" x2="${cx - 26}" y2="${y}"
+      stroke="${major ? '#3E434C' : '#8A8F9C'}" stroke-width="${major ? 2.6 : 1.8}" stroke-linecap="round"/>`;
+    if (major) {
+      ticks += `<text x="${cx - 60}" y="${y}" text-anchor="end" font-family="var(--font-display), sans-serif"
+        font-weight="500" font-size="19" fill="${t < 0 ? '#2F80ED' : '#3E434C'}"
+        style="font-variant-numeric: tabular-nums" dominant-baseline="central">${String(t).replace('-', '−')}</text>`;
+    }
+  }
+
+  // отметка нуля на зимней шкале — чуть заметнее
+  const zeroLine = (tMin < 0 && tMax > 0)
+    ? `<line x1="${cx - 52}" y1="${yOf(0).toFixed(2)}" x2="${cx + 22}" y2="${yOf(0).toFixed(2)}"
+         stroke="#2F80ED" stroke-width="1.4" stroke-dasharray="3 5" opacity=".6"/>` : '';
+
+  const snow = frost ? `
+    <g stroke="#2F80ED" stroke-width="2.4" stroke-linecap="round" opacity=".8">
+      <g transform="translate(300,90)">
+        <line x1="0" y1="-14" x2="0" y2="14"/><line x1="-12" y1="-7" x2="12" y2="7"/><line x1="-12" y1="7" x2="12" y2="-7"/>
+        <animateTransform attributeName="transform" type="rotate" from="0 300 90" to="60 300 90" dur="7s" repeatCount="indefinite" additive="sum"/>
+      </g>
+      <g transform="translate(320,200)">
+        <line x1="0" y1="-10" x2="0" y2="10"/><line x1="-9" y1="-5" x2="9" y2="5"/><line x1="-9" y1="5" x2="9" y2="-5"/>
+      </g>
+    </g>` : '';
+
+  return `
+    <svg class="thermo" viewBox="0 0 360 480" xmlns="http://www.w3.org/2000/svg">
+      <text x="${cx}" y="22" text-anchor="middle" font-family="var(--font-display), sans-serif"
+            font-weight="500" font-size="20" fill="#6B7180" dominant-baseline="central">°C</text>
+      <rect x="${cx - 22}" y="26" width="44" height="386" rx="22" fill="#F4F8FE" stroke="${GLASS}" stroke-width="3"/>
+      <circle cx="${cx}" cy="438" r="30" fill="${RED}" stroke="${RED_EDGE}" stroke-width="3"/>
+      <rect x="${cx - 6}" y="42" width="12" height="372" rx="6" fill="${CH}"/>
+      <rect x="${cx - 6}" y="${colY.toFixed(2)}" width="12" height="${(420 - colY).toFixed(2)}" rx="6" fill="${RED}"/>
+      ${ticks}
+      ${zeroLine}
+      ${snow}
+    </svg>`;
+}
+
+/* ---------- горизонтальный фрагмент шкалы (для вопроса о цене деления) ---------- */
+function fragmentSVG(a, b, n) {
+  const x0 = 90, x1 = 530, y = 40;
+  let ticks = '';
+  for (let i = 0; i <= n; i++) {
+    const x = (x0 + (x1 - x0) * (i / n)).toFixed(1);
+    const major = i === 0 || i === n;
+    ticks += `<line x1="${x}" y1="${y}" x2="${x}" y2="${y + (major ? 34 : 22)}"
+      stroke="#2B2B33" stroke-width="${major ? 3 : 2.4}" stroke-linecap="round"/>`;
+  }
+  return `
+    <svg viewBox="0 0 620 140" xmlns="http://www.w3.org/2000/svg">
+      <rect x="${x0 - 34}" y="${y - 14}" width="${x1 - x0 + 68}" height="62" rx="12" fill="#fff" stroke="${GLASS}" stroke-width="2"/>
+      ${ticks}
+      <text x="${x0}" y="${y + 66}" text-anchor="middle" font-family="var(--font-display), sans-serif"
+            font-weight="500" font-size="26" fill="#2B2B33" dominant-baseline="central">${String(a).replace('-', '−')}</text>
+      <text x="${x1}" y="${y + 66}" text-anchor="middle" font-family="var(--font-display), sans-serif"
+            font-weight="500" font-size="26" fill="#2B2B33" dominant-baseline="central">${String(b).replace('-', '−')}</text>
+    </svg>`;
+}
+
+/* ---------- генерация значений ---------- */
+function buildSteps(level, rnd) {
+  const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
+  const pickDistinct = (gen, n) => {
+    const set = new Set();
+    let guard = 0;
+    while (set.size < n && guard++ < 500) set.add(gen());
+    return [...set];
+  };
+
+  let cfg, values, tolerance, situations;
+  if (level === 'easy') {
+    cfg = { tMin: 0, tMax: 50, price: 1, labelStep: 10, frost: false };
+    values = pickDistinct(() => { let v = ri(1, 49); return isMult(v, 10) ? v + 1 : v; }, 4);
+    tolerance = 0.4;
+    situations = [
+      'Термометр опустили в стакан с водой. Что он показывает?',
+      'Измеряем воду из-под крана. Сними показания.',
+      'Термометр в аквариуме. Какая температура воды?',
+      'Вода постояла в комнате. Что показывает термометр?',
+    ];
+  } else if (level === 'medium') {
+    cfg = { tMin: 0, tMax: 50, price: 2, labelStep: 10, frost: false };
+    values = pickDistinct(() => { let v = ri(1, 24) * 2; return isMult(v, 10) ? v + 2 : v; }, 4);
+    tolerance = 0.9;
+    situations = [
+      'Внимание: цена деления тут не 1 °C! Сначала посчитай её, потом читай.',
+      'Чай остывает на столе. Сними показания.',
+      'Вода в кастрюле подогрелась. Что показывает термометр?',
+      'Последний замер: температура воды в тазу.',
+    ];
+  } else {
+    cfg = { tMin: -20, tMax: 10, price: 1, labelStep: 5, frost: true };
+    values = pickDistinct(() => {
+      const kind = ri(0, 3);
+      if (kind === 0) return -ri(5, 19) - 0.5;   // мороз, половинка
+      if (kind === 1) return -ri(1, 19);          // мороз, целое
+      if (kind === 2) return -ri(1, 15) - 0.5;    // мороз, половинка
+      return ri(0, 8) + 0.5;                      // оттепель, половинка
+    }, 4);
+    tolerance = 0.3;
+    situations = [
+      'Уличный термометр за окном. Ниже нуля — читай вниз от нуля!',
+      'Утро, мороз. Столбик может стоять между штрихами — тогда в ответе будет половинка.',
+      'Взгляни на шкалу после снегопада. Сколько градусов?',
+      'Вечерний замер за окном. Сними показания.',
+    ];
+  }
+
+  const steps = values.map((v, i) => {
+    const below = Math.floor(v / cfg.labelStep) * cfg.labelStep;
+    const divsUp = Math.round((v - below) / cfg.price * 2) / 2;   // делений вверх от подписи (может быть .5)
+    return {
+      type: 'reading',
+      title: `Замер ${i + 1}`,
+      text: situations[i],
+      render(host) { host.innerHTML = thermoSVG({ ...cfg, value: v }); },
+      answer: v,
+      tolerance,
+      unit: '°C',
+      hints: [
+        `Цена деления этой шкалы — <b>${fmt(cfg.price)} °C</b>. Найди подписанную отметку под верхом столбика и досчитай деления.`,
+        `Столбик выше отметки <b>${fmt(below)}</b> на ${String(divsUp).replace('.', ',')} дел. — прибавь ${String(divsUp).replace('.', ',')} × ${fmt(cfg.price)} °C.`,
+      ],
+      right: `✓ Точно: ${fmt(v)} °C.`,
+    };
+  });
+
+  /* финальный вывод: цена деления */
+  const combos = [[10, 5, 2], [20, 10, 2], [10, 10, 1], [20, 4, 5], [10, 2, 5]];
+  const [gap, n, price] = combos[ri(0, combos.length - 1)];
+  const a = level === 'hard' ? -gap : ri(0, 3) * 10;
+  const b = a + gap;
+  const distractors = [...new Set([gap, n, price * 2, price === 1 ? 5 : 1])]
+    .filter(x => x !== price).slice(0, 3);
+  steps.push({
+    type: 'choice',
+    title: `Задача 5 из 5`,
+    text: 'Какова цена деления этой шкалы?',
+    render(host) { host.innerHTML = fragmentSVG(a, b, n); },
+    options: [
+      { text: `${fmt(price)} °C`, correct: true },
+      ...distractors.map(d => ({ text: `${fmt(d)} °C`, correct: false })),
+    ],
+    right: `Между подписями ${fmt(gap)} °C и ${n} делений: ${fmt(gap)} : ${n} = ${fmt(price)} °C.`,
+    wrong: `Считаем по правилу: разность подписей ${fmt(b)} − ${a < 0 ? '(' + fmt(a) + ')' : fmt(a)} = ${fmt(gap)} °C, делений между ними ${n}. Значит ${fmt(gap)} : ${n} = ${fmt(price)} °C.`,
+  });
+
+  return steps;
+}
+
+/* =================== ЗАПУСК =================== */
+runPractice({
+  practiceId: 'reading',
+  storageKey: 'thermometer-progress',
+  homeHref: '../demo/',
+  title: 'Сними показания',
+  subtitle: 'Настоящая лабораторная: термометр каждый раз показывает новую температуру. Определи цену деления, прочитай шкалу и впиши значение.',
+  levels: {
+    easy:   { label: 'Разминка', desc: 'Шкала 0–50, цена деления 1 °C, целые градусы.', xp: 30 },
+    medium: { label: 'Уверенно', desc: 'Цена деления 2 °C — значения прячутся между подписями.', xp: 50 },
+    hard:   { label: 'Мороз',    desc: 'Зимняя шкала −20…+10, минус и половинки делений.', xp: 80 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Как строится изображение · Линзы</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕯️</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 640px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; touch-action: none; cursor: grab; }
+  .canvas-hint{
+    margin: 14px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty; min-height: 24px;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+  .zone-chips{ display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+  .zone-chip{
+    padding: 7px 14px; border-radius: 9999px; font-size: 14px; font-weight: 500;
+    background: var(--white); color: var(--fg-3); border: 1px solid var(--purple-4);
+    transition: background-color 160ms var(--ease-standard), color 160ms var(--ease-standard);
+  }
+  .zone-chip.is-on{ background: var(--purple-4); color: var(--purple-1); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ============================================================
+   ТЕМА 2 «Как строится изображение» (Пёрышкин §50).
+   Оптическая скамья: свеча + собирающая линза. Изображение
+   считается ЧЕСТНО по формуле тонкой линзы 1/F = 1/d + 1/f
+   (f = dF/(d−F); при d<F f<0 — мнимое изображение с той же
+   стороны, прямое, увеличенное). Три главных луча рисуются.
+   ============================================================ */
+
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+const fmt = v => String(Math.round(v * 10) / 10).replace('.', ',');
+
+/* canvas не понимает var() в ctx.font — берём готовый стек из токена */
+const FONT_STACK = getComputedStyle(document.documentElement)
+  .getPropertyValue('--font-display').trim() || "'Aeonik Pro', 'Inter', sans-serif";
+
+const C_RAY1 = '#E5484D';   // луч «параллельно оси → через фокус»
+const C_RAY2 = '#2F80ED';   // луч «через центр — не преломляется»
+const C_RAY3 = '#F0B23C';   // луч «через фокус → параллельно оси»
+
+/* свеча: базой на оси, растёт вверх; kx/ky — масштаб (ky<0 = перевёрнута) */
+function drawCandle(ctx, x, axisY, hObj, km, dir, alpha, ghost, t) {
+  ctx.save();
+  ctx.translate(x, axisY);
+  ctx.scale(km, km * dir);
+  ctx.globalAlpha = alpha;
+  const bw = hObj * 0.20;
+  const bh = hObj * 0.66;
+  // тело
+  ctx.beginPath();
+  const r = bw * 0.25;
+  ctx.moveTo(-bw / 2 + r, 0);
+  ctx.arcTo(bw / 2, 0, bw / 2, -bh, r);
+  ctx.arcTo(bw / 2, -bh, -bw / 2, -bh, r);
+  ctx.arcTo(-bw / 2, -bh, -bw / 2, 0, r);
+  ctx.arcTo(-bw / 2, 0, bw / 2, 0, r);
+  ctx.closePath();
+  ctx.fillStyle = '#EFE6D2';
+  ctx.fill();
+  ctx.lineWidth = 2.5 / km;
+  if (ghost) ctx.setLineDash([6 / km, 6 / km]);
+  ctx.strokeStyle = '#C8BC9F';
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // фитиль
+  ctx.beginPath(); ctx.moveTo(0, -bh); ctx.lineTo(0, -bh - hObj * 0.06);
+  ctx.strokeStyle = '#8A8F9C'; ctx.stroke();
+  // пламя (кончик = вершина предмета)
+  const fl = Math.sin((t || 0) * 7 + x) * 0.04;
+  ctx.beginPath();
+  ctx.ellipse(0, -bh - hObj * 0.19, hObj * (0.085 + fl * 0.3), hObj * (0.17 + fl), 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#F0B23C';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(0, -bh - hObj * 0.15, hObj * 0.04, hObj * 0.08, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#FFE6AE';
+  ctx.fill();
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+function drawLensV(ctx, x, y, a, c) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - a);
+  ctx.quadraticCurveTo(x + c * 2, y, x, y + a);
+  ctx.quadraticCurveTo(x - c * 2, y, x, y - a);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(220,233,251,0.85)';
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#8FB4E8';
+  ctx.stroke();
+}
+
+/* ============================================================
+   ИНТЕРАКТИВ: оптическая скамья
+   ============================================================ */
+const ZONES = {
+  far:     { chip: 'd > 2F',     text: 'Свеча дальше 2F → изображение <b>действительное, перевёрнутое, уменьшенное</b>. Так устроен фотоаппарат.' },
+  twoF:    { chip: 'd = 2F',     text: 'Свеча ровно на 2F → изображение перевёрнутое и <b>точно такого же размера</b>, на 2F с другой стороны.' },
+  between: { chip: 'F < d < 2F', text: 'Свеча между F и 2F → изображение <b>действительное, перевёрнутое, увеличенное</b>. Так работает проектор в кино.' },
+  atF:     { chip: 'd = F',      text: 'Свеча в фокусе → лучи после линзы <b>параллельны</b> и нигде не пересекаются. <b>Изображения нет!</b>' },
+  lupa:    { chip: 'd < F',      text: 'Свеча ближе фокуса → изображение <b>мнимое, прямое, увеличенное</b>, с той же стороны. Это и есть лупа!' },
+};
+
+function startBench(root, done) {
+  const canvas = root.querySelector('#benchCanvas');
+  const hint = root.querySelector('#benchHint');
+  const chips = {};
+  root.querySelectorAll('.zone-chip').forEach(el => { chips[el.dataset.zone] = el; });
+
+  const ctx = canvas.getContext('2d');
+  const F = 15;                       // см
+  let d = 34;                         // см — стартуем дальше 2F
+  let dragging = false;
+  const visited = new Set();
+  let finished = false;
+  let curZone = '';
+
+  const ptr = e => {
+    const r = canvas.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+  };
+  canvas.addEventListener('pointerdown', e => {
+    e.preventDefault(); dragging = true;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    onMove(e);
+  });
+  canvas.addEventListener('pointermove', onMove);
+  ['pointerup', 'pointercancel'].forEach(ev => canvas.addEventListener(ev, () => { dragging = false; }));
+
+  function onMove(e) {
+    if (!dragging) return;
+    const p = ptr(e);
+    const w = canvas.width;
+    const s = w / 95, lensX = w * 0.62;
+    let nd = (lensX - p.x * w) / s;
+    // прилипание к точным F и 2F
+    if (Math.abs(nd - F) < 1.2) nd = F;
+    if (Math.abs(nd - 2 * F) < 1.2) nd = 2 * F;
+    d = Math.min(46, Math.max(5, nd));
+  }
+
+  function zoneOf(dv) {
+    if (dv === F) return 'atF';
+    if (dv === 2 * F) return 'twoF';
+    if (dv < F) return 'lupa';
+    if (dv < 2 * F) return 'between';
+    return 'far';
+  }
+
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 340);
+    ctx.clearRect(0, 0, w, h);
+
+    const s = w / 95;                    // px в 1 см
+    const axisY = h * 0.55;
+    const lensX = w * 0.62;
+    const hObj = h * 0.17;
+    const cx = lensX - d * s;
+    const tipY = axisY - hObj;
+
+    // ось
+    ctx.setLineDash([3, 12]);
+    ctx.strokeStyle = '#C9CEDA'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(0, axisY); ctx.lineTo(w, axisY); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // отметки F и 2F
+    ctx.font = '500 ' + Math.round(w * 0.028) + 'px ' + FONT_STACK;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    [[-2, '2F'], [-1, 'F'], [1, 'F'], [2, '2F']].forEach(([k, lab]) => {
+      const x = lensX + k * F * s;
+      ctx.strokeStyle = '#6240FF'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(x, axisY - 10); ctx.lineTo(x, axisY + 10); ctx.stroke();
+      ctx.fillStyle = '#6240FF';
+      ctx.fillText(lab, x, axisY + 16);
+    });
+
+    // изображение
+    const atFocus = d === F;
+    let f = 0, xi = 0, mag = 0;
+    if (!atFocus) {
+      f = d * F / (d - F);               // >0 действительное, <0 мнимое
+      xi = lensX + f * s;
+      mag = f / d;                       // высота изображения = hObj·mag (со знаком)
+    }
+
+    /* ---------- три главных луча ---------- */
+    ctx.lineWidth = 3; ctx.lineCap = 'round';
+    const bfX = lensX + F * s;           // задний фокус
+    const ffX = lensX - F * s;           // передний фокус
+
+    // ЛУЧ 1: параллельно оси → через задний фокус
+    ctx.strokeStyle = C_RAY1;
+    ctx.beginPath(); ctx.moveTo(cx, tipY); ctx.lineTo(lensX, tipY); ctx.stroke();
+    const m1 = (axisY - tipY) / (bfX - lensX);
+    ctx.beginPath(); ctx.moveTo(lensX, tipY); ctx.lineTo(w, tipY + m1 * (w - lensX)); ctx.stroke();
+
+    // ЛУЧ 2: через оптический центр — без преломления
+    ctx.strokeStyle = C_RAY2;
+    const m2 = (axisY - tipY) / (lensX - cx);
+    ctx.beginPath(); ctx.moveTo(cx, tipY); ctx.lineTo(w, tipY + m2 * (w - cx)); ctx.stroke();
+
+    // ЛУЧ 3: через передний фокус → параллельно оси (не рисуем при d=F)
+    let y3 = 0;
+    if (!atFocus) {
+      y3 = axisY + hObj * (f / d);       // высота после линзы = высота изображения
+      ctx.strokeStyle = C_RAY3;
+      ctx.beginPath(); ctx.moveTo(cx, tipY); ctx.lineTo(lensX, y3); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(lensX, y3); ctx.lineTo(w, y3); ctx.stroke();
+    }
+
+    // мнимое изображение: пунктирные продолжения лучей назад
+    if (!atFocus && f < 0) {
+      ctx.setLineDash([7, 9]);
+      ctx.lineWidth = 2.5;
+      const yi = axisY + hObj * mag;     // mag<0 → выше оси (прямое)
+      ctx.strokeStyle = C_RAY1;
+      ctx.beginPath(); ctx.moveTo(lensX, tipY); ctx.lineTo(xi, yi); ctx.stroke();
+      ctx.strokeStyle = C_RAY2;
+      ctx.beginPath(); ctx.moveTo(cx, tipY); ctx.lineTo(xi, yi); ctx.stroke();
+      ctx.strokeStyle = C_RAY3;
+      ctx.beginPath(); ctx.moveTo(lensX, y3); ctx.lineTo(xi, y3); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineWidth = 3;
+    }
+
+    /* ---------- изображение свечи ---------- */
+    if (!atFocus) {
+      if (f > 0 && xi > w - 10) {
+        // изображение улетело за край сцены
+        ctx.fillStyle = '#6B7180';
+        ctx.font = '500 ' + Math.round(w * 0.028) + 'px ' + FONT_STACK;
+        ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+        ctx.fillText('изображение далеко справа →', w - 16, axisY - h * 0.30);
+      } else {
+        const km = Math.abs(mag);
+        const dir = f > 0 ? -1 : 1;      // действительное — перевёрнутое
+        drawCandle(ctx, xi, axisY, hObj, km, dir, f > 0 ? 0.85 : 0.55, f < 0, t);
+      }
+    }
+
+    // свеча-предмет (поверх лучей)
+    drawCandle(ctx, cx, axisY, hObj, 1, 1, 1, false, t);
+
+    /* ---------- скобки d и f ---------- */
+    const by = h * 0.90;
+    ctx.strokeStyle = '#6B7180'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx, by); ctx.lineTo(lensX, by); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, by - 6); ctx.lineTo(cx, by + 6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(lensX, by - 6); ctx.lineTo(lensX, by + 6); ctx.stroke();
+    ctx.fillStyle = '#6B7180';
+    ctx.font = '500 ' + Math.round(w * 0.028) + 'px ' + FONT_STACK;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('d = ' + fmt(d) + ' см', (cx + lensX) / 2, by - 8);
+    if (!atFocus && f > 0 && xi <= w - 10) {
+      ctx.strokeStyle = '#6240FF';
+      ctx.beginPath(); ctx.moveTo(lensX, by); ctx.lineTo(xi, by); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(xi, by - 6); ctx.lineTo(xi, by + 6); ctx.stroke();
+      ctx.fillStyle = '#6240FF';
+      ctx.fillText('f = ' + fmt(f) + ' см', (lensX + xi) / 2, by - 8);
+    }
+
+    // линза
+    drawLensV(ctx, lensX, axisY, hObj * 1.55, h * 0.035);
+
+    /* ---------- зона ---------- */
+    const z = zoneOf(d);
+    if (z !== curZone) {
+      curZone = z;
+      hint.innerHTML = ZONES[z].text;
+      if (!visited.has(z)) {
+        visited.add(z);
+        if (chips[z]) chips[z].classList.add('is-on');
+        if (visited.size >= 3 && !finished) { finished = true; done(); }
+      }
+    }
+
+    ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'interact', id: 'bench', visual: 'bench',
+    title: 'Свеча и линза: тащи и смотри',
+    text: 'Перед собирающей линзой стоит свеча. Тащи её вдоль оси и следи за изображением: оно честно пересчитывается по формуле тонкой линзы. Побывай минимум в трёх зонах — они отмечаются ниже.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'threerays', big: true,
+    title: 'Три удобных луча',
+    text: 'Чтобы построить изображение точки, хватает двух лучей из трёх «удобных»: <b style="color:#E5484D">луч параллельно оси</b> после линзы идёт через фокус; <b style="color:#2F80ED">луч через центр линзы</b> не преломляется; <b style="color:#C98A2E">луч через передний фокус</b> выходит параллельно оси. Где лучи пересеклись — там и изображение.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'zones', big: true,
+    title: 'Карта зон: три случая',
+    text: 'Всё решает место свечи относительно F и 2F. Дальше 2F — <b>уменьшенное перевёрнутое</b> (фотоаппарат). Между F и 2F — <b>увеличенное перевёрнутое</b> (проектор). Ближе F — <b>мнимое, прямое, увеличенное</b> (лупа). А ровно в фокусе изображения нет: лучи выходят параллельным пучком.',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Два вопроса — и тема твоя.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 1',
+    text: 'Свеча стоит от линзы на тройном фокусном расстоянии (d = 3F). Какое получится изображение?',
+    options: [
+      { id: 'a', text: 'Увеличенное и перевёрнутое', correct: false },
+      { id: 'b', text: 'Уменьшенное и перевёрнутое', correct: true },
+      { id: 'c', text: 'Прямое и увеличенное', correct: false },
+    ],
+    right: 'Да: d = 3F — это зона «дальше 2F», изображение действительное, перевёрнутое и уменьшенное. Проверь формулой: f = 1,5F, а 1,5F < 3F — картинка меньше предмета.',
+    wrong: '3F — это дальше 2F. В этой зоне изображение всегда уменьшенное и перевёрнутое: f = 1,5F, изображение вдвое меньше предмета.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 2',
+    text: 'Свечу придвинули ближе фокуса (d < F). Что увидит глаз, если посмотреть на неё сквозь линзу?',
+    options: [
+      { id: 'a', text: 'Перевёрнутую уменьшенную свечу на экране за линзой', correct: false },
+      { id: 'b', text: 'Ничего: изображение исчезает', correct: false },
+      { id: 'c', text: 'Прямую увеличенную свечу — линза работает как лупа', correct: true },
+    ],
+    right: 'Верно! При d < F лучи за линзой расходятся, но их продолжения сходятся с той же стороны, где свеча: изображение мнимое, прямое, увеличенное.',
+    wrong: 'При d < F действительного изображения нет, но глаз видит мнимое: прямое и увеличенное — именно так работает лупа.',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  bench: () => `
+    <div class="canvas-panel"><canvas id="benchCanvas" height="340"></canvas></div>
+    <div class="zone-chips">
+      ${Object.entries(ZONES).map(([k, z]) => `<span class="zone-chip" data-zone="${k}">${z.chip}</span>`).join('')}
+    </div>
+    <p class="canvas-hint" id="benchHint">Тащи свечу 🕯 влево-вправо вдоль оси</p>`,
+  threerays: () => `
+    <svg viewBox="0 0 460 230" xmlns="http://www.w3.org/2000/svg">
+      <line x1="8" y1="130" x2="452" y2="130" stroke="#C9CEDA" stroke-width="2" stroke-dasharray="2 8" stroke-linecap="round"/>
+      <!-- фокусы: F = 75 (линза в x=220) -->
+      <g stroke="#6240FF" stroke-width="2" stroke-linecap="round">
+        <line x1="295" y1="123" x2="295" y2="137"/>
+        <line x1="145" y1="123" x2="145" y2="137"/>
+      </g>
+      <g font-family="var(--font-display), sans-serif" font-size="13" font-weight="500" fill="#6240FF">
+        <text x="295" y="152" text-anchor="middle">F</text>
+        <text x="145" y="152" text-anchor="middle">F</text>
+      </g>
+      <!-- предмет: стрелка (кончик 70,54; d=150, F=75 → f=150: изображение x=370, y=206) -->
+      <line x1="70" y1="130" x2="70" y2="58" stroke="#3E434C" stroke-width="4" stroke-linecap="round"/>
+      <path d="M70 50 L62 66 L78 66 Z" fill="#3E434C"/>
+      <g stroke-width="3" fill="none" stroke-linecap="round">
+        <path d="M70 54 L220 54 L370 206" stroke="#E5484D" stroke-dasharray="460" stroke-dashoffset="460">
+          <animate attributeName="stroke-dashoffset" values="460;0" dur="1.2s" fill="freeze"/>
+        </path>
+        <path d="M70 54 L370 206" stroke="#2F80ED" stroke-dasharray="340" stroke-dashoffset="340">
+          <animate attributeName="stroke-dashoffset" values="340;0" dur="1.2s" begin="0.5s" fill="freeze"/>
+        </path>
+        <path d="M70 54 L220 206 L370 206" stroke="#F0B23C" stroke-dasharray="370" stroke-dashoffset="370">
+          <animate attributeName="stroke-dashoffset" values="370;0" dur="1.2s" begin="1s" fill="freeze"/>
+        </path>
+      </g>
+      <!-- изображение: перевёрнутая стрелка -->
+      <g opacity="0">
+        <line x1="370" y1="130" x2="370" y2="198" stroke="#3E434C" stroke-width="4" stroke-linecap="round"/>
+        <path d="M370 206 L362 190 L378 190 Z" fill="#3E434C"/>
+        <animate attributeName="opacity" values="0;0;1" keyTimes="0;.75;1" dur="2.6s" fill="freeze"/>
+      </g>
+      <!-- линза -->
+      <path d="M220 30 C 234 62, 234 198, 220 230 C 206 198, 206 62, 220 30 Z"
+            fill="#DCE9FB" fill-opacity=".85" stroke="#8FB4E8" stroke-width="3" stroke-linejoin="round"/>
+    </svg>`,
+  zones: () => `
+    <svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg">
+      ${[
+        { x: 0,   cap: 'd > 2F — фотоаппарат',  od: 78, oh: 44, id2: 36, ih: -20, ghost: false },
+        { x: 215, cap: 'F < d < 2F — проектор', od: 46, oh: 40, id2: 74, ih: -62, ghost: false },
+        { x: 430, cap: 'd < F — лупа',          od: 22, oh: 38, id2: -46, ih: 74, ghost: true },
+      ].map(p => `
+        <g transform="translate(${p.x},0)">
+          <line x1="10" y1="105" x2="200" y2="105" stroke="#C9CEDA" stroke-width="2" stroke-dasharray="2 7" stroke-linecap="round"/>
+          <g stroke="#6240FF" stroke-width="2" stroke-linecap="round">
+            <line x1="${105 - 30}" y1="99" x2="${105 - 30}" y2="111"/>
+            <line x1="${105 - 60}" y1="99" x2="${105 - 60}" y2="111"/>
+            <line x1="${105 + 30}" y1="99" x2="${105 + 30}" y2="111"/>
+            <line x1="${105 + 60}" y1="99" x2="${105 + 60}" y2="111"/>
+          </g>
+          <!-- предмет -->
+          <line x1="${105 - p.od}" y1="105" x2="${105 - p.od}" y2="${105 - p.oh}" stroke="#3E434C" stroke-width="3.5" stroke-linecap="round"/>
+          <path d="M${105 - p.od} ${105 - p.oh - 7} l-6 12 l12 0 Z" fill="#3E434C"/>
+          <!-- изображение -->
+          <g ${p.ghost ? 'opacity=".55"' : ''}>
+            <line x1="${105 + p.id2}" y1="105" x2="${105 + p.id2}" y2="${105 - p.ih}" stroke="#E5484D" stroke-width="3.5" stroke-linecap="round" ${p.ghost ? 'stroke-dasharray="5 5"' : ''}>
+              <animate attributeName="opacity" values="1;.55;1" dur="2.6s" repeatCount="indefinite"/>
+            </line>
+            <path d="M${105 + p.id2} ${105 - p.ih + (p.ih > 0 ? -7 : 7)} l-6 ${p.ih > 0 ? 12 : -12} l12 0 Z" fill="#E5484D"/>
+          </g>
+          <!-- линза -->
+          <path d="M105 40 C 114 62, 114 148, 105 170 C 96 148, 96 62, 105 40 Z"
+                fill="#DCE9FB" fill-opacity=".85" stroke="#8FB4E8" stroke-width="2.5" stroke-linejoin="round"/>
+          <text x="105" y="200" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="15" fill="#3E434C">${p.cap}</text>
+        </g>`).join('')}
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'bench') startBench(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'image',
+  storageKey: 'lenses-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-eyes/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

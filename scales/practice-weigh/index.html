@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Сколько весит? · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .canvas-panel{
+    width: 100%; max-width: 620px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel svg{ width: 100%; height: auto; display: block; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Сколько весит?» — обратная задача взвешивания.
+   Весы уже в равновесии, гири подобраны — ученик сам считает
+   массу предмета. На сложном уровне гири стоят на ОБЕИХ чашках:
+   предмет + гиря слева = гири справа → масса равна разности.
+   Честная арифметика: ответ всегда равен сумме (или разности)
+   гирь, изображённых на экране.
+   ============================================================ */
+
+const KIT = [100, 50, 20, 20, 10, 5, 2, 2, 1];
+const W_SIZES = { 100: [46, 48], 50: [40, 42], 20: [34, 36], 10: [29, 31], 5: [25, 27], 2: [21, 23], 1: [18, 20] };
+
+function weightSVG(g) {
+  const [w, h] = W_SIZES[g];
+  return `
+    <rect x="${-w / 2}" y="${(-h * 0.72).toFixed(1)}" width="${w}" height="${(h * 0.72).toFixed(1)}" rx="4" fill="#F5B93B" stroke="#C9941B" stroke-width="1.8"/>
+    <rect x="${(-w * 0.3).toFixed(1)}" y="${(-h * 0.9).toFixed(1)}" width="${(w * 0.6).toFixed(1)}" height="${(h * 0.22).toFixed(1)}" rx="3" fill="#F5B93B" stroke="#C9941B" stroke-width="1.8"/>
+    <circle cx="0" cy="${(-h * 0.94).toFixed(1)}" r="${(w * 0.13).toFixed(1)}" fill="none" stroke="#C9941B" stroke-width="3"/>
+    <text x="0" y="${(-h * 0.36).toFixed(1)}" text-anchor="middle" dominant-baseline="central" font-family="var(--font-display), sans-serif" font-weight="500" font-size="${Math.max(11, Math.round(w * 0.4))}" fill="#6E5109">${g}</text>`;
+}
+
+function layoutItems(items) {
+  const rows = []; let row = [], used = 0;
+  items.forEach(it => {
+    const need = it.w + (row.length ? 6 : 0);
+    if (used + need > 124 && row.length) { rows.push(row); row = []; used = 0; }
+    row.push(it); used += it.w + (row.length > 1 ? 6 : 0);
+  });
+  if (row.length) rows.push(row);
+  let out = '', yBase = 0;
+  rows.forEach(r => {
+    const total = r.reduce((s, it) => s + it.w, 0) + 6 * (r.length - 1);
+    let x = -total / 2, maxH = 0;
+    r.forEach(it => {
+      out += `<g transform="translate(${(x + it.w / 2).toFixed(1)} ${yBase})" ${it.attrs || ''}>${it.svg}</g>`;
+      x += it.w + 6;
+      maxH = Math.max(maxH, it.h);
+    });
+    yBase -= maxH + 2;
+  });
+  return out;
+}
+
+/* ---------- статичные весы в равновесии ---------- */
+const PV = { x: 320, y: 128 }, ARM = 200, HANG = 84;
+
+function scalesSVG(id) {
+  const ticks = [-14, -7, 0, 7, 14].map(d => {
+    const a = (90 + d) * Math.PI / 180;
+    const r1 = 140, r2 = d === 0 ? 158 : 152;
+    return `<line x1="${(PV.x + Math.cos(a) * r1).toFixed(1)}" y1="${(PV.y + Math.sin(a) * r1).toFixed(1)}"
+                  x2="${(PV.x + Math.cos(a) * r2).toFixed(1)}" y2="${(PV.y + Math.sin(a) * r2).toFixed(1)}"
+                  stroke="${d === 0 ? '#6240FF' : '#B3B9C6'}" stroke-width="${d === 0 ? 4 : 3}" stroke-linecap="round"/>`;
+  }).join('');
+  const pan = side => `
+    <g transform="translate(${side === 'PanL' ? PV.x - ARM : PV.x + ARM} ${PV.y})">
+      <circle cx="0" cy="0" r="5" fill="#4A2FD9"/>
+      <path d="M0 0 L-50 ${HANG - 10} M0 0 L50 ${HANG - 10}" stroke="#8F95A3" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <ellipse cx="0" cy="${HANG - 6}" rx="64" ry="10" fill="#C9CEDA" stroke="#A9AFBE" stroke-width="1.6"/>
+      <g id="${id}${side}Items" transform="translate(0 ${HANG - 8})"></g>
+      <path d="M-64 ${HANG - 6} a64 10 0 0 0 128 0 z" fill="#B3B9C6"/>
+    </g>`;
+  return `
+  <svg viewBox="0 0 640 430" xmlns="http://www.w3.org/2000/svg" id="${id}">
+    <rect x="240" y="372" width="160" height="16" rx="8" fill="#C9CEDA"/>
+    <rect x="252" y="372" width="136" height="6" rx="3" fill="#DFE3EC"/>
+    <rect x="312" y="${PV.y}" width="16" height="${372 - PV.y}" rx="6" fill="#C9CEDA"/>
+    <rect x="316" y="${PV.y}" width="5" height="${372 - PV.y}" rx="2.5" fill="#DFE3EC"/>
+    ${ticks}
+    <g>
+      <rect x="${PV.x - ARM - 8}" y="${PV.y - 7}" width="${(ARM + 8) * 2}" height="14" rx="7" fill="#6240FF"/>
+      <rect x="${PV.x - ARM - 8}" y="${PV.y - 7}" width="${(ARM + 8) * 2}" height="5" rx="2.5" fill="#8B6FFF"/>
+      <path d="M${PV.x} ${PV.y + 7} L${PV.x} ${PV.y + 118} L${PV.x - 5} ${PV.y + 118} L${PV.x} ${PV.y + 134} L${PV.x + 5} ${PV.y + 118} L${PV.x} ${PV.y + 118}" fill="#E5484D" stroke="#E5484D" stroke-width="3.5" stroke-linejoin="round"/>
+    </g>
+    ${pan('PanL')}
+    ${pan('PanR')}
+    <circle cx="${PV.x}" cy="${PV.y}" r="9" fill="#4A2FD9"/>
+    <circle cx="${PV.x}" cy="${PV.y}" r="3.5" fill="#EEF0FF"/>
+    <text x="${PV.x - ARM}" y="34" text-anchor="middle" font-family="var(--font-sans), sans-serif" font-weight="500" font-size="16" fill="#6B7180">предмет</text>
+    <text x="${PV.x + ARM}" y="34" text-anchor="middle" font-family="var(--font-sans), sans-serif" font-weight="500" font-size="16" fill="#6B7180">гири</text>
+  </svg>`;
+}
+
+/* ---------- предметы ---------- */
+const OBJECTS = [
+  { name: 'яблоко', gen: 'яблока', w: 56, svg: `
+      <circle cx="0" cy="-26" r="26" fill="#E5484D" stroke="#B7383C" stroke-width="2.5"/>
+      <ellipse cx="-9" cy="-33" rx="6" ry="9" fill="#F08A8E"/>
+      <path d="M2 -56 q13 -4 17 6 q-12 5 -17 -6 z" fill="#3A9D5D"/>` },
+  { name: 'кружка', gen: 'кружки', w: 60, svg: `
+      <rect x="-22" y="-44" width="44" height="44" rx="6" fill="#2F80ED" stroke="#2461B2" stroke-width="2.5"/>
+      <path d="M22 -34 q17 0 17 12 q0 12 -17 12" fill="none" stroke="#2F80ED" stroke-width="6"/>
+      <rect x="-22" y="-44" width="44" height="10" rx="5" fill="#7FB3F5"/>` },
+  { name: 'брусок', gen: 'бруска', w: 72, svg: `
+      <rect x="-34" y="-34" width="68" height="34" rx="5" fill="#D9A05B" stroke="#A87840" stroke-width="2.5"/>
+      <line x1="-34" y1="-22" x2="34" y2="-22" stroke="#BE8848" stroke-width="2"/>` },
+  { name: 'камень', gen: 'камня', w: 64, svg: `
+      <path d="M-30 0 L-26 -26 L-6 -38 L20 -32 L30 -8 L24 0 Z" fill="#9AA0AC" stroke="#767C88" stroke-width="2.5" stroke-linejoin="round"/>` },
+  { name: 'картофелина', gen: 'картофелины', w: 64, svg: `
+      <ellipse cx="0" cy="-18" rx="31" ry="18" fill="#C89B6B" stroke="#9E7648" stroke-width="2.5"/>
+      <circle cx="-10" cy="-22" r="2.4" fill="#8C6B42"/>
+      <circle cx="9" cy="-13" r="2.4" fill="#8C6B42"/>` },
+  { name: 'замок', gen: 'замка', w: 52, svg: `
+      <path d="M-13 -34 v-8 a13 13 0 0 1 26 0 v8" fill="none" stroke="#8A8F9C" stroke-width="6"/>
+      <rect x="-21" y="-34" width="42" height="34" rx="6" fill="#F5B93B" stroke="#C9941B" stroke-width="2.5"/>
+      <circle cx="0" cy="-18" r="4.5" fill="#8A6206"/>` },
+];
+
+function shuffled(arr, rnd) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* ---------- генерация раунда ---------- */
+function makeRound(level, rnd, taken) {
+  for (let t = 0; t < 80; t++) {
+    let right = [], leftW = 0;
+    if (level === 'easy') {
+      right = shuffled([100, 50, 20, 10, 5], rnd).slice(0, 2);
+    } else if (level === 'medium') {
+      right = shuffled([...KIT.keys()], rnd).slice(0, 4).map(i => KIT[i]);
+    } else {
+      const pool = KIT.slice();
+      leftW = [5, 10, 20][Math.floor(rnd() * 3)];
+      pool.splice(pool.indexOf(leftW), 1);
+      const k = 2 + (rnd() < 0.5 ? 0 : 1);
+      right = shuffled([...pool.keys()], rnd).slice(0, k).map(i => pool[i]);
+    }
+    const sumR = right.reduce((a, b) => a + b, 0);
+    const answer = sumR - leftW;
+    if (answer < 5) continue;
+    if (taken.has(answer)) continue;
+    taken.add(answer);
+    return { right: right.sort((a, b) => b - a), leftW, sumR, answer };
+  }
+  taken.add(73);
+  return { right: [50, 20, 2, 1], leftW: 0, sumR: 73, answer: 73 };
+}
+
+/* ---------- сборка шагов ---------- */
+let sceneN = 0;
+function buildSteps(level, rnd) {
+  const steps = [];
+  const taken = new Set();
+  const objs = shuffled(OBJECTS, rnd);
+
+  for (let r = 0; r < 3; r++) {
+    const obj = objs[r];
+    const { right, leftW, sumR, answer } = makeRound(level, rnd, taken);
+    const id = 'wgh' + (++sceneN) + '_' + r;
+    const listStr = right.join(' + ');
+
+    steps.push({
+      type: 'reading',
+      title: `Взвешивание ${r + 1} из 3`,
+      text: leftW
+        ? `Хитрое равновесие: слева — ${obj.name} <b>и гиря ${leftW} г</b>, справа — гири. Найди массу ${obj.gen} и впиши её.`
+        : `Весы в равновесии: слева — ${obj.name}, справа — гири. Сосчитай гири и впиши массу ${obj.gen}.`,
+      render(host) {
+        host.innerHTML = `<div class="canvas-panel" data-answer="${answer}">${scalesSVG(id)}</div>`;
+        const itemsL = host.querySelector('#' + id + 'PanLItems');
+        const itemsR = host.querySelector('#' + id + 'PanRItems');
+        const left = [{ w: obj.w, h: 50, svg: obj.svg }];
+        if (leftW) left.push({ w: W_SIZES[leftW][0], h: W_SIZES[leftW][1], svg: weightSVG(leftW) });
+        itemsL.innerHTML = layoutItems(left);
+        itemsR.innerHTML = layoutItems(right.map(g => ({ w: W_SIZES[g][0], h: W_SIZES[g][1], svg: weightSVG(g) })));
+      },
+      answer,
+      tolerance: 0,
+      unit: 'г',
+      hints: leftW
+        ? [
+            `Слева не только предмет! Равновесие значит: масса + ${leftW} = ${listStr}.`,
+            `Гири справа дают ${sumR} г. Масса = ${sumR} − ${leftW}. Посчитай разность.`,
+          ]
+        : [
+            'Масса предмета равна сумме масс всех гирь на правой чашке. Не пропусти мелкие!',
+            `Сложи гири: ${listStr}.`,
+          ],
+      right: leftW
+        ? `✓ Верно! ${sumR} − ${leftW} = ${answer} г: гиря слева стоит рядом с предметом, поэтому её вычитаем.`
+        : `✓ Верно! ${listStr} = ${answer} г.`,
+    });
+  }
+
+  /* финальный вывод */
+  if (level === 'hard') {
+    steps.push({
+      type: 'choice',
+      title: 'Контрольный вопрос',
+      text: 'Слева — предмет и гиря 10 г, справа — гири 100 г и 50 г. Весы в равновесии. Какова масса предмета?',
+      options: [
+        { text: '140 г', correct: true },
+        { text: '150 г', correct: false },
+        { text: '160 г', correct: false },
+        { text: '130 г', correct: false },
+      ],
+      right: 'Равновесие означает: масса + 10 = 100 + 50. Значит масса = 150 − 10 = 140 г.',
+      wrong: 'Составь равенство: масса + 10 г = 100 г + 50 г. Отсюда масса = 150 − 10 = 140 г.',
+    });
+  } else {
+    steps.push({
+      type: 'choice',
+      title: 'Вывод',
+      text: 'Весы в равновесии, гири стоят только на правой чашке. Как найти массу предмета?',
+      options: [
+        { text: 'Сложить массы всех гирь на чашке',            correct: true },
+        { text: 'Взять массу самой тяжёлой гири',              correct: false },
+        { text: 'Посчитать гири и умножить на десять',         correct: false },
+        { text: 'Перемножить массы всех гирь',                 correct: false },
+      ],
+      right: 'Именно! При равновесии масса предмета равна сумме масс гирь — так и записывают результат лабораторной.',
+      wrong: 'При равновесии массы чашек равны, поэтому масса предмета — это сумма масс всех гирь.',
+    });
+  }
+
+  return steps;
+}
+
+/* ---------- запуск ---------- */
+runPractice({
+  practiceId: 'weigh',
+  storageKey: 'scales-progress',
+  homeHref: '../demo/',
+  title: 'Сколько весит?',
+  subtitle: 'Весы уже в равновесии — гири подобраны. Твоя задача обратная: сосчитать гири и определить массу предмета.',
+  levels: {
+    easy:   { label: 'Разминка',      desc: 'По две гири на чашке — сложи и запиши.',                    xp: 30 },
+    medium: { label: 'Внимательный',  desc: 'Гирь уже четыре, среди них мелочь — не пропусти!',          xp: 40 },
+    hard:   { label: 'Хитрые весы',   desc: 'Гири на обеих чашках: масса предмета — это разность.',      xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

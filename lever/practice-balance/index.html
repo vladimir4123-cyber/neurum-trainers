@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Уравновесь качели · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .board-panel{
+    width: 100%; max-width: 620px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .board-panel svg{ width: 100%; height: auto; display: block; }
+  #boardG{ transition: transform 800ms var(--ease-standard); transform-origin: 320px 210px; }
+  .drop-spot{ cursor: pointer; }
+  .drop-spot .ring{
+    fill: rgba(98,64,255,.06); stroke: #6240FF; stroke-width: 2; stroke-dasharray: 4 5;
+    transition: fill 140ms var(--ease-standard);
+  }
+  .drop-spot:hover .ring{ fill: rgba(98,64,255,.18); }
+  .drop-spot.off{ pointer-events: none; }
+  .drop-spot.off .ring{ opacity: .25; }
+
+  .chips-row{
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
+    margin: 16px auto 0;
+  }
+  .chip-w{
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 11px 18px; border-radius: 9999px; cursor: pointer;
+    background: var(--white); color: var(--fg-1);
+    border: 2px solid var(--purple-4);
+    font-family: var(--font-sans); font-size: 16px; font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    transition: border-color 140ms var(--ease-standard), background-color 140ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .chip-w:hover:not(:disabled){ background: var(--purple-4); }
+  .chip-w:active:not(:disabled){ transform: scale(0.96); }
+  .chip-w.sel{ border-color: var(--purple-1); background: var(--purple-4); color: var(--purple-1); }
+  .chip-w:disabled{ opacity: .5; cursor: default; }
+
+  .moments{
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
+    margin: 14px auto 0; font-variant-numeric: tabular-nums;
+  }
+  .moment-card{
+    background: var(--white); border-radius: var(--radius-md);
+    box-shadow: 0 2px 10px rgba(24,12,34,.07);
+    padding: 9px 16px; font-size: 15px; color: var(--fg-3);
+  }
+  .moment-card b{ color: var(--fg-1); font-weight: 500; }
+  .moment-card.left b{ color: var(--danger); }
+  .moment-card.right b{ color: var(--purple-1); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Уравновесь качели».
+   Слева грузы уже стоят. Выбери гирю, кликни по делению справа —
+   доска наклоняется ЧЕСТНО: сравниваем суммы масса × плечо.
+   Плечи меряем в делениях доски (1..6).
+   ============================================================ */
+
+const PIVX = 320, PIVY = 210, STEP = 44;   // геометрия сцены
+const RED = '#E5484D', BLUE = '#2F80ED';
+
+/* блок-гиря, сидит на доске; x — центр, поверх доски (y=204 — верх доски) */
+function weightSVG(x, m, color, dark) {
+  const s = 20 + m * 4;
+  return `
+    <g>
+      <rect x="${x - s / 2}" y="${204 - s}" width="${s}" height="${s}" rx="7"
+            fill="${color}" stroke="${dark}" stroke-width="2.5"/>
+      <path d="M${x - s * 0.28} ${204 - s} Q${x} ${204 - s - 12} ${x + s * 0.28} ${204 - s}"
+            fill="none" stroke="${dark}" stroke-width="3" stroke-linecap="round"/>
+      <text x="${x}" y="${204 - s / 2}" text-anchor="middle" dominant-baseline="central"
+            font-family="var(--font-display), sans-serif" font-weight="500" font-size="${Math.min(17, 9 + m)}"
+            fill="#fff">${m}</text>
+    </g>`;
+}
+
+function sceneSVG(leftLoads) {
+  const ticks = [];
+  for (let d = 1; d <= 6; d++) {
+    [-1, 1].forEach(s => {
+      const x = PIVX + s * d * STEP;
+      ticks.push(`<line x1="${x}" y1="198" x2="${x}" y2="216" stroke="#B99862" stroke-width="2"/>
+        <text x="${x}" y="228" text-anchor="middle" dominant-baseline="central"
+              font-family="var(--font-display), sans-serif" font-weight="500" font-size="13" fill="#8a6d3f">${d}</text>`);
+    });
+  }
+  const spots = [];
+  for (let d = 1; d <= 6; d++) {
+    const x = PIVX + d * STEP;
+    spots.push(`<g class="drop-spot" data-pos="${d}">
+        <circle class="ring" cx="${x}" cy="186" r="17"/>
+        <circle cx="${x}" cy="186" r="26" fill="transparent"/>
+      </g>`);
+  }
+  return `
+    <svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="266" width="640" height="12" rx="6" fill="#E3E6F2"/>
+      <path d="M320 214 L292 268 L348 268 Z" fill="#C9CEDA" stroke="#A9AFBE" stroke-width="3" stroke-linejoin="round"/>
+      <g id="boardG">
+        <rect x="40" y="198" width="560" height="16" rx="8" fill="#D9BC8E" stroke="#B99862" stroke-width="2.5"/>
+        ${ticks.join('')}
+        ${leftLoads.map(L => weightSVG(PIVX - L.pos * STEP, L.m, RED, '#B4373B')).join('')}
+        <g id="rightW"></g>
+        ${spots.join('')}
+      </g>
+      <circle cx="${PIVX}" cy="${PIVY}" r="7" fill="#6240FF"/>
+      <circle cx="${PIVX}" cy="${PIVY}" r="3" fill="#EEF0FF"/>
+    </svg>`;
+}
+
+/* ---------- один раунд-миссия ---------- */
+function makeRoundRender(round) {
+  return function render(host, ctx) {
+    const leftM = round.left.reduce((s, L) => s + L.m * L.pos, 0);
+    const leftEq = round.left.map(L => `${L.m}×${L.pos}`).join(' + ');
+    host.innerHTML = `
+      <div class="board-panel">${sceneSVG(round.left)}</div>
+      <div class="chips-row" id="chips">
+        ${round.chips.map(m => `<button class="chip-w" data-m="${m}">гиря ${m} кг</button>`).join('')}
+      </div>
+      <div class="moments">
+        <div class="moment-card left">Слева: <b>${leftEq} = ${leftM}</b></div>
+        <div class="moment-card right">Справа: <b id="rightEq">пока пусто</b></div>
+      </div>`;
+
+    const boardG = host.querySelector('#boardG');
+    const rightW = host.querySelector('#rightW');
+    const rightEq = host.querySelector('#rightEq');
+    const chips = [...host.querySelectorAll('.chip-w')];
+    const spots = [...host.querySelectorAll('.drop-spot')];
+
+    let sel = null;
+    let placed = null;
+    let solved = false;
+    let evalToken = 0;
+
+    const tilt = () => {
+      const rightM = placed ? placed.m * placed.pos : 0;
+      const a = Math.max(-11, Math.min(11, (rightM - leftM) * 1.4));
+      boardG.style.transform = `rotate(${a}deg)`;
+    };
+    tilt();  // без правого груза доска честно завалена влево
+
+    chips.forEach(c => c.addEventListener('click', () => {
+      if (solved) return;
+      sel = +c.dataset.m;
+      chips.forEach(x => x.classList.toggle('sel', x === c));
+      ctx.fb('Гиря выбрана — теперь кликни по делению на правой половине доски.', 'hint');
+    }));
+    if (chips.length === 1) chips[0].click();
+
+    spots.forEach(sp => sp.addEventListener('click', () => {
+      if (solved) return;
+      if (sel === null) { ctx.fb('Сначала выбери гирю под доской.', 'hint'); return; }
+      placed = { m: sel, pos: +sp.dataset.pos };
+      rightW.innerHTML = weightSVG(PIVX + placed.pos * STEP, placed.m, BLUE, '#2361B6');
+      rightEq.textContent = `${placed.m}×${placed.pos} = ${placed.m * placed.pos}`;
+      ctx.fb('', '');
+      tilt();
+      const token = ++evalToken;
+      setTimeout(() => {
+        if (token !== evalToken || solved || !host.isConnected) return;
+        const rightM = placed.m * placed.pos;
+        if (rightM === leftM) {           // честное равновесие моментов
+          solved = true;
+          chips.forEach(c => { c.disabled = true; });
+          spots.forEach(s => s.classList.add('off'));
+          ctx.fb(`✓ Равновесие! ${leftEq} = ${rightEq.textContent} — моменты равны.`, 'ok');
+          ctx.done();
+        } else {
+          ctx.miss();
+          const side = rightM > leftM ? 'вправо' : 'влево';
+          ctx.fb(`Доска накренилась ${side}: справа ${placed.m}×${placed.pos} = ${rightM}, а слева ${leftM}. Нужно, чтобы масса × плечо давали ровно ${leftM}. Попробуй ещё.`, 'err');
+        }
+      }, 900);
+    }));
+  };
+}
+
+/* ---------- генераторы раундов (честная арифметика) ---------- */
+const ri = (rnd, a, b) => a + Math.floor(rnd() * (b - a + 1));
+
+function distinctChips(rnd, base, count) {
+  const set = new Set(base);
+  while (set.size < count) {
+    const m = ri(rnd, 1, 9);
+    if (!set.has(m)) set.add(m);
+  }
+  const arr = [...set];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function genEasy(rnd) {
+  const m = ri(rnd, 2, 6);
+  const pos = ri(rnd, 2, 5);
+  return { left: [{ m, pos }], chips: [m] };
+}
+
+function genMedium(rnd) {
+  for (let i = 0; i < 200; i++) {
+    const m2 = ri(rnd, 2, 8), l2 = ri(rnd, 1, 6);
+    const P = m2 * l2;
+    const l1 = ri(rnd, 1, 6);
+    if (P % l1 !== 0) continue;
+    const m1 = P / l1;
+    if (m1 < 2 || m1 > 9 || m1 === m2 || l1 === l2) continue;
+    return { left: [{ m: m1, pos: l1 }], chips: distinctChips(rnd, [m2], 3) };
+  }
+  return { left: [{ m: 6, pos: 2 }], chips: distinctChips(Math.random, [3], 3) }; // 3×4 = 12
+}
+
+function genHard(rnd) {
+  for (let i = 0; i < 400; i++) {
+    const m3 = ri(rnd, 3, 8), l3 = ri(rnd, 2, 6);
+    const M = m3 * l3;
+    const l1 = ri(rnd, 1, 6), l2 = ri(rnd, 1, 6);
+    if (l1 === l2) continue;
+    const m1 = ri(rnd, 1, 6);
+    const rest = M - m1 * l1;
+    if (rest <= 0 || rest % l2 !== 0) continue;
+    const m2 = rest / l2;
+    if (m2 < 1 || m2 > 8) continue;
+    return { left: [{ m: m1, pos: l1 }, { m: m2, pos: l2 }], chips: distinctChips(rnd, [m3], 3) };
+  }
+  return { left: [{ m: 2, pos: 3 }, { m: 3, pos: 2 }], chips: distinctChips(Math.random, [4], 3) }; // 4×3 = 12
+}
+
+/* ---------- сборка шагов ---------- */
+function buildSteps(level, rnd) {
+  const gen = level === 'easy' ? genEasy : level === 'medium' ? genMedium : genHard;
+  const n = 3;
+  const steps = [];
+  for (let i = 0; i < n; i++) {
+    const round = gen(rnd);
+    const two = round.left.length > 1;
+    steps.push({
+      type: 'action',
+      title: `Качели ${i + 1} из ${n}`,
+      text: two
+        ? 'Слева уже два груза. Уравновесь их <b>одной</b> гирей: выбери её и кликни по делению справа.'
+        : 'Слева груз уже стоит. Выбери гирю и кликни по делению справа, чтобы качели встали ровно.',
+      render: makeRoundRender(round),
+    });
+  }
+  steps.push({
+    type: 'choice',
+    title: `Задача ${n + 1} из ${n + 1}`,
+    text: 'Качели встали ровно. Что при этом обязательно одинаково слева и справа?',
+    options: [
+      { text: 'Произведения «масса × плечо»', correct: true },
+      { text: 'Массы грузов', correct: false },
+      { text: 'Расстояния грузов до опоры', correct: false },
+      { text: 'Размеры гирь', correct: false },
+    ],
+    right: 'Именно это ты и подбирал: равновесие — когда моменты (масса × плечо) равны.',
+    wrong: 'Ты только что уравновешивал разные массы на разных плечах. Равны были не массы и не плечи, а их произведения.',
+  });
+  return steps;
+}
+
+runPractice({
+  practiceId: 'balance',
+  storageKey: 'lever-progress',
+  homeHref: '../demo/',
+  title: 'Уравновесь качели',
+  subtitle: 'Слева грузы уже стоят, доска перекошена. Подбери гирю и место для неё на размеченной доске — равновесие проверяется честными моментами.',
+  levels: {
+    easy:   { label: 'Новичок', desc: 'Гиря такой же массы — найди ей место.', xp: 30 },
+    medium: { label: 'Практик', desc: 'Гири другой массы — посчитай плечо.', xp: 45 },
+    hard:   { label: 'Мастер',  desc: 'Слева два груза — уравновесь одной гирей.', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

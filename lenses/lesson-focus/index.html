@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Линза собирает свет · Линзы</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  /* панель+подсказка+кнопки визуала — колонкой */
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 560px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; touch-action: none; cursor: grab; }
+  .canvas-hint{
+    margin: 14px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+  .mini-actions{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  /* Кнопки внутри урока — чёрные/белые. Фиолетовая — только «Дальше». */
+  .chip-btn{
+    padding: 12px 18px; border: 1px solid var(--purple-4); border-radius: var(--radius-md);
+    background: var(--white); color: var(--fg-2); cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .chip-btn:hover{ background: var(--purple-4); }
+  .chip-btn:active{ transform: scale(0.96); }
+  .chip-btn.is-on{ background: var(--fg-1); color: #fff; border-color: var(--fg-1); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ============================================================
+   ТЕМА 1 «Линза собирает свет» (Пёрышкин §50).
+   Интерактив 1: лупа зажигает бумагу (двигай лупу по высоте).
+   Интерактив 2: параллельный пучок + линза, фокус светится,
+   фокусное расстояние F подписано, кривизну можно менять.
+   ============================================================ */
+
+/* ---------- общие рисовалки (плоский стиль §8) ---------- */
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+function tint(hex, t) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  r = Math.round(r + (255 - r) * t);
+  g = Math.round(g + (255 - g) * t);
+  b = Math.round(b + (255 - b) * t);
+  return `rgb(${r},${g},${b})`;
+}
+function shade(hex, t) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  r = Math.round(r * (1 - t)); g = Math.round(g * (1 - t)); b = Math.round(b * (1 - t));
+  return `rgb(${r},${g},${b})`;
+}
+const RAY = '#F0B23C';                 // луч света
+const GLASS = '#DCE9FB', GLASS_E = '#8FB4E8'; // стекло линзы
+
+/* canvas не понимает var() в ctx.font — берём готовый стек из токена */
+const FONT_STACK = getComputedStyle(document.documentElement)
+  .getPropertyValue('--font-display').trim() || "'Aeonik Pro', 'Inter', sans-serif";
+
+/* горизонтальная линза (лупа) в точке (x,y), полуширина a, «пухлость» c */
+function drawLensH(ctx, x, y, a, c) {
+  ctx.beginPath();
+  ctx.moveTo(x - a, y);
+  ctx.quadraticCurveTo(x, y + c * 2, x + a, y);
+  ctx.quadraticCurveTo(x, y - c * 2, x - a, y);
+  ctx.closePath();
+  ctx.fillStyle = GLASS;
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = GLASS_E;
+  ctx.stroke();
+}
+/* вертикальная линза в (x,y), полувысота a, «пухлость» c */
+function drawLensV(ctx, x, y, a, c) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - a);
+  ctx.quadraticCurveTo(x + c * 2, y, x, y + a);
+  ctx.quadraticCurveTo(x - c * 2, y, x, y - a);
+  ctx.closePath();
+  ctx.fillStyle = GLASS;
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = GLASS_E;
+  ctx.stroke();
+}
+function labelFont(ctx, w, k) {
+  ctx.font = '500 ' + Math.round(w * (k || 0.036)) + 'px ' + FONT_STACK;
+}
+
+/* ============================================================
+   ИНТЕРАКТИВ 1: лупа зажигает бумагу
+   ============================================================ */
+function startBurn(root, done) {
+  const canvas = root.querySelector('#burnCanvas');
+  const hint = root.querySelector('#burnHint');
+  const ctx = canvas.getContext('2d');
+
+  let lensY = 0.24;          // доля высоты
+  let dragging = false;
+  let heat = 0, charR = 0, litMsg = false, prevT = 0;
+  let smoke = [];
+
+  const ptr = e => {
+    const r = canvas.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+  };
+  canvas.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    dragging = true;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const p = ptr(e);
+    lensY = Math.min(0.62, Math.max(0.14, p.y));
+  });
+  ['pointerup', 'pointercancel'].forEach(ev => canvas.addEventListener(ev, () => { dragging = false; }));
+
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const dt = Math.min(0.05, t - prevT); prevT = t;
+    const { w, h } = fit(canvas, 320);
+    ctx.clearRect(0, 0, w, h);
+
+    const lensX = w * 0.5;
+    const A = w * 0.26;                 // апертура лупы
+    const F = h * 0.40;                 // фокусное расстояние (в пикселях)
+    const ly = lensY * h;
+    const paperY = h * 0.86;
+    const focusY = ly + F;
+    const p = paperY - ly;              // расстояние лупа→бумага
+    const spotR = (A / 2) * Math.abs(p - F) / F;
+
+    // солнце
+    ctx.beginPath(); ctx.arc(w * 0.10, h * 0.045, w * 0.055, 0, Math.PI * 2);
+    ctx.fillStyle = '#FFD769'; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = shade('#FFD769', 0.25); ctx.stroke();
+
+    // бумага
+    ctx.fillStyle = '#FDFBF4';
+    ctx.fillRect(w * 0.14, paperY, w * 0.72, h * 0.055);
+    ctx.lineWidth = 2.5; ctx.strokeStyle = '#D8D3C2';
+    ctx.strokeRect(w * 0.14, paperY, w * 0.72, h * 0.055);
+
+    // лучи: параллельные сверху → лупа → сходятся в фокус → дальше расходятся
+    const NR = 7;
+    ctx.lineWidth = 3;
+    for (let i = 0; i < NR; i++) {
+      const k = i / (NR - 1) - 0.5;
+      const x0 = lensX + k * A;
+      ctx.strokeStyle = 'rgba(240,178,60,0.75)';
+      ctx.beginPath(); ctx.moveTo(x0, 0); ctx.lineTo(x0, ly); ctx.stroke();
+      // после линзы: прямая из (x0,ly) через фокус (lensX, focusY), до бумаги
+      const dy = focusY - ly;
+      const slope = (lensX - x0) / dy;      // dx на единицу dy
+      const yEnd = Math.min(paperY, h);
+      const xEnd = x0 + slope * (yEnd - ly);
+      ctx.beginPath(); ctx.moveTo(x0, ly); ctx.lineTo(xEnd, yEnd); ctx.stroke();
+    }
+
+    // пятно на бумаге
+    const r = Math.max(4, spotR);
+    const focused = spotR < 7;
+    ctx.beginPath();
+    ctx.ellipse(lensX, paperY + 3, r, Math.max(3, r * 0.32), 0, 0, Math.PI * 2);
+    ctx.fillStyle = focused ? '#FFDE7A' : 'rgba(240,178,60,0.45)';
+    ctx.fill();
+
+    // нагрев и обугливание
+    if (focused) heat = Math.min(1.6, heat + dt); else heat = Math.max(0, heat - dt * 1.5);
+    if (heat > 0.5) charR = Math.min(26, charR + dt * 22);
+    if (charR > 1) {
+      ctx.beginPath();
+      ctx.ellipse(lensX, paperY + 3, charR, charR * 0.35, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#6B4A2B'; ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(lensX, paperY + 3, charR * 0.55, charR * 0.2, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#3A2A1A'; ctx.fill();
+    }
+    // дым
+    if (charR > 6 && Math.random() < 0.3) {
+      smoke.push({ x: lensX + (Math.random() - 0.5) * 16, y: paperY - 4, r: 4 + Math.random() * 5, a: 0.4, vy: 40 + Math.random() * 30 });
+    }
+    smoke = smoke.filter(s => s.a > 0.02);
+    smoke.forEach(s => {
+      s.y -= s.vy * dt; s.a -= dt * 0.18; s.r += dt * 10;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(122,127,130,${s.a.toFixed(3)})`; ctx.fill();
+    });
+    if (charR > 18 && !litMsg) {
+      litMsg = true;
+      hint.innerHTML = '🔥 Бумага задымилась! Весь пучок собрался <b>в одну точку</b> — в фокус.';
+      done();
+    }
+
+    // скобка F: от лупы до фокуса
+    const bx = lensX + A / 2 + w * 0.07;
+    ctx.strokeStyle = '#6240FF'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(bx, ly); ctx.lineTo(bx, focusY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx - 7, ly); ctx.lineTo(bx + 7, ly); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx - 7, focusY); ctx.lineTo(bx + 7, focusY); ctx.stroke();
+    labelFont(ctx, w, 0.040);
+    ctx.fillStyle = '#6240FF';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('F', bx + w * 0.018, (ly + focusY) / 2);
+
+    // точка фокуса подсвечивается
+    const pulse = 0.6 + 0.4 * Math.sin(t * 4);
+    if (focusY < paperY - 4) {
+      ctx.beginPath(); ctx.arc(lensX, focusY, 10 + 5 * pulse, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(240,178,60,0.30)'; ctx.fill();
+      ctx.beginPath(); ctx.arc(lensX, focusY, 5, 0, Math.PI * 2);
+      ctx.fillStyle = RAY; ctx.fill();
+    }
+
+    // лупа (рисуем поверх лучей): стекло + оправа-ручка
+    ctx.strokeStyle = '#5D6472'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(lensX + A / 2 + 4, ly); ctx.lineTo(lensX + A / 2 + w * 0.05, ly - h * 0.05); ctx.stroke();
+    drawLensH(ctx, lensX, ly, A / 2, h * 0.022);
+
+    // подпись
+    labelFont(ctx, w);
+    ctx.fillStyle = '#6B7180'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText('лупа', lensX - A / 2 - w * 0.03, ly);
+    ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ============================================================
+   ИНТЕРАКТИВ 2: пучок лучей и фокус, F подписано
+   ============================================================ */
+function startBeam(root, done) {
+  const canvas = root.querySelector('#beamCanvas');
+  const hint = root.querySelector('#beamHint');
+  const ctx = canvas.getContext('2d');
+  const btns = [...root.querySelectorAll('[data-f]')];
+
+  let Fcm = 15;                    // фокусное расстояние, см
+  let lensX = 0.42;                // доля ширины
+  let dragging = false, moved = false;
+  const CM = () => 60;             // ширина канваса = 60 см сцены
+
+  btns.forEach(b => b.addEventListener('click', () => {
+    Fcm = parseInt(b.dataset.f, 10);
+    btns.forEach(x => x.classList.toggle('is-on', x === b));
+  }));
+
+  const ptr = e => {
+    const r = canvas.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+  };
+  canvas.addEventListener('pointerdown', e => {
+    e.preventDefault(); dragging = true;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    lensX = Math.min(0.66, Math.max(0.18, ptr(e).x));
+    if (!moved) {
+      moved = true;
+      hint.innerHTML = 'Фокус едет <b>вместе с линзой</b>: он всегда на расстоянии F за ней.';
+      done();
+    }
+  });
+  ['pointerup', 'pointercancel'].forEach(ev => canvas.addEventListener(ev, () => { dragging = false; }));
+
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 300);
+    ctx.clearRect(0, 0, w, h);
+
+    const axisY = h * 0.46;
+    const px = w / CM();               // пикселей в 1 см
+    const lx = lensX * w;
+    const Fpx = Fcm * px;
+    const fx = lx + Fpx;               // точка фокуса
+    const A = h * 0.56;                // высота пучка
+
+    // оптическая ось
+    ctx.setLineDash([3, 12]);
+    ctx.strokeStyle = '#C9CEDA'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(0, axisY); ctx.lineTo(w, axisY); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // лучи
+    const NR = 5;
+    ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(240,178,60,0.85)';
+    for (let i = 0; i < NR; i++) {
+      const k = i / (NR - 1) - 0.5;
+      const y0 = axisY + k * A;
+      ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(lx, y0); ctx.stroke();
+      // после линзы — через фокус и дальше
+      const dydx = (axisY - y0) / Fpx;
+      const xEnd = w;
+      ctx.beginPath(); ctx.moveTo(lx, y0); ctx.lineTo(xEnd, y0 + dydx * (xEnd - lx)); ctx.stroke();
+    }
+
+    // точка фокуса светится
+    const pulse = 0.5 + 0.5 * Math.sin(t * 4);
+    ctx.beginPath(); ctx.arc(fx, axisY, 12 + 7 * pulse, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(240,178,60,0.28)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(fx, axisY, 6, 0, Math.PI * 2);
+    ctx.fillStyle = RAY; ctx.fill();
+    ctx.beginPath(); ctx.arc(fx, axisY, 2.6, 0, Math.PI * 2);
+    ctx.fillStyle = '#FFE6AE'; ctx.fill();
+
+    // скобка F под осью
+    const by = axisY + h * 0.30;
+    ctx.strokeStyle = '#6240FF'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(lx, by); ctx.lineTo(fx, by); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(lx, by - 7); ctx.lineTo(lx, by + 7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(fx, by - 7); ctx.lineTo(fx, by + 7); ctx.stroke();
+    labelFont(ctx, w, 0.038);
+    ctx.fillStyle = '#6240FF'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('F = ' + Fcm + ' см', (lx + fx) / 2, by + 10);
+
+    // линза: чем меньше F, тем «пухлее»
+    const c = h * (0.055 - (Fcm - 9) * 0.0022);
+    drawLensV(ctx, lx, axisY, A / 2 + 14, c);
+
+    labelFont(ctx, w);
+    ctx.fillStyle = '#6B7180'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText('параллельный пучок', w * 0.03, axisY - A / 2 - 18);
+    ctx.textAlign = 'start';
+
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'interact', id: 'burn', visual: 'burn',
+    title: 'Зажги бумагу лупой',
+    text: 'Старый летний фокус: лупа + солнце = дымящаяся бумага. Двигай лупу вверх-вниз и поймай высоту, на которой пятно света сожмётся в яркую точку.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'focusdef', big: true,
+    title: 'Эта точка — фокус',
+    text: 'Параллельные лучи после собирающей линзы сходятся <b>в одной точке</b> — она называется <b>фокусом</b>. Расстояние от линзы до фокуса — <b>фокусное расстояние F</b>. Бумага загорается именно в фокусе: вся энергия пучка собирается на крошечном пятнышке.',
+  },
+  {
+    phase: 'theory', type: 'interact', id: 'beam', visual: 'beam',
+    title: 'Фокус всегда на расстоянии F',
+    text: 'Двигай линзу вдоль пучка — фокус послушно едет за ней. А кнопками поменяй саму линзу: чем она выпуклее, тем сильнее преломляет лучи и тем <b>короче F</b>.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'shapes', big: true,
+    title: 'Собирающая и рассеивающая',
+    text: 'Линза, которая <b>толще в середине</b>, собирает лучи — она так и называется: <b>собирающая</b>. Линза <b>тоньше в середине</b> — <b>рассеивающая</b>: она разводит лучи веером, будто они вылетели из мнимого фокуса перед линзой. Ей бумагу не зажечь.',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Два вопроса — и тема твоя.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 1',
+    text: 'У лупы фокусное расстояние 10 см. На какой высоте над бумагой её держать, чтобы бумага задымилась быстрее всего?',
+    options: [
+      { id: 'a', text: 'Примерно 10 см — пятно света сожмётся в точку', correct: true },
+      { id: 'b', text: 'Чем выше, тем лучше — свет успеет «разогнаться»', correct: false },
+      { id: 'c', text: 'Вплотную к бумаге — так свет ярче всего', correct: false },
+    ],
+    right: 'Именно! Солнечные лучи почти параллельны, значит они соберутся в точку на фокусном расстоянии — в 10 см от лупы.',
+    wrong: 'Вспомни опыт: пятно сжимается в точку, когда бумага оказывается в фокусе — в 10 см от лупы. Ближе и дальше пятно снова расплывается.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 2',
+    text: 'Перед тобой три линзы. Какая соберёт параллельный пучок в одну точку?',
+    options: [
+      { id: 'a', text: 'Вогнутая — тоньше в середине, чем по краям', correct: false },
+      { id: 'b', text: 'Выпуклая — толще в середине, чем по краям', correct: true },
+      { id: 'c', text: 'Любая стеклянная — стекло всегда собирает свет', correct: false },
+    ],
+    right: 'Верно! Собирающая линза всегда толще в середине. Вогнутая, наоборот, рассеет пучок веером.',
+    wrong: 'Собирает лучи только линза, которая толще в середине, — выпуклая. Вогнутая рассеивает, а форма важнее материала.',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  burn: () => `
+    <div class="canvas-panel"><canvas id="burnCanvas" height="320"></canvas></div>
+    <p class="canvas-hint" id="burnHint">Тащи лупу 🔍 вверх-вниз — пятно должно сжаться <b>в точку</b></p>`,
+  beam: () => `
+    <div class="canvas-panel"><canvas id="beamCanvas" height="300"></canvas></div>
+    <div class="mini-actions">
+      <button class="chip-btn" data-f="9">Пухлая линза</button>
+      <button class="chip-btn is-on" data-f="15">Средняя</button>
+      <button class="chip-btn" data-f="22">Почти плоская</button>
+    </div>
+    <p class="canvas-hint" id="beamHint">Тащи линзу влево-вправо и следи за точкой фокуса</p>`,
+  focusdef: () => `
+    <svg viewBox="0 0 340 190" xmlns="http://www.w3.org/2000/svg">
+      <line x1="10" y1="95" x2="330" y2="95" stroke="#C9CEDA" stroke-width="2" stroke-dasharray="2 8" stroke-linecap="round"/>
+      <g stroke="#F0B23C" stroke-width="3.5" stroke-linecap="round">
+        <line x1="16" y1="45"  x2="128" y2="45"/>
+        <line x1="16" y1="70"  x2="128" y2="70"/>
+        <line x1="16" y1="95"  x2="128" y2="95"/>
+        <line x1="16" y1="120" x2="128" y2="120"/>
+        <line x1="16" y1="145" x2="128" y2="145"/>
+        <line x1="146" y1="45"  x2="252" y2="95"/>
+        <line x1="146" y1="70"  x2="252" y2="95"/>
+        <line x1="146" y1="95"  x2="252" y2="95"/>
+        <line x1="146" y1="120" x2="252" y2="95"/>
+        <line x1="146" y1="145" x2="252" y2="95"/>
+      </g>
+      <circle cx="252" cy="95" r="13" fill="#F0B23C" opacity=".3">
+        <animate attributeName="r" values="9;16;9" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="252" cy="95" r="5.5" fill="#F0B23C"/>
+      <path d="M137 18 C 152 44, 152 146, 137 172 C 122 146, 122 44, 137 18 Z"
+            fill="#DCE9FB" stroke="#8FB4E8" stroke-width="3" stroke-linejoin="round"/>
+      <g stroke="#6240FF" stroke-width="2.5" stroke-linecap="round">
+        <line x1="137" y1="163" x2="137" y2="177"/>
+        <line x1="252" y1="163" x2="252" y2="177"/>
+        <line x1="137" y1="170" x2="252" y2="170"/>
+      </g>
+      <text x="194" y="188" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="17" fill="#6240FF" dominant-baseline="auto">F</text>
+      <text x="284" y="76" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="14" fill="#6B7180">фокус</text>
+    </svg>`,
+  shapes: () => `
+    <svg viewBox="0 0 460 190" xmlns="http://www.w3.org/2000/svg">
+      <!-- собирающая -->
+      <line x1="10" y1="95" x2="215" y2="95" stroke="#C9CEDA" stroke-width="2" stroke-dasharray="2 8" stroke-linecap="round"/>
+      <g stroke="#F0B23C" stroke-width="3" stroke-linecap="round">
+        <line x1="14" y1="55"  x2="92" y2="55"/>
+        <line x1="14" y1="95"  x2="92" y2="95"/>
+        <line x1="14" y1="135" x2="92" y2="135"/>
+        <line x1="108" y1="55"  x2="182" y2="95"><animate attributeName="opacity" values=".4;1;.4" dur="2.4s" repeatCount="indefinite"/></line>
+        <line x1="108" y1="95"  x2="182" y2="95"><animate attributeName="opacity" values=".4;1;.4" dur="2.4s" repeatCount="indefinite"/></line>
+        <line x1="108" y1="135" x2="182" y2="95"><animate attributeName="opacity" values=".4;1;.4" dur="2.4s" repeatCount="indefinite"/></line>
+      </g>
+      <circle cx="182" cy="95" r="5" fill="#F0B23C"/>
+      <path d="M100 28 C 114 52, 114 138, 100 162 C 86 138, 86 52, 100 28 Z"
+            fill="#DCE9FB" stroke="#8FB4E8" stroke-width="3" stroke-linejoin="round"/>
+      <text x="100" y="186" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="15" fill="#3E434C">собирающая</text>
+      <!-- рассеивающая -->
+      <line x1="245" y1="95" x2="450" y2="95" stroke="#C9CEDA" stroke-width="2" stroke-dasharray="2 8" stroke-linecap="round"/>
+      <g stroke="#F0B23C" stroke-width="3" stroke-linecap="round">
+        <line x1="250" y1="65"  x2="328" y2="65"/>
+        <line x1="250" y1="95"  x2="328" y2="95"/>
+        <line x1="250" y1="125" x2="328" y2="125"/>
+        <line x1="344" y1="65"  x2="420" y2="24.3"><animate attributeName="opacity" values=".4;1;.4" dur="2.4s" repeatCount="indefinite"/></line>
+        <line x1="344" y1="95"  x2="420" y2="95"><animate attributeName="opacity" values=".4;1;.4" dur="2.4s" repeatCount="indefinite"/></line>
+        <line x1="344" y1="125" x2="420" y2="165.7"><animate attributeName="opacity" values=".4;1;.4" dur="2.4s" repeatCount="indefinite"/></line>
+      </g>
+      <g stroke="#B4BAC8" stroke-width="2" stroke-dasharray="4 6" stroke-linecap="round">
+        <line x1="344" y1="65" x2="280" y2="95"/>
+        <line x1="344" y1="125" x2="280" y2="95"/>
+      </g>
+      <circle cx="280" cy="95" r="4" fill="none" stroke="#B4BAC8" stroke-width="2"/>
+      <path d="M336 30 C 330 46, 328 62, 328 95 C 328 128, 330 144, 336 160 C 342 144, 344 128, 344 95 C 344 62, 342 46, 336 30 Z M336 30 C 344 40, 348 64, 348 95 C 348 126, 344 150, 336 160 M336 30 C 328 40, 324 64, 324 95 C 324 126, 328 150, 336 160"
+            fill="#EADFF8" stroke="#B69AE0" stroke-width="3" stroke-linejoin="round"/>
+      <text x="336" y="186" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="15" fill="#3E434C">рассеивающая</text>
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'burn') startBurn(ctx.root, ctx.done);
+  if (step.id === 'beam') startBeam(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'focus',
+  storageKey: 'lenses-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-image/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

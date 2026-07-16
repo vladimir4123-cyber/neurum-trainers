@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Объём камешка · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪨</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .p-scene svg{ max-width: 420px; }
+  .act-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 12px; padding: 13px 26px;
+    border: 0; border-radius: var(--radius-md);
+    background: var(--fg-1); color: #fff;
+    font-family: var(--font-sans); font-size: 16px; font-weight: 500;
+    cursor: pointer;
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard), opacity 150ms;
+  }
+  .act-btn:hover{ background: var(--black-2); }
+  .act-btn:active{ transform: scale(0.96); }
+  .act-btn:disabled{ opacity: .4; cursor: default; }
+  .rec-chips{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 4px; }
+  .rec-chip{
+    padding: 11px 18px; border-radius: 9999px;
+    background: var(--purple-4); color: var(--fg-2); font-size: 16px;
+  }
+  .rec-chip b{ color: var(--fg-1); font-weight: 500; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Объём камешка» — метод вытеснения (Пёрышкин, §2).
+   Налита вода (V₁) → опускаем тело → уровень V₂ → объём тела
+   V₂ − V₁ (в см³, ведь 1 мл = 1 см³). Ученик сам считывает ОБА
+   уровня и сам вписывает разность.
+   hard: второе тело — парафин — не тонет: его надо притопить
+   иглой, как советует учебник.
+   ============================================================ */
+
+const fmt = v => String(Math.round(v * 100) / 100).replace('.', ',');
+const priceOf = s => s.label / s.minor;
+
+const POOLS = {
+  easy: [
+    { max: 100, label: 20, minor: 4 },   // 5 мл
+    { max: 200, label: 50, minor: 5 },   // 10 мл
+    { max: 100, label: 25, minor: 5 },   // 5 мл
+  ],
+  medium: [
+    { max: 100, label: 20, minor: 4 },
+    { max: 100, label: 25, minor: 5 },
+    { max: 200, label: 50, minor: 5 },
+    { max: 50,  label: 10, minor: 5 },   // 2 мл
+  ],
+  hard: [
+    { max: 100, label: 20, minor: 4 },
+    { max: 200, label: 50, minor: 5 },
+    { max: 250, label: 50, minor: 5 },   // 10 мл
+    { max: 100, label: 25, minor: 5 },
+  ],
+};
+
+/* ---------- геометрия мензурки ---------- */
+const yZero = 284, yTop = 66;
+const yOf = (s, v) => yZero - (v / s.max) * (yZero - yTop);
+
+/* ---------- плоская мензурка (стиль §8) + тела внутри ---------- */
+function beakerBody(s, level, extra = '') {
+  const price = priceOf(s);
+  let ticks = '';
+  const n = Math.round(s.max / price);
+  for (let i = 0; i <= n; i++) {
+    const v = i * price;
+    const major = Math.round(v * 100) % Math.round(s.label * 100) === 0;
+    const len = major ? 20 : 12;
+    const yy = yOf(s, v).toFixed(1);
+    ticks += `<line x1="69" y1="${yy}" x2="${69 + len}" y2="${yy}" stroke="#5D6472" stroke-width="${major ? 2.4 : 1.5}" stroke-linecap="round"/>`;
+    if (major) ticks += `<text x="${69 + len + 5}" y="${yy}" dominant-baseline="central" font-family="var(--font-display), sans-serif" font-weight="500" font-size="14" fill="#3E434C">${fmt(v)}</text>`;
+  }
+  const yL = yOf(s, level);
+  const liquid = level > 0 ? `
+    <path d="M69 ${(yL - 4).toFixed(1)} Q110 ${(yL + 4).toFixed(1)} 151 ${(yL - 4).toFixed(1)} L151 283 Q151 299 135 299 L85 299 Q69 299 69 283 Z" fill="#BFDCF9"/>
+    <path d="M69 ${(yL - 4).toFixed(1)} Q110 ${(yL + 4).toFixed(1)} 151 ${(yL - 4).toFixed(1)}" fill="none" stroke="#5D9BE0" stroke-width="2.6" stroke-linecap="round"/>` : '';
+  return `
+    <path d="M66 36 L66 284 Q66 302 84 302 L136 302 Q154 302 154 284 L154 36" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+    <path d="M66 36 L57 28" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+    <path d="M154 36 L160 31" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+    ${liquid}
+    ${extra}
+    ${ticks}`;
+}
+
+function stoneAt(cx, cy, withThread) {
+  const thread = withThread ? `<line x1="${cx}" y1="6" x2="${cx}" y2="${(cy - 12).toFixed(1)}" stroke="#B9BFCD" stroke-width="1.6"/>` : '';
+  return `${thread}
+    <g transform="translate(${cx},${cy.toFixed(1)})">
+      <path d="M-16 -8 Q-6 -18 8 -14 Q20 -10 18 2 Q16 12 2 14 Q-12 15 -17 5 Q-20 -2 -16 -8 Z" fill="#9AA0AC" stroke="#767C88" stroke-width="2"/>
+      <path d="M-6 -3 Q0 -7 6 -3" stroke="#767C88" stroke-width="1.4" fill="none"/>
+    </g>`;
+}
+function waxAt(cx, cy, pinned) {
+  const pin = pinned ? `
+    <line x1="${cx + 4}" y1="8" x2="${cx}" y2="${(cy - 6).toFixed(1)}" stroke="#8E95A5" stroke-width="2.2" stroke-linecap="round"/>
+    <circle cx="${cx + 4}" cy="10" r="3.4" fill="#8E95A5"/>` : '';
+  return `${pin}
+    <g transform="translate(${cx},${cy.toFixed(1)})">
+      <rect x="-15" y="-12" width="30" height="24" rx="9" fill="#F2E4C2" stroke="#D8C79A" stroke-width="2"/>
+    </g>`;
+}
+
+/* o = { level, stone: y|null, thread, wax: {y, pinned}|null, pointer } */
+function drawScene(s, o) {
+  let extra = '';
+  if (o.stone != null) extra += stoneAt(98, o.stone, o.thread !== false);
+  if (o.wax) extra += waxAt(128, o.wax.y, o.wax.pinned);
+  const yL = yOf(s, o.level);
+  const pointer = o.pointer ? `
+    <path d="M258 ${yL.toFixed(1)} L318 ${yL.toFixed(1)}" stroke="#6240FF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 7"/>
+    <text x="330" y="${(yL - 6).toFixed(1)}" font-family="var(--font-display), sans-serif" font-weight="500" font-size="26" fill="#6240FF">?
+      <animate attributeName="opacity" values="1;.35;1" dur="1.6s" repeatCount="indefinite"/>
+    </text>
+    <text x="330" y="${(yL + 18).toFixed(1)}" font-family="var(--font-sans), sans-serif" font-size="14" fill="#6B7180">мл</text>` : '';
+  return `
+    <svg viewBox="0 0 380 340" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(100,0)">${beakerBody(s, o.level, extra)}</g>
+      ${pointer}
+    </svg>`;
+}
+
+const ease = t => 1 - Math.pow(1 - t, 3);
+function animate(dur, onFrame, onDone) {
+  const t0 = performance.now();
+  const frame = now => {
+    const k = Math.min(1, (now - t0) / dur);
+    if (onFrame(ease(k), k) === false) return;   // сцена размонтирована
+    if (k < 1) requestAnimationFrame(frame);
+    else if (onDone) onDone();
+  };
+  requestAnimationFrame(frame);
+}
+
+/* ---------- генерация сценария ---------- */
+function makeScenario(level, rnd) {
+  const pool = POOLS[level];
+  const s = pool[Math.floor(rnd() * pool.length)];
+  const price = priceOf(s);
+  const nLab = Math.round(s.max / s.label);
+  let v1, dv, dv2 = 0;
+  if (level === 'easy') {
+    // всё на подписанных штрихах
+    v1 = (1 + Math.floor(rnd() * Math.max(1, nLab - 3))) * s.label;
+    dv = (1 + Math.floor(rnd() * 2)) * s.label;
+    while (v1 + dv > s.max - s.label) { dv -= s.label; if (dv <= 0) { dv = s.label; v1 -= s.label; } }
+  } else {
+    // уровни на делениях, но не на подписях (хотя бы один)
+    const nDiv = Math.round(s.max / price);
+    for (let t = 0; t < 80; t++) {
+      const k1 = 2 + Math.floor(rnd() * (nDiv * 0.45));
+      const m = 2 + Math.floor(rnd() * (nDiv * 0.3));
+      v1 = k1 * price; dv = m * price;
+      if (v1 + dv > s.max - s.label) continue;
+      const onLab = v => Math.round(v * 100) % Math.round(s.label * 100) === 0;
+      if (!onLab(v1) || !onLab(v1 + dv)) break;
+    }
+    if (level === 'hard') {
+      // второе тело — парафин
+      for (let t = 0; t < 80; t++) {
+        const m2 = 2 + Math.floor(rnd() * 3);
+        dv2 = m2 * price;
+        if (v1 + dv + dv2 <= s.max - price) break;
+        dv2 = 0;
+      }
+      if (!dv2) dv2 = price * 2;
+    }
+  }
+  return { s, price, v1, v2: v1 + dv, dv, dv2, v3: v1 + dv + dv2 };
+}
+
+/* ---------- шаги ---------- */
+function readingHints(sc, v) {
+  const below = Math.floor((v + 1e-9) / sc.s.label) * sc.s.label;
+  const stepsUp = Math.round((v - below) / sc.price);
+  const second = stepsUp === 0
+    ? 'Уровень стоит ровно на подписанной отметке — прочитай её.'
+    : `Уровень на ${stepsUp} делен${stepsUp === 1 ? 'ие' : (stepsUp < 5 ? 'ия' : 'ий')} выше отметки ${fmt(below)}: ${fmt(below)} + ${stepsUp} × ${fmt(sc.price)}.`;
+  return [
+    `Цена деления шкалы — ${fmt(sc.price)} мл. Считай по нижнему краю мениска.`,
+    second,
+  ];
+}
+
+function buildSteps(level, rnd) {
+  const sc = makeScenario(level, rnd);
+  const tol = sc.price / 4;
+
+  const steps = [
+    {
+      type: 'reading',
+      title: 'Уровень воды V₁',
+      text: 'В мензурке пока только вода. Считай уровень по нижнему краю мениска и впиши V₁.',
+      render(host) { host.innerHTML = drawScene(sc.s, { level: sc.v1, pointer: true }); },
+      answer: sc.v1, tolerance: tol, unit: 'мл',
+      hints: readingHints(sc, sc.v1),
+      right: `✓ Записали: V₁ = ${fmt(sc.v1)} мл.`,
+    },
+    {
+      type: 'action',
+      title: 'Опусти камешек',
+      text: 'Камешек привязан на нитке — так его потом легко достать. Нажми кнопку и следи за уровнем.',
+      render(host, ctx) {
+        host.innerHTML = `
+          <div id="dropScene">${drawScene(sc.s, { level: sc.v1, stone: -14 })}</div>
+          <div style="text-align:center"><button class="act-btn" id="dropBtn">Опустить камешек</button></div>`;
+        const box = host.querySelector('#dropScene');
+        const btn = host.querySelector('#dropBtn');
+        btn.addEventListener('click', () => {
+          btn.disabled = true;
+          animate(1600, e => {
+            if (!box.isConnected) return false;
+            const stoneY = -14 + (282 - -14) * Math.min(1, e / 0.55);
+            const lv = sc.v1 + sc.dv * Math.max(0, (e - 0.45) / 0.55);
+            box.innerHTML = drawScene(sc.s, { level: Math.min(lv, sc.v2), stone: stoneY });
+          }, () => {
+            if (!box.isConnected) return;
+            box.innerHTML = drawScene(sc.s, { level: sc.v2, stone: 282 });
+            ctx.fb('Камешек на дне — вода поднялась: он вытеснил ровно свой объём.', 'ok');
+            ctx.done();
+          });
+        });
+      },
+    },
+    {
+      type: 'reading',
+      title: 'Уровень с камешком V₂',
+      text: 'Вода поднялась. Снова считай по нижнему краю мениска и впиши V₂.',
+      render(host) { host.innerHTML = drawScene(sc.s, { level: sc.v2, stone: 282, pointer: true }); },
+      answer: sc.v2, tolerance: tol, unit: 'мл',
+      hints: readingHints(sc, sc.v2),
+      right: `✓ Записали: V₂ = ${fmt(sc.v2)} мл.`,
+    },
+    {
+      type: 'reading',
+      title: 'Объём камешка',
+      text: 'Камешек вытеснил ровно столько воды, сколько занимает сам. Вычисли его объём. Помни: 1 мл = 1 см³.',
+      render(host) {
+        host.innerHTML = `
+          <div class="rec-chips">
+            <span class="rec-chip">до: V₁ = <b>${fmt(sc.v1)} мл</b></span>
+            <span class="rec-chip">после: V₂ = <b>${fmt(sc.v2)} мл</b></span>
+          </div>`;
+      },
+      answer: sc.dv, tolerance: 0, unit: 'см³',
+      hints: [
+        'Объём тела — разность уровней: V₂ − V₁.',
+        `Считай: ${fmt(sc.v2)} − ${fmt(sc.v1)}. Ответ в см³ — ведь 1 мл = 1 см³.`,
+      ],
+      right: `✓ Верно! Объём камешка ${fmt(sc.dv)} см³ — ты измерил его без всякой линейки.`,
+    },
+  ];
+
+  if (level === 'hard') {
+    steps.push(
+      {
+        type: 'action',
+        title: 'Тело, которое не тонет',
+        text: 'Теперь кусочек парафина. Опусти его в мензурку — и придумай, что делать, если тело плавает.',
+        render(host, ctx) {
+          host.innerHTML = `
+            <div id="waxScene">${drawScene(sc.s, { level: sc.v2, stone: 282, wax: { y: -14, pinned: false } })}</div>
+            <div style="text-align:center"><button class="act-btn" id="waxBtn">Опустить парафин</button></div>`;
+          const box = host.querySelector('#waxScene');
+          const btn = host.querySelector('#waxBtn');
+          const vFloat = sc.v2 + Math.max(1, Math.floor(sc.dv2 / sc.price / 2)) * sc.price;
+          let phase = 0;
+          btn.addEventListener('click', () => {
+            if (phase === 0) {
+              phase = 1; btn.disabled = true;
+              animate(1300, e => {
+                if (!box.isConnected) return false;
+                const lv = sc.v2 + (vFloat - sc.v2) * Math.max(0, (e - 0.5) / 0.5);
+                const yF = yOf(sc.s, lv) + 2;
+                const waxY = -14 + (yF - -14) * Math.min(1, e / 0.6);
+                box.innerHTML = drawScene(sc.s, { level: lv, stone: 282, wax: { y: waxY, pinned: false } });
+              }, () => {
+                if (!box.isConnected) return;
+                btn.disabled = false;
+                btn.textContent = 'Притопить иглой';
+                ctx.fb('Парафин плавает! Погружена только часть — так объём не измерить. Пёрышкин советует: притопи тело тонкой иглой.', 'hint');
+              });
+            } else if (phase === 1) {
+              phase = 2; btn.disabled = true;
+              const yF = yOf(sc.s, vFloat) + 2;
+              animate(1100, e => {
+                if (!box.isConnected) return false;
+                const lv = vFloat + (sc.v3 - vFloat) * e;
+                const waxY = yF + (268 - yF) * e;
+                box.innerHTML = drawScene(sc.s, { level: lv, stone: 282, wax: { y: waxY, pinned: true } });
+              }, () => {
+                if (!box.isConnected) return;
+                box.innerHTML = drawScene(sc.s, { level: sc.v3, stone: 282, wax: { y: 268, pinned: true } });
+                ctx.fb('Теперь парафин под водой целиком — уровень честный.', 'ok');
+                ctx.done();
+              });
+            }
+          });
+        },
+      },
+      {
+        type: 'reading',
+        title: 'Уровень с парафином V₃',
+        text: 'Парафин притоплен иглой и полностью под водой. Считай уровень и впиши V₃.',
+        render(host) { host.innerHTML = drawScene(sc.s, { level: sc.v3, stone: 282, wax: { y: 268, pinned: true }, pointer: true }); },
+        answer: sc.v3, tolerance: tol, unit: 'мл',
+        hints: readingHints(sc, sc.v3),
+        right: `✓ Записали: V₃ = ${fmt(sc.v3)} мл.`,
+      },
+      {
+        type: 'reading',
+        title: 'Объём парафина',
+        text: 'До погружения парафина было V₂, после — V₃. Вычисли объём парафина в см³.',
+        render(host) {
+          host.innerHTML = `
+            <div class="rec-chips">
+              <span class="rec-chip">c камешком: V₂ = <b>${fmt(sc.v2)} мл</b></span>
+              <span class="rec-chip">и с парафином: V₃ = <b>${fmt(sc.v3)} мл</b></span>
+            </div>`;
+        },
+        answer: sc.dv2, tolerance: 0, unit: 'см³',
+        hints: [
+          'Та же логика: разность уровней V₃ − V₂.',
+          `Считай: ${fmt(sc.v3)} − ${fmt(sc.v2)}.`,
+        ],
+        right: `✓ Верно! ${fmt(sc.dv2)} см³. Метод вытеснения работает даже для тел, которые не тонут.`,
+      },
+    );
+  }
+
+  return steps;
+}
+
+/* ---------- запуск ---------- */
+runPractice({
+  practiceId: 'stone',
+  storageKey: 'beaker-progress',
+  homeHref: '../demo/',
+  title: 'Объём камешка',
+  subtitle: 'Как измерить объём тела неправильной формы? Линейка не поможет — а мензурка справится. Метод вытеснения: опусти тело в воду и следи за уровнем.',
+  levels: {
+    easy:   { label: 'Разминка',      desc: 'Круглые уровни на подписанных штрихах.', xp: 30 },
+    medium: { label: 'Исследователь', desc: 'Уровни между подписями — считай деления.', xp: 50 },
+    hard:   { label: 'Архимед',       desc: 'Два тела по очереди, и одно из них не тонет.', xp: 80 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Уравновесь весы · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .canvas-panel{
+    width: 100%; max-width: 620px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel svg{ width: 100%; height: auto; display: block; }
+  .wtray{ display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 14px; }
+  .wtray-lbl{
+    width: 100%; text-align: center; font-size: 14px; color: var(--fg-3); margin-bottom: 2px;
+  }
+  .wbtn{
+    font-family: var(--font-display); font-variant-numeric: tabular-nums;
+    font-size: 16px; font-weight: 500; color: var(--fg-1);
+    background: #fff; border: 0; border-radius: 12px; padding: 10px 15px; cursor: pointer;
+    box-shadow: 0 1px 2px rgba(35,35,35,.08), 0 4px 10px rgba(35,35,35,.07), inset 0 0 0 1px rgba(35,35,35,.07);
+    transition: transform 120ms var(--ease-standard), background-color 120ms var(--ease-standard), opacity 150ms var(--ease-standard);
+  }
+  .wbtn:hover:not(:disabled){ background: var(--purple-4); }
+  .wbtn:active:not(:disabled){ transform: scale(0.95); }
+  .wbtn:disabled{ opacity: .32; cursor: default; }
+  .pan-weight{ cursor: pointer; }
+  .sum-chips{
+    display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center;
+    margin: 4px 0 16px;
+  }
+  .sum-chips .lbl{ width: 100%; text-align: center; font-size: 15px; color: var(--fg-2); margin-bottom: 4px; }
+  .chip{
+    font-family: var(--font-display); font-variant-numeric: tabular-nums;
+    font-weight: 500; font-size: 18px; color: var(--fg-1);
+    background: var(--purple-4); border-radius: 10px; padding: 8px 14px;
+  }
+  .chip-plus{ color: var(--fg-3); font-size: 20px; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА-ЛАБОРАТОРНАЯ «Уравновесь весы» (Пёрышкин, лаб. работа
+   «Измерение массы тела на весах»). Ученик САМ подбирает гири
+   школьного разновеса, добивается равновесия, а затем называет
+   массу — сумму гирь на чашке. Честная арифметика: равновесие
+   возможно только когда сумма гирь равна массе предмета.
+   ============================================================ */
+
+const KIT = [100, 50, 20, 20, 10, 5, 2, 2, 1];
+const W_SIZES = { 100: [46, 48], 50: [40, 42], 20: [34, 36], 10: [29, 31], 5: [25, 27], 2: [21, 23], 1: [18, 20] };
+
+/* минимальное число гирь для массы (перебор всех 2⁹ наборов) */
+function minWeights(mass) {
+  let best = Infinity;
+  for (let m = 0; m < 512; m++) {
+    let s = 0, c = 0;
+    for (let j = 0; j < 9; j++) if (m >> j & 1) { s += KIT[j]; c++; }
+    if (s === mass && c < best) best = c;
+  }
+  return best;
+}
+
+function weightSVG(g) {
+  const [w, h] = W_SIZES[g];
+  return `
+    <rect x="${-w / 2}" y="${(-h * 0.72).toFixed(1)}" width="${w}" height="${(h * 0.72).toFixed(1)}" rx="4" fill="#F5B93B" stroke="#C9941B" stroke-width="1.8"/>
+    <rect x="${(-w * 0.3).toFixed(1)}" y="${(-h * 0.9).toFixed(1)}" width="${(w * 0.6).toFixed(1)}" height="${(h * 0.22).toFixed(1)}" rx="3" fill="#F5B93B" stroke="#C9941B" stroke-width="1.8"/>
+    <circle cx="0" cy="${(-h * 0.94).toFixed(1)}" r="${(w * 0.13).toFixed(1)}" fill="none" stroke="#C9941B" stroke-width="3"/>
+    <text x="0" y="${(-h * 0.36).toFixed(1)}" text-anchor="middle" dominant-baseline="central" font-family="var(--font-display), sans-serif" font-weight="500" font-size="${Math.max(11, Math.round(w * 0.4))}" fill="#6E5109">${g}</text>`;
+}
+
+function layoutItems(items) {
+  const rows = []; let row = [], used = 0;
+  items.forEach(it => {
+    const need = it.w + (row.length ? 6 : 0);
+    if (used + need > 124 && row.length) { rows.push(row); row = []; used = 0; }
+    row.push(it); used += it.w + (row.length > 1 ? 6 : 0);
+  });
+  if (row.length) rows.push(row);
+  let out = '', yBase = 0;
+  rows.forEach(r => {
+    const total = r.reduce((s, it) => s + it.w, 0) + 6 * (r.length - 1);
+    let x = -total / 2, maxH = 0;
+    r.forEach(it => {
+      out += `<g transform="translate(${(x + it.w / 2).toFixed(1)} ${yBase})" ${it.attrs || ''}>${it.svg}</g>`;
+      x += it.w + 6;
+      maxH = Math.max(maxH, it.h);
+    });
+    yBase -= maxH + 2;
+  });
+  return out;
+}
+
+/* ---------- сцена весов ---------- */
+const PV = { x: 320, y: 128 }, ARM = 200, HANG = 84;
+
+function scalesSVG(id) {
+  const ticks = [-14, -7, 0, 7, 14].map(d => {
+    const a = (90 + d) * Math.PI / 180;
+    const r1 = 140, r2 = d === 0 ? 158 : 152;
+    return `<line x1="${(PV.x + Math.cos(a) * r1).toFixed(1)}" y1="${(PV.y + Math.sin(a) * r1).toFixed(1)}"
+                  x2="${(PV.x + Math.cos(a) * r2).toFixed(1)}" y2="${(PV.y + Math.sin(a) * r2).toFixed(1)}"
+                  stroke="${d === 0 ? '#6240FF' : '#B3B9C6'}" stroke-width="${d === 0 ? 4 : 3}" stroke-linecap="round"/>`;
+  }).join('');
+  const pan = side => `
+    <g id="${id}${side}" transform="translate(${side === 'PanL' ? PV.x - ARM : PV.x + ARM} ${PV.y})">
+      <circle cx="0" cy="0" r="5" fill="#4A2FD9"/>
+      <path d="M0 0 L-50 ${HANG - 10} M0 0 L50 ${HANG - 10}" stroke="#8F95A3" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <ellipse cx="0" cy="${HANG - 6}" rx="64" ry="10" fill="#C9CEDA" stroke="#A9AFBE" stroke-width="1.6"/>
+      <g id="${id}${side}Items" transform="translate(0 ${HANG - 8})"></g>
+      <path d="M-64 ${HANG - 6} a64 10 0 0 0 128 0 z" fill="#B3B9C6"/>
+    </g>`;
+  return `
+  <svg viewBox="0 0 640 430" xmlns="http://www.w3.org/2000/svg" id="${id}">
+    <rect x="240" y="372" width="160" height="16" rx="8" fill="#C9CEDA"/>
+    <rect x="252" y="372" width="136" height="6" rx="3" fill="#DFE3EC"/>
+    <rect x="312" y="${PV.y}" width="16" height="${372 - PV.y}" rx="6" fill="#C9CEDA"/>
+    <rect x="316" y="${PV.y}" width="5" height="${372 - PV.y}" rx="2.5" fill="#DFE3EC"/>
+    ${ticks}
+    <g id="${id}Beam">
+      <rect x="${PV.x - ARM - 8}" y="${PV.y - 7}" width="${(ARM + 8) * 2}" height="14" rx="7" fill="#6240FF"/>
+      <rect x="${PV.x - ARM - 8}" y="${PV.y - 7}" width="${(ARM + 8) * 2}" height="5" rx="2.5" fill="#8B6FFF"/>
+      <path d="M${PV.x} ${PV.y + 7} L${PV.x} ${PV.y + 118} L${PV.x - 5} ${PV.y + 118} L${PV.x} ${PV.y + 134} L${PV.x + 5} ${PV.y + 118} L${PV.x} ${PV.y + 118}" fill="#E5484D" stroke="#E5484D" stroke-width="3.5" stroke-linejoin="round"/>
+    </g>
+    ${pan('PanL')}
+    ${pan('PanR')}
+    <circle cx="${PV.x}" cy="${PV.y}" r="9" fill="#4A2FD9"/>
+    <circle cx="${PV.x}" cy="${PV.y}" r="3.5" fill="#EEF0FF"/>
+  </svg>`;
+}
+
+function makeBalance(svg, id) {
+  const beamG = svg.querySelector('#' + id + 'Beam');
+  const panL = svg.querySelector('#' + id + 'PanL');
+  const panR = svg.querySelector('#' + id + 'PanR');
+  let a = 0, v = 0, target = 0, running = false;
+  function apply() {
+    const rad = a * Math.PI / 180;
+    beamG.setAttribute('transform', `rotate(${a.toFixed(3)} ${PV.x} ${PV.y})`);
+    const dx = ARM * Math.cos(rad), dy = ARM * Math.sin(rad);
+    panL.setAttribute('transform', `translate(${(PV.x - dx).toFixed(2)} ${(PV.y - dy).toFixed(2)})`);
+    panR.setAttribute('transform', `translate(${(PV.x + dx).toFixed(2)} ${(PV.y + dy).toFixed(2)})`);
+  }
+  function frame() {
+    if (!svg.isConnected) return;
+    v = v * 0.86 + (target - a) * 0.05;
+    a += v;
+    apply();
+    if (Math.abs(v) > 0.0004 || Math.abs(target - a) > 0.002) requestAnimationFrame(frame);
+    else running = false;
+  }
+  return {
+    setDiff(d) {
+      target = 13 * Math.tanh(d / 55);
+      if (!running) { running = true; requestAnimationFrame(frame); }
+    },
+  };
+}
+
+/* ---------- предметы для взвешивания (плоские) ---------- */
+const OBJECTS = [
+  { name: 'яблоко', gen: 'яблока', acc: 'яблоко', w: 56, svg: `
+      <circle cx="0" cy="-26" r="26" fill="#E5484D" stroke="#B7383C" stroke-width="2.5"/>
+      <ellipse cx="-9" cy="-33" rx="6" ry="9" fill="#F08A8E"/>
+      <path d="M2 -56 q13 -4 17 6 q-12 5 -17 -6 z" fill="#3A9D5D"/>` },
+  { name: 'кружка', gen: 'кружки', acc: 'кружку', w: 60, svg: `
+      <rect x="-22" y="-44" width="44" height="44" rx="6" fill="#2F80ED" stroke="#2461B2" stroke-width="2.5"/>
+      <path d="M22 -34 q17 0 17 12 q0 12 -17 12" fill="none" stroke="#2F80ED" stroke-width="6"/>
+      <rect x="-22" y="-44" width="44" height="10" rx="5" fill="#7FB3F5"/>` },
+  { name: 'брусок', gen: 'бруска', acc: 'брусок', w: 72, svg: `
+      <rect x="-34" y="-34" width="68" height="34" rx="5" fill="#D9A05B" stroke="#A87840" stroke-width="2.5"/>
+      <line x1="-34" y1="-22" x2="34" y2="-22" stroke="#BE8848" stroke-width="2"/>` },
+  { name: 'камень', gen: 'камня', acc: 'камень', w: 64, svg: `
+      <path d="M-30 0 L-26 -26 L-6 -38 L20 -32 L30 -8 L24 0 Z" fill="#9AA0AC" stroke="#767C88" stroke-width="2.5" stroke-linejoin="round"/>` },
+  { name: 'картофелина', gen: 'картофелины', acc: 'картофелину', w: 64, svg: `
+      <ellipse cx="0" cy="-18" rx="31" ry="18" fill="#C89B6B" stroke="#9E7648" stroke-width="2.5"/>
+      <circle cx="-10" cy="-22" r="2.4" fill="#8C6B42"/>
+      <circle cx="9" cy="-13" r="2.4" fill="#8C6B42"/>` },
+  { name: 'замок', gen: 'замка', acc: 'замок', w: 52, svg: `
+      <path d="M-13 -34 v-8 a13 13 0 0 1 26 0 v8" fill="none" stroke="#8A8F9C" stroke-width="6"/>
+      <rect x="-21" y="-34" width="42" height="34" rx="6" fill="#F5B93B" stroke="#C9941B" stroke-width="2.5"/>
+      <circle cx="0" cy="-18" r="4.5" fill="#8A6206"/>` },
+];
+
+/* ---------- генерация масс ---------- */
+function shuffled(arr, rnd) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function pickMass(level, rnd, taken) {
+  for (let t = 0; t < 80; t++) {
+    let m = null;
+    if (level === 'easy') {
+      /* круглая масса из двух гирь */
+      const pairs = [[100, 50], [100, 20], [100, 10], [100, 5], [50, 20], [50, 10], [50, 5], [20, 10], [20, 5], [10, 5], [20, 20]];
+      const p = pairs[Math.floor(rnd() * pairs.length)];
+      m = p[0] + p[1];
+    } else if (level === 'medium') {
+      /* 3–4 гири из разновеса (типа 73 = 50+20+2+1) */
+      const k = 3 + (rnd() < 0.5 ? 0 : 1);
+      m = shuffled([...KIT.keys()], rnd).slice(0, k).reduce((s, i) => s + KIT[i], 0);
+      if (m < 15) m = null;
+    } else {
+      /* hard: крупная масса, много гирь; половина — «перегруз-ловушки»,
+         где 100+50 сразу перевешивают */
+      const smalls = [20, 20, 10, 5, 2, 2, 1];
+      const k = 3 + Math.floor(rnd() * 2);           // 3–4 мелких
+      const add = shuffled([...smalls.keys()], rnd).slice(0, k).reduce((s, i) => s + smalls[i], 0);
+      m = rnd() < 0.5 ? 150 + add                     // типа 187 = 100+50+мелкие
+                      : 100 + Math.max(25, add);      // ловушка: 125–148, 100+50 — перевес
+    }
+    if (m && !taken.has(m)) { taken.add(m); return m; }
+  }
+  taken.add(73);
+  return 73;
+}
+
+/* варианты ответа: ровно 4, один верный */
+function massOptions(mass, rnd) {
+  const pool = shuffled(
+    [mass - 1, mass + 1, mass - 2, mass + 2, mass - 5, mass + 5, mass - 10, mass + 10, mass + 3, mass - 3]
+      .filter(v => v > 0 && v !== mass),
+    rnd);
+  const wrongs = [...new Set(pool)].slice(0, 3);
+  return [
+    { text: `${mass} г`, correct: true },
+    ...wrongs.map(v => ({ text: `${v} г`, correct: false })),
+  ];
+}
+
+/* ---------- сборка шагов ---------- */
+let sceneN = 0;
+function buildSteps(level, rnd) {
+  const steps = [];
+  const taken = new Set();
+  const objs = shuffled(OBJECTS, rnd);
+  const ROUNDS = 2;
+
+  for (let r = 0; r < ROUNDS; r++) {
+    const obj = objs[r];
+    const mass = pickMass(level, rnd, taken);
+    const minCnt = minWeights(mass);
+    const shared = { used: null };
+    const id = 'bal' + (++sceneN) + '_' + r;
+
+    const choiceStep = {
+      type: 'choice',
+      title: `Взвешивание ${r + 1} из ${ROUNDS}`,
+      text: `Весы в равновесии. Какова масса ${obj.gen}?`,
+      render(host) {
+        const list = (shared.used || []).slice().sort((a, b) => b - a);
+        host.innerHTML = `
+          <div class="sum-chips">
+            <span class="lbl">Гири на правой чашке:</span>
+            ${list.map(g => `<span class="chip">${g} г</span>`).join('<span class="chip-plus">+</span>')}
+          </div>`;
+      },
+      options: massOptions(mass, rnd),
+      right: `Масса ${obj.gen} равна сумме гирь на чашке — ${mass} г.`,
+      wrong: `Масса предмета = сумма гирь на чашке. Сложи их — получится ${mass} г.`,
+    };
+
+    steps.push({
+      type: 'action',
+      title: `${obj.name[0].toUpperCase()}${obj.name.slice(1)} на весах`,
+      text: level === 'hard'
+        ? `Уравновесь ${obj.acc} гирями — и по регламенту метролога: <b>как можно меньшим числом гирь</b>. Клик по гире в наборе — поставить, по гире на чашке — снять.`
+        : `Подбери гири на правую чашку так, чтобы коромысло встало ровно, а стрелка — на нулевую отметку. Клик по гире в наборе — поставить, по гире на чашке — снять.`,
+      render(host, ctx) {
+        host.innerHTML = `
+          <div class="canvas-panel" data-mass="${mass}" data-min="${minCnt}">${scalesSVG(id)}</div>
+          <div class="wtray" id="tray_${id}"><span class="wtray-lbl">Разновес (клик — поставить на чашку):</span></div>`;
+        const svg = host.querySelector('#' + id);
+        const bal = makeBalance(svg, id);
+        const itemsL = svg.querySelector('#' + id + 'PanLItems');
+        const itemsR = svg.querySelector('#' + id + 'PanRItems');
+        const tray = host.querySelector('#tray_' + id);
+        const avail = KIT.map(g => ({ g, used: false }));
+        let locked = false, warned = false;
+
+        itemsL.innerHTML = layoutItems([{ w: obj.w, h: 50, svg: obj.svg }]);
+
+        const sumR = () => avail.reduce((s, it) => s + (it.used ? it.g : 0), 0);
+        const cntR = () => avail.reduce((s, it) => s + (it.used ? 1 : 0), 0);
+
+        function refresh() {
+          tray.innerHTML = '<span class="wtray-lbl">Разновес (клик — поставить на чашку):</span>' +
+            avail.map((it, i) =>
+              `<button class="wbtn" data-i="${i}" ${it.used || locked ? 'disabled' : ''}>${it.g} г</button>`).join('');
+          tray.querySelectorAll('.wbtn').forEach(b => b.addEventListener('click', () => {
+            avail[+b.dataset.i].used = true;
+            update();
+          }));
+          const used = avail.map((it, i) => ({ it, i })).filter(x => x.it.used)
+            .sort((a, b) => b.it.g - a.it.g);
+          itemsR.innerHTML = layoutItems(used.map(x => ({
+            w: W_SIZES[x.it.g][0], h: W_SIZES[x.it.g][1],
+            svg: weightSVG(x.it.g),
+            attrs: `class="pan-weight" data-i="${x.i}"`,
+          })));
+          if (!locked) {
+            itemsR.querySelectorAll('.pan-weight').forEach(el => el.addEventListener('click', () => {
+              avail[+el.dataset.i].used = false;
+              update();
+            }));
+          }
+        }
+
+        function update() {
+          refresh();
+          const s = sumR();
+          bal.setDiff(s - mass);
+          if (locked) return;
+          if (s === mass) {
+            const cnt = cntR();
+            if (level === 'hard' && cnt > minCnt) {
+              if (!warned) { warned = true; ctx.miss(); }
+              ctx.fb(`Равновесие есть, но гирь ${cnt}, а можно всего ${minCnt}. Сними мелкие и замени их одной крупной.`, 'hint');
+              return;
+            }
+            locked = true;
+            shared.used = avail.filter(it => it.used).map(it => it.g);
+            const list = shared.used.slice().sort((a, b) => b - a);
+            choiceStep.right = `Верно: ${list.join(' + ')} = ${mass} г. Масса ${obj.gen} равна сумме гирь.`;
+            choiceStep.wrong = `Сложи гири на чашке: ${list.join(' + ')} = ${mass} г.`;
+            refresh();
+            ctx.fb(`<b>Равновесие!</b> Стрелка на нуле — взвешивание закончено. Запомни гири и жми «Дальше».`, 'ok');
+            ctx.done();
+          } else if (s > mass) {
+            ctx.fb('Перевес! Правая чашка опустилась — сними лишнюю гирю и возьми поменьше.', 'err');
+          } else if (s > 0) {
+            ctx.fb(`Пока мало: ${obj.name} перевешивает. Добавь гирю.`, 'hint');
+          } else {
+            ctx.fb('', '');
+          }
+        }
+
+        update();
+      },
+    });
+    steps.push(choiceStep);
+  }
+  return steps;
+}
+
+/* ---------- запуск ---------- */
+runPractice({
+  practiceId: 'balance',
+  storageKey: 'scales-progress',
+  homeHref: '../demo/',
+  title: 'Уравновесь весы',
+  subtitle: 'На левой чашке — предмет неизвестной массы. Подбери гири из школьного разновеса, добейся равновесия и определи массу — как в лабораторной работе.',
+  levels: {
+    easy:   { label: 'Лаборант',  desc: 'Два предмета с круглой массой — хватит двух гирь.',            xp: 30 },
+    medium: { label: 'Мастер',    desc: 'Массы хитрее — понадобятся три-четыре гири.',                  xp: 50 },
+    hard:   { label: 'Метролог',  desc: 'Тяжёлые предметы, перегруз-ловушки и правило: гирь — минимум.', xp: 70 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

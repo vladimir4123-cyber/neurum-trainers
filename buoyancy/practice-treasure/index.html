@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Подними сокровище · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪙</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .sea-panel{
+    width: 100%; max-width: 420px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .sea-panel svg{ width: 100%; height: auto; display: block; border-radius: 12px; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">3</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Подними сокровище» — обратная задача.
+   Сундук массой m лежит на дне. Подбери минимальный объём
+   поплавка, чтобы связка всплыла:
+       ρводы·g·(Vсундука + Vпоплавка) ≥ (mсундука + mпоплавка)·g
+   При ρводы = 1000 кг/м³ = 1 кг/л всё считается в кг и литрах:
+       Vсундука + Vпоплавка ≥ mсундука + mпоплавка
+   easy:   поплавок невесомый → Vп = m − Vс
+   medium: поплавок из пенопласта 0,1 кг/л → 0,9·Vп = m − Vс
+   hard:   объём сундука найди сам (V = m/ρ), у поплавка масса mп
+           → Vп = m + mп − Vс
+   ============================================================ */
+
+const fd = v => String(Math.round(v * 100) / 100).replace('.', ',');
+const pick = (arr, rnd) => arr[Math.floor(rnd() * arr.length)];
+
+/* ---------- сцена: дно, сундук, поплавок ---------- */
+function seaScene(host, cfg) {
+  /* cfg: { m, Vc, floatLabel, chestLabel } */
+  host.innerHTML = `
+    <div class="sea-panel">
+    <svg viewBox="0 0 360 240" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="360" height="240" fill="#BFDCF9"/>
+      <path d="M0 16 Q90 24 180 16 Q270 8 360 16" fill="none" stroke="#5D9BE0" stroke-width="3.5" stroke-linecap="round">
+        <animate attributeName="d"
+          values="M0 16 Q90 24 180 16 Q270 8 360 16;M0 16 Q90 8 180 16 Q270 24 360 16;M0 16 Q90 24 180 16 Q270 8 360 16"
+          dur="3s" repeatCount="indefinite"/>
+      </path>
+      <path d="M0 218 Q60 206 130 214 Q220 224 290 214 Q330 210 360 216 L360 240 L0 240 Z" fill="#E8D9A8"/>
+      <!-- водоросли -->
+      <path d="M46 218 Q40 196 48 178 Q54 166 50 150" fill="none" stroke="#63B77E" stroke-width="5" stroke-linecap="round">
+        <animate attributeName="d"
+          values="M46 218 Q40 196 48 178 Q54 166 50 150;M46 218 Q52 196 44 178 Q40 166 46 150;M46 218 Q40 196 48 178 Q54 166 50 150"
+          dur="4s" repeatCount="indefinite"/>
+      </path>
+      <path d="M318 216 Q312 200 320 186 Q326 176 322 164" fill="none" stroke="#63B77E" stroke-width="4" stroke-linecap="round">
+        <animate attributeName="d"
+          values="M318 216 Q312 200 320 186 Q326 176 322 164;M318 216 Q324 200 316 186 Q312 176 318 164;M318 216 Q312 200 320 186 Q326 176 322 164"
+          dur="3.4s" repeatCount="indefinite"/>
+      </path>
+      <!-- поплавок -->
+      <g>
+        <ellipse cx="180" cy="82" rx="30" ry="35" fill="#F0B23C" stroke="#C98A2E" stroke-width="3"/>
+        <text x="180" y="82" text-anchor="middle" dominant-baseline="central"
+              font-family="var(--font-display), sans-serif" font-weight="500" font-size="16" fill="#8A5F14">${cfg.floatLabel}</text>
+        <animateTransform attributeName="transform" type="translate" values="0,0;0,6;0,0" dur="2.6s" repeatCount="indefinite"/>
+      </g>
+      <!-- верёвка -->
+      <line x1="180" y1="119" x2="180" y2="164" stroke="#8A6A42" stroke-width="3" stroke-dasharray="2 6" stroke-linecap="round">
+        <animate attributeName="y1" values="119;125;119" dur="2.6s" repeatCount="indefinite"/>
+      </line>
+      <!-- сундук -->
+      <g>
+        <rect x="132" y="164" width="96" height="52" rx="8" fill="#A9743F" stroke="#7C5127" stroke-width="3"/>
+        <path d="M132 182 L228 182" stroke="#7C5127" stroke-width="3"/>
+        <rect x="170" y="174" width="20" height="18" rx="4" fill="#F0B23C" stroke="#C98A2E" stroke-width="2"/>
+      </g>
+      <!-- табличка с данными сундука -->
+      <text x="180" y="232" text-anchor="middle" font-family="var(--font-display), sans-serif"
+            font-weight="500" font-size="15" fill="#6E5A28">${cfg.chestLabel}</text>
+      <!-- пузырьки -->
+      <circle cx="238" cy="150" r="4" fill="#E3F0FC">
+        <animate attributeName="cy" values="150;40" dur="3s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="1;0" dur="3s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="118" cy="170" r="3" fill="#E3F0FC">
+        <animate attributeName="cy" values="170;46" dur="4s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="1;0" dur="4s" repeatCount="indefinite"/>
+      </circle>
+    </svg>
+    </div>`;
+}
+
+/* ---------- генераторы заданий ---------- */
+function taskEasy(rnd) {
+  const Vc = 2 + Math.floor(rnd() * 5);                 // 2..6 л
+  const A = 5 * (2 + Math.floor(rnd() * 4));            // 10, 15, 20, 25 л
+  const m = A + Vc;
+  return {
+    text: `На дне озера — сундук массой <b>${m} кг</b> и объёмом <b>${Vc} л</b>. К нему привязали надувной поплавок; масса самого поплавка пренебрежимо мала. Плотность воды 1000 кг/м³ (то есть 1 кг/л). Какой минимальный объём поплавка нужен, чтобы связка начала всплывать?`,
+    scene: { floatLabel: 'V = ?', chestLabel: `${m} кг · ${Vc} л` },
+    answer: A, tolerance: 0.4,
+    hints: [
+      'Связка всплывает, когда выталкивающая сила уравняется с весом: ρв·g·(Vсундука + Vпоплавка) = mсундука·g.',
+      `При ρв = 1 кг/л считай в кг и литрах: Vсундука + Vпоплавка = mсундука, то есть ${Vc} + Vп = ${m}. Вырази Vп.`,
+    ],
+    right: `Верно! Vп = ${m} − ${Vc} = <b>${A} л</b>: вода выталкивает связку с силой, равной её весу, — сундук трогается вверх.`,
+  };
+}
+function taskMedium(rnd) {
+  const Vc = 3 + Math.floor(rnd() * 6);                 // 3..8 л
+  const A = 10 * (1 + Math.floor(rnd() * 3));           // 10, 20, 30 л
+  const m = Vc + 0.9 * A;                               // целое: 0,9·10k = 9k
+  return {
+    text: `Сундук массой <b>${fd(m)} кг</b> и объёмом <b>${Vc} л</b> лежит на дне. Поплавок — из пенопласта плотностью 100 кг/м³ (0,1 кг/л), так что у него есть собственная масса! Плотность воды 1000 кг/м³. Какой минимальный объём пенопласта нужен, чтобы связка всплыла?`,
+    scene: { floatLabel: 'V = ?', chestLabel: `${fd(m)} кг · ${Vc} л` },
+    answer: A, tolerance: 0.4,
+    hints: [
+      'Вес поплавка тоже входит в условие: 1·(Vс + Vп) = mс + 0,1·Vп. Масса пенопласта = 0,1 кг на каждый литр.',
+      `Перенеси: Vп − 0,1·Vп = mс − Vс, то есть 0,9·Vп = ${fd(m)} − ${Vc} = ${fd(m - Vc)}. Раздели на 0,9.`,
+    ],
+    right: `Верно! 0,9·Vп = ${fd(m)} − ${Vc} = ${fd(m - Vc)}, откуда Vп = <b>${A} л</b>. Пенопласт «съедает» десятую часть своей подъёмной силы на собственный вес.`,
+  };
+}
+function taskHard(rnd) {
+  const mat = pick([
+    { gen: 'бетона',  rho: 2,   rhoTxt: '2000' },
+    { gen: 'гранита', rho: 2.5, rhoTxt: '2500' },
+    { gen: 'чугуна',  rho: 7,   rhoTxt: '7000' },
+  ], rnd);
+  const Vc = pick([4, 6, 8, 10], rnd);                  // л
+  const m = mat.rho * Vc;                               // кг, целое
+  const mp = 1 + Math.floor(rnd() * 3);                 // 1..3 кг
+  const A = m + mp - Vc;
+  return {
+    text: `Со дна поднимают блок из ${mat.gen}: плотность ${mat.rhoTxt} кг/м³, масса <b>${fd(m)} кг</b> (объём блока найди сам!). К нему привязывают жёсткую канистру массой <b>${mp} кг</b>. Плотность воды 1000 кг/м³. Какой минимальный объём канистры нужен, чтобы связка всплыла?`,
+    scene: { floatLabel: 'V = ?', chestLabel: `${fd(m)} кг · ρ = ${fd(mat.rho)} кг/л` },
+    answer: A, tolerance: 0.4,
+    hints: [
+      `Сначала объём блока: V = m/ρ. Переведи плотность в кг/л: ${mat.rhoTxt} кг/м³ = ${fd(mat.rho)} кг/л.`,
+      `Vблока = ${fd(m)}/${fd(mat.rho)} = ${fd(Vc)} л. Условие всплытия: Vбл + Vк = mбл + mк. Вырази Vк.`,
+    ],
+    right: `Верно! Vблока = ${fd(m)}/${fd(mat.rho)} = ${fd(Vc)} л, а дальше Vк = ${fd(m)} + ${mp} − ${fd(Vc)} = <b>${A} л</b>.`,
+  };
+}
+
+/* ---------- сборка шагов ---------- */
+function buildSteps(level, rnd) {
+  const gen = level === 'easy' ? taskEasy : level === 'medium' ? taskMedium : taskHard;
+  const tasks = [gen(rnd), gen(rnd), gen(rnd)];
+  return tasks.map((t, i) => ({
+    type: 'reading',
+    title: `Сокровище ${i + 1} из ${tasks.length}`,
+    text: t.text,
+    render(host) { seaScene(host, t.scene); },
+    answer: t.answer,
+    tolerance: t.tolerance,
+    unit: 'л',
+    hints: t.hints,
+    right: t.right,
+  }));
+}
+
+runPractice({
+  practiceId: 'treasure',
+  storageKey: 'buoyancy-progress',
+  homeHref: '../demo/',
+  title: 'Подними сокровище',
+  subtitle: 'Сундук лежит на дне, и тащить его руками бесполезно. Подбери поплавок такого объёма, чтобы вода сама подняла связку. Ответ вписывай в литрах.',
+  levels: {
+    easy:   { label: 'Юнга',    desc: 'Поплавок невесомый, числа круглые.', xp: 40 },
+    medium: { label: 'Водолаз', desc: 'Поплавок из пенопласта — у него есть своя масса.', xp: 50 },
+    hard:   { label: 'Капитан', desc: 'Объём сундука найди сам — по его плотности.', xp: 70 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

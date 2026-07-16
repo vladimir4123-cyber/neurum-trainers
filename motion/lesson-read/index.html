@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Читаем график как детектив · Скорость и графики движения</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔎</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 560px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 14px;
+  }
+  .canvas-panel svg{ width: 100%; height: auto; display: block; }
+  .canvas-hint{
+    margin: 14px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+  .mini-play-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border: 0; border-radius: var(--radius-md);
+    background: var(--fg-1); color: #fff; cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .mini-play-btn:hover:not(:disabled){ background: #3a3a3f; }
+  .mini-play-btn:active:not(:disabled){ transform: scale(0.96); }
+  .mini-play-btn:disabled{ opacity: .55; cursor: default; }
+  .ans-row{ display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+  .ans-eq{ font-family: var(--font-display); font-size: 21px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+  .ans-input{
+    width: 96px; font-family: var(--font-display); font-size: 24px; font-weight: 500;
+    color: var(--fg-1); text-align: center; font-variant-numeric: tabular-nums;
+    border: 2px solid var(--purple-4); border-radius: 12px; padding: 7px 8px;
+    outline: none; transition: border-color 120ms var(--ease-standard);
+  }
+  .ans-input:focus{ border-color: var(--purple-1); }
+  .ans-input:disabled{ opacity: .5; }
+  .ans-unit{ font-family: var(--font-display); font-size: 19px; color: var(--fg-3); }
+  .ans-fb{ margin-top: 10px; min-height: 22px; text-align: center; font-size: 15.5px; text-wrap: pretty; }
+  .ans-fb.ok{ color: var(--success); font-weight: 500; }
+  .ans-fb.err{ color: var(--danger); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ============================================================
+   ТЕМА 3 «Читаем график как детектив».
+   Наклон = скорость (считаем по клеточкам), полочка = стоянка,
+   спуск = возврат, пересечение двух графиков = встреча.
+   ============================================================ */
+
+const parseNum = s => parseFloat(String(s).replace(',', '.').trim());
+
+/* ============================================================
+   ИНТЕРАКТИВ: скорость по клеточкам (наклон = Δx/Δt)
+   ============================================================ */
+function startSlope(root, done) {
+  /* Честные пресеты: v = Δx / Δt без остатка */
+  const presets = [
+    { dt: 4, dx: 20, v: 5 },
+    { dt: 5, dx: 10, v: 2 },
+    { dt: 4, dx: 12, v: 3 },
+    { dt: 5, dx: 20, v: 4 },
+  ];
+  const P = presets[Math.floor(Math.random() * presets.length)];
+
+  /* график: сетка 1 с × 5 м, отрезок (0,0) → (Δt, Δx) */
+  const W = 480, H = 300, pad = { l: 64, r: 18, t: 20, b: 48 };
+  const TMAX = 6, XM = 20;
+  const px = t => pad.l + (t / TMAX) * (W - pad.l - pad.r);
+  const py = x => H - pad.b - (x / XM) * (H - pad.t - pad.b);
+
+  const grid = [];
+  for (let s = 0; s <= TMAX; s++) grid.push(`<line x1="${px(s)}" y1="${py(0)}" x2="${px(s)}" y2="${py(XM)}"/>`);
+  for (let m = 0; m <= XM; m += 5) grid.push(`<line x1="${px(0)}" y1="${py(m)}" x2="${px(TMAX)}" y2="${py(m)}"/>`);
+  const tLbls = [], xLbls = [];
+  for (let s = 0; s <= TMAX; s++) tLbls.push(`<text x="${px(s)}" y="${py(0) + 26}" text-anchor="middle">${s}</text>`);
+  for (let m = 0; m <= XM; m += 5) xLbls.push(`<text x="${px(0) - 12}" y="${py(m)}" text-anchor="end" dominant-baseline="central">${m}</text>`);
+
+  root.querySelector('#slopeHost').innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#E4E7F2" stroke-width="1.6">${grid.join('')}</g>
+      <g stroke="#B0B4BE" stroke-width="3" stroke-linecap="round" fill="none">
+        <path d="M${px(0)} ${py(XM)} L${px(0)} ${py(0)} L${px(TMAX)} ${py(0)}"/>
+      </g>
+      <g font-family="var(--font-display), sans-serif" font-size="15" font-weight="500" fill="#6B7180">
+        ${tLbls.join('')}${xLbls.join('')}
+        <text x="${px(0) - 40}" y="${py(XM) - 6}" fill="#232323">x, м</text>
+        <text x="${px(TMAX)}" y="${py(0) + 44}" text-anchor="end" fill="#232323">t, с</text>
+      </g>
+      <!-- ступенька Δt / Δx -->
+      <g stroke="#E5484D" stroke-width="2.5" stroke-dasharray="5 6" fill="none">
+        <line x1="${px(0)}" y1="${py(0)}" x2="${px(P.dt)}" y2="${py(0)}" transform="translate(0,-2)"/>
+        <line x1="${px(P.dt)}" y1="${py(0)}" x2="${px(P.dt)}" y2="${py(P.dx)}"/>
+      </g>
+      <g font-family="var(--font-display), sans-serif" font-size="16" font-weight="500" fill="#E5484D">
+        <text x="${(px(0) + px(P.dt)) / 2}" y="${py(0) - 12}" text-anchor="middle">Δt = ${P.dt} с</text>
+        <text x="${px(P.dt) + 10}" y="${(py(0) + py(P.dx)) / 2}" dominant-baseline="central">Δx = ${P.dx} м</text>
+      </g>
+      <line x1="${px(0)}" y1="${py(0)}" x2="${px(P.dt)}" y2="${py(P.dx)}"
+            stroke="#6240FF" stroke-width="5" stroke-linecap="round"/>
+      <circle cx="${px(P.dt)}" cy="${py(P.dx)}" r="7" fill="#6240FF"/>
+      <circle cx="${px(P.dt)}" cy="${py(P.dx)}" r="3" fill="#EEF0FF"/>
+    </svg>`;
+
+  const input = root.querySelector('#slopeInput');
+  const check = root.querySelector('#slopeCheck');
+  const fb = root.querySelector('#slopeFb');
+  const submit = () => {
+    if (input.disabled) return;
+    const v = parseNum(input.value);
+    if (isNaN(v)) { fb.className = 'ans-fb err'; fb.textContent = 'Впиши число — сколько метров в секунду.'; return; }
+    if (Math.abs(v - P.v) < 1e-9) {
+      fb.className = 'ans-fb ok';
+      fb.textContent = `✓ Верно! v = Δx / Δt = ${P.dx} м : ${P.dt} с = ${P.v} м/с`;
+      input.disabled = true; check.disabled = true;
+      done();
+    } else {
+      fb.className = 'ans-fb err';
+      fb.textContent = `Считай по пунктирной ступеньке: за ${P.dt} с тело прошло ${P.dx} м. Раздели ${P.dx} на ${P.dt}.`;
+      input.select();
+    }
+  };
+  check.addEventListener('click', submit);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'info', visual: 'story', big: true,
+    title: 'Один график — целая история',
+    text: 'Детектив по одной линии видит всё: тело <b>уехало</b> (линия вверх), <b>постояло</b> (полочка) и <b>вернулось</b> (линия вниз). Заметь: в конце x снова 0 — тело там же, откуда стартовало, хотя дорога позади немаленькая.',
+  },
+  {
+    phase: 'theory', type: 'interact', id: 'slope', visual: 'slope',
+    title: 'Наклон — это скорость. Посчитай по клеточкам',
+    text: 'Скорость прячется в наклоне: <b>v = Δx / Δt</b>. Пунктирная ступенька подсказывает: на сколько метров поднялся график (Δx) и за сколько секунд (Δt). Раздели одно на другое.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'meet', big: true,
+    title: 'Два графика: кто быстрее и где встретились',
+    text: 'Если на одном поле два графика — сравнивай наклоны: <b>круче — быстрее</b>. А точка пересечения — самое интересное: в этот момент у тел <b>одинаковая координата</b>. Они в одной точке дороги — встретились!',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Два вопроса — и ты детектив.',
+  },
+  {
+    phase: 'check', type: 'question', visual: 'abc',
+    title: 'Вопрос',
+    text: 'Посмотри на график. На каком участке тело стояло на месте?',
+    options: [
+      { id: 'a', text: 'На участке А', correct: false },
+      { id: 'b', text: 'На участке Б', correct: true },
+      { id: 'c', text: 'На участке В', correct: false },
+    ],
+    right: 'На участке Б координата не меняется — полочка. Тело стояло. А — ехало вперёд, В — возвращалось.',
+    wrong: 'Ищи полочку: где линия горизонтальна, там координата не меняется — тело стоит. Это участок Б.',
+  },
+  {
+    phase: 'check', type: 'question', visual: 'cross',
+    title: 'Вопрос',
+    text: 'Графики движения велосипедиста и пешехода пересеклись в одной точке. Что это значит?',
+    options: [
+      { id: 'a', text: 'Они столкнулись и упали', correct: false },
+      { id: 'b', text: 'В этот момент они оказались в одном месте — встретились', correct: true },
+      { id: 'c', text: 'В этот момент их скорости сравнялись', correct: false },
+    ],
+    right: 'Пересечение = одинаковые t и x: одно время, одно место. Это встреча (обгон тоже так выглядит).',
+    wrong: 'В точке пересечения у графиков одинаковые t и x — тела в один момент в одном месте. Скорости тут ни при чём: наклоны у линий разные.',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  story: () => `
+    <svg viewBox="0 0 300 180" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#E4E7F2" stroke-width="1.4">
+        ${[76,116,156,196,236].map(x => `<line x1="${x}" y1="20" x2="${x}" y2="140"/>`).join('')}
+        ${[50,80,110].map(y => `<line x1="36" y1="${y}" x2="264" y2="${y}"/>`).join('')}
+      </g>
+      <g stroke="#B0B4BE" stroke-width="3" stroke-linecap="round" fill="none">
+        <path d="M36 16 L36 140 L268 140"/>
+      </g>
+      <g font-family="var(--font-display), sans-serif" font-size="14" font-weight="500">
+        <text x="14" y="24" fill="#232323">x</text>
+        <text x="258" y="160" fill="#232323">t</text>
+      </g>
+      <path d="M36 140 L116 50 L196 50 L264 140" fill="none" stroke="#6240FF" stroke-width="5"
+            stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="330" stroke-dashoffset="330">
+        <animate attributeName="stroke-dashoffset" values="330;0" dur="2.6s" fill="freeze"/>
+      </path>
+      <g font-family="var(--font-display), sans-serif" font-size="13" font-weight="500">
+        <text x="62" y="86" fill="#6240FF" opacity="0">уехал
+          <animate attributeName="opacity" values="0;1" begin=".7s" dur=".4s" fill="freeze"/>
+        </text>
+        <text x="156" y="40" text-anchor="middle" fill="#07BE7E" opacity="0">стоит
+          <animate attributeName="opacity" values="0;1" begin="1.5s" dur=".4s" fill="freeze"/>
+        </text>
+        <text x="246" y="86" text-anchor="end" fill="#E5484D" opacity="0">вернулся
+          <animate attributeName="opacity" values="0;1" begin="2.4s" dur=".4s" fill="freeze"/>
+        </text>
+      </g>
+      <circle r="6" fill="#E5484D">
+        <animateMotion path="M36 140 L116 50 L196 50 L264 140" dur="2.6s" fill="freeze"/>
+      </circle>
+    </svg>`,
+  slope: () => `
+    <div class="canvas-panel"><div id="slopeHost"></div></div>
+    <div class="ans-row">
+      <span class="ans-eq">v = Δx / Δt =</span>
+      <input class="ans-input" id="slopeInput" inputmode="decimal" placeholder="?" autocomplete="off">
+      <span class="ans-unit">м/с</span>
+      <button class="mini-play-btn" id="slopeCheck">Проверить</button>
+    </div>
+    <div class="ans-fb" id="slopeFb"></div>`,
+  meet: () => `
+    <svg viewBox="0 0 300 180" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#E4E7F2" stroke-width="1.4">
+        ${[76,116,156,196,236].map(x => `<line x1="${x}" y1="20" x2="${x}" y2="140"/>`).join('')}
+        ${[50,80,110].map(y => `<line x1="36" y1="${y}" x2="264" y2="${y}"/>`).join('')}
+      </g>
+      <g stroke="#B0B4BE" stroke-width="3" stroke-linecap="round" fill="none">
+        <path d="M36 16 L36 140 L268 140"/>
+      </g>
+      <!-- велосипедист: круче -->
+      <line x1="36" y1="140" x2="236" y2="30" stroke="#6240FF" stroke-width="5" stroke-linecap="round"/>
+      <!-- пешеход: навстречу, из точки 100 -->
+      <line x1="36" y1="50" x2="264" y2="126" stroke="#F76B15" stroke-width="4.5" stroke-linecap="round"/>
+      <!-- точка встречи: пересечение линий (расчётная: d=90/0.8833≈101.9 → x≈137.9, y≈84) -->
+      <circle cx="137.9" cy="84" r="9" fill="#E5484D">
+        <animate attributeName="r" values="7;11;7" dur="1.6s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="137.9" cy="84" r="3.4" fill="#fff"/>
+      <g font-family="var(--font-display), sans-serif" font-size="13" font-weight="500">
+        <text x="196" y="24" fill="#6240FF">велосипедист</text>
+        <text x="196" y="122" fill="#F76B15">пешеход</text>
+        <text x="138" y="62" text-anchor="middle" fill="#E5484D">встреча!</text>
+        <text x="14" y="24" fill="#232323" font-size="14">x</text>
+        <text x="258" y="160" fill="#232323" font-size="14">t</text>
+      </g>
+    </svg>`,
+  abc: () => `
+    <svg viewBox="0 0 300 170" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#E4E7F2" stroke-width="1.4">
+        ${[76,116,156,196,236].map(x => `<line x1="${x}" y1="18" x2="${x}" y2="132"/>`).join('')}
+        ${[48,76,104].map(y => `<line x1="36" y1="${y}" x2="264" y2="${y}"/>`).join('')}
+      </g>
+      <g stroke="#B0B4BE" stroke-width="3" stroke-linecap="round" fill="none">
+        <path d="M36 14 L36 132 L268 132"/>
+      </g>
+      <path d="M36 132 L116 48 L196 48 L264 104" fill="none" stroke="#6240FF" stroke-width="5"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <g font-family="var(--font-display), sans-serif" font-size="16" font-weight="500" fill="#232323" text-anchor="middle">
+        <text x="76" y="152">А</text>
+        <text x="156" y="152">Б</text>
+        <text x="230" y="152">В</text>
+      </g>
+      <g stroke="#C9CEDA" stroke-width="1.6" stroke-dasharray="3 5">
+        <line x1="116" y1="48" x2="116" y2="132"/>
+        <line x1="196" y1="48" x2="196" y2="132"/>
+      </g>
+    </svg>`,
+  cross: () => `
+    <svg viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#B0B4BE" stroke-width="3" stroke-linecap="round" fill="none">
+        <path d="M36 12 L36 120 L268 120"/>
+      </g>
+      <line x1="36" y1="120" x2="250" y2="22" stroke="#6240FF" stroke-width="5" stroke-linecap="round"/>
+      <line x1="36" y1="46" x2="264" y2="104" stroke="#F76B15" stroke-width="4.5" stroke-linecap="round"/>
+      <circle cx="139.9" cy="72.4" r="8" fill="#E5484D">
+        <animate attributeName="r" values="6;10;6" dur="1.6s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="139.9" cy="72.4" r="3" fill="#fff"/>
+      <g font-family="var(--font-display), sans-serif" font-size="14" font-weight="500" fill="#232323">
+        <text x="14" y="20">x</text>
+        <text x="258" y="140">t</text>
+      </g>
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'slope') startSlope(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'read',
+  storageKey: 'motion-progress',
+  homeHref: '../demo/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

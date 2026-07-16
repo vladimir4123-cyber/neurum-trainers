@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Повтори график · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏁</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .rr-panel{
+    width: 100%; max-width: 620px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 12px;
+  }
+  .rr-panel + .rr-panel{ margin-top: 10px; }
+  .rr-panel svg{ width: 100%; height: auto; display: block; }
+  .rr-panel canvas{ width: 100%; display: block; }
+
+  .rr-controls{
+    display: flex; align-items: center; gap: 14px; justify-content: center;
+    margin-top: 14px; flex-wrap: wrap;
+  }
+  .rr-vlbl{
+    font-family: var(--font-display); font-size: 18px; font-weight: 500;
+    color: var(--fg-1); font-variant-numeric: tabular-nums; min-width: 175px; text-align: center;
+  }
+  .rr-vlbl b{ color: var(--purple-1); font-weight: 500; }
+  input.rr-slider{
+    -webkit-appearance: none; appearance: none;
+    width: min(320px, 68vw); height: 10px; border-radius: 9999px;
+    background: linear-gradient(90deg, #FFD2C5 0%, #E4E7F2 50%, #D6CCFF 100%);
+    outline: none; cursor: pointer;
+  }
+  input.rr-slider::-webkit-slider-thumb{
+    -webkit-appearance: none; appearance: none;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: #fff; border: 4px solid var(--purple-1);
+    box-shadow: 0 2px 8px rgba(98,64,255,.35); cursor: grab;
+  }
+  input.rr-slider::-moz-range-thumb{
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; border: 4px solid var(--purple-1);
+    box-shadow: 0 2px 8px rgba(98,64,255,.35); cursor: grab;
+  }
+  .rr-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border: 0; border-radius: var(--radius-md);
+    background: var(--fg-1); color: #fff; cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .rr-btn:hover:not(:disabled){ background: #3a3a3f; }
+  .rr-btn:active:not(:disabled){ transform: scale(0.96); }
+  .rr-btn:disabled{ opacity: .55; cursor: default; }
+  .rr-chip{
+    padding: 12px 18px; border: 1px solid var(--purple-4); border-radius: var(--radius-md);
+    background: var(--white); color: var(--fg-2); cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .rr-chip:hover{ background: var(--purple-4); }
+  .rr-chip:active{ transform: scale(0.96); }
+
+  .rr-status{
+    margin-top: 10px; text-align: center;
+    font-family: var(--font-display); font-size: 20px; font-weight: 500;
+    color: var(--fg-2); font-variant-numeric: tabular-nums; min-height: 26px;
+  }
+  .rr-status b{ color: var(--purple-1); font-weight: 500; }
+  .rr-status.ok b{ color: var(--success); }
+  .rr-status.err b{ color: var(--danger); }
+  .rr-legend{
+    display: flex; gap: 18px; justify-content: center; margin-top: 8px;
+    font-size: 13.5px; color: var(--fg-3);
+  }
+  .rr-legend i{
+    display: inline-block; width: 22px; height: 4px; border-radius: 2px;
+    vertical-align: middle; margin-right: 6px;
+  }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">2</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Повтори график» — симулятор в реальном времени.
+   Показан целевой график x(t). Ученик ведёт машинку слайдером
+   скорости; его график рисуется поверх целевого. Метрика
+   честная: площадь расхождения ∫|x_твой − x_цель|dt, делённая
+   на площадь всего поля (XMAX·T). Совпадение ≥ 80% — успех.
+   ============================================================ */
+
+const T = 10;                       // длительность заезда, с
+const PASS = 80;                    // порог совпадения, %
+const GREEN = '#30A46C', PURPLE = '#6240FF';
+const fmt1 = v => (Math.round(v * 10) / 10).toFixed(1).replace('.', ',');
+const pick = (arr, rnd) => arr[Math.floor(rnd() * arr.length)];
+
+/* целевая функция x(t) из сегментов [{v, dur}], с клампом в [0, XMAX] */
+function makeTarget(segs, XMAX) {
+  return function (t) {
+    let x = 0, tt = 0;
+    for (const s of segs) {
+      const d = Math.min(Math.max(0, t - tt), s.dur);
+      x = Math.min(XMAX, Math.max(0, x + s.v * d));
+      tt += s.dur;
+      if (t <= tt) break;
+    }
+    return x;
+  };
+}
+function targetMax(segs) {
+  let x = 0, m = 0;
+  for (const s of segs) { x = Math.max(0, x + s.v * s.dur); m = Math.max(m, x); }
+  return m;
+}
+
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+
+function roadSVG(XMAX) {
+  const lblAt = m => 36 + (m / XMAX) * (612 - 36);
+  const lbls = [0, XMAX / 2, XMAX].map(m =>
+    `<text x="${lblAt(m)}" y="86" text-anchor="middle">${m} м</text>`).join('');
+  return `
+    <svg viewBox="0 0 640 92" xmlns="http://www.w3.org/2000/svg">
+      <rect x="20" y="58" width="608" height="14" rx="7" fill="#DDE1EC"/>
+      <g stroke="#fff" stroke-width="2.5" stroke-linecap="round">
+        ${[60,140,220,300,380,460,540].map(x => `<line x1="${x}" y1="65" x2="${x + 24}" y2="65"/>`).join('')}
+      </g>
+      <g font-family="var(--font-display), sans-serif" font-size="13" font-weight="500" fill="#9AA0AA">${lbls}</g>
+      <g id="ghostCar" opacity=".45">
+        <g transform="translate(-30,26)">
+          <path d="M4 20 Q4 12 12 12 L17 12 Q22 3 33 3 L44 3 Q54 3 59 12 L64 12 Q70 12 70 20 L70 26 Q70 29 67 29 L7 29 Q4 29 4 26 Z"
+                fill="#C6EBD5" stroke="#30A46C" stroke-width="2" stroke-linejoin="round"/>
+          <circle cx="19" cy="29" r="6.5" fill="#8FBFA1"/>
+          <circle cx="54" cy="29" r="6.5" fill="#8FBFA1"/>
+        </g>
+      </g>
+      <g id="userCar">
+        <g transform="translate(-30,24)">
+          <path d="M4 22 Q4 13 13 13 L18 13 Q23 3 35 3 L48 3 Q59 3 64 13 L69 13 Q76 13 76 22 L76 28 Q76 31 73 31 L7 31 Q4 31 4 28 Z"
+                fill="#E5484D" stroke="#B2373B" stroke-width="2.2" stroke-linejoin="round"/>
+          <path d="M25 13 Q28 6 35 6 L44 6 L44 13 Z" fill="#F4F8FE" stroke="#B2373B" stroke-width="1.6"/>
+          <path d="M48 6 Q57 6 61 13 L48 13 Z" fill="#F4F8FE" stroke="#B2373B" stroke-width="1.6"/>
+          <circle cx="21" cy="31" r="7" fill="#3E434C"/><circle cx="21" cy="31" r="3" fill="#C9CEDA"/>
+          <circle cx="59" cy="31" r="7" fill="#3E434C"/><circle cx="59" cy="31" r="3" fill="#C9CEDA"/>
+        </g>
+      </g>
+    </svg>`;
+}
+
+/* ============================================================
+   СЦЕНА ЗАЕЗДА
+   ============================================================ */
+function raceScene(host, ctx, round) {
+  const { segs, vMin, vMax } = round;
+  const rawMax = targetMax(segs);
+  const XMAX = Math.ceil(rawMax / 10) * 10 + 10;
+  const target = makeTarget(segs, XMAX);
+
+  host.innerHTML = `
+    <div class="rr-panel"><div class="rr-road"></div></div>
+    <div class="rr-panel"><canvas class="rr-canvas" height="280"></canvas></div>
+    <div class="rr-legend">
+      <span><i style="background:${GREEN}"></i>целевой график</span>
+      <span><i style="background:${PURPLE}"></i>твой график</span>
+    </div>
+    <div class="rr-controls">
+      <span class="rr-vlbl">Скорость: <b>0,0 м/с</b></span>
+      <input class="rr-slider" type="range" min="${vMin}" max="${vMax}" step="0.5" value="0">
+      <button class="rr-btn rr-start">▶ Старт</button>
+      <button class="rr-chip rr-reset">↺ Сначала</button>
+    </div>
+    <div class="rr-status">Выставь скорость и жми <b>Старт</b> — время пойдёт сразу</div>`;
+
+  const roadHost = host.querySelector('.rr-road');
+  roadHost.innerHTML = roadSVG(XMAX);
+  const userCar = roadHost.querySelector('#userCar');
+  const ghostCar = roadHost.querySelector('#ghostCar');
+  const canvas = host.querySelector('.rr-canvas');
+  const ctx2 = canvas.getContext('2d');
+  const slider = host.querySelector('.rr-slider');
+  const vLbl = host.querySelector('.rr-vlbl');
+  const startBtn = host.querySelector('.rr-start');
+  const resetBtn = host.querySelector('.rr-reset');
+  const status = host.querySelector('.rr-status');
+
+  let running = false, finished = false, passed = false;
+  let t = 0, x = 0, last = null;
+  let samples = [[0, 0]];
+
+  const PAD = { l: 74, r: 20, t: 24, b: 52 };
+  const xStep = XMAX % 20 === 0 && XMAX / 20 <= 8 ? 20 : 10;
+  function px(tt, w) { return PAD.l + (tt / T) * (w - PAD.l - PAD.r); }
+  function py(xx, h) { return h - PAD.b - (xx / XMAX) * (h - PAD.t - PAD.b); }
+  function carX(m) { return 36 + (m / XMAX) * (612 - 36); }
+
+  function draw() {
+    const { w, h } = fit(canvas, 280);
+    ctx2.clearRect(0, 0, w, h);
+    ctx2.lineCap = 'round'; ctx2.lineJoin = 'round';
+    // сетка
+    ctx2.strokeStyle = '#E4E7F2'; ctx2.lineWidth = 2;
+    for (let s = 0; s <= T; s++) { ctx2.beginPath(); ctx2.moveTo(px(s, w), py(0, h)); ctx2.lineTo(px(s, w), py(XMAX, h)); ctx2.stroke(); }
+    for (let m = 0; m <= XMAX; m += xStep) { ctx2.beginPath(); ctx2.moveTo(px(0, w), py(m, h)); ctx2.lineTo(px(T, w), py(m, h)); ctx2.stroke(); }
+    // оси
+    ctx2.strokeStyle = '#B0B4BE'; ctx2.lineWidth = 3;
+    ctx2.beginPath(); ctx2.moveTo(px(0, w), py(XMAX, h)); ctx2.lineTo(px(0, w), py(0, h)); ctx2.lineTo(px(T, w), py(0, h)); ctx2.stroke();
+    // подписи
+    ctx2.font = '500 ' + Math.round(w * 0.034) + 'px var(--font-display), sans-serif';
+    ctx2.fillStyle = '#6B7180'; ctx2.textAlign = 'center';
+    for (let s = 0; s <= T - 2; s += 2) ctx2.fillText(String(s), px(s, w), py(0, h) + 34);
+    ctx2.textAlign = 'right';
+    for (let m = 0; m <= XMAX; m += xStep) ctx2.fillText(String(m), px(0, w) - 14, py(m, h) + 8);
+    ctx2.fillStyle = '#232323';
+    ctx2.fillText('t, с', w - 8, py(0, h) + 34);
+    ctx2.textAlign = 'left';
+    ctx2.fillText('x, м', 8, py(XMAX, h) - 4);
+    ctx2.textAlign = 'start';
+    // целевой график (пунктир)
+    ctx2.strokeStyle = GREEN; ctx2.lineWidth = 4.5; ctx2.setLineDash([10, 12]);
+    ctx2.beginPath();
+    for (let k = 0; k <= 200; k++) {
+      const tt = T * k / 200, X = px(tt, w), Y = py(target(tt), h);
+      if (k === 0) ctx2.moveTo(X, Y); else ctx2.lineTo(X, Y);
+    }
+    ctx2.stroke();
+    ctx2.setLineDash([]);
+    // твой след
+    if (samples.length > 1) {
+      ctx2.strokeStyle = PURPLE; ctx2.lineWidth = 5;
+      ctx2.beginPath();
+      samples.forEach(([tt, xx], i) => {
+        const X = px(tt, w), Y = py(xx, h);
+        if (i === 0) ctx2.moveTo(X, Y); else ctx2.lineTo(X, Y);
+      });
+      ctx2.stroke();
+    }
+    // текущие точки
+    const gy = py(target(t), h), gx = px(t, w);
+    ctx2.beginPath(); ctx2.arc(gx, gy, 7, 0, Math.PI * 2); ctx2.fillStyle = GREEN; ctx2.fill();
+    ctx2.beginPath(); ctx2.arc(px(t, w), py(x, h), 8, 0, Math.PI * 2); ctx2.fillStyle = '#E5484D'; ctx2.fill();
+    ctx2.beginPath(); ctx2.arc(px(t, w), py(x, h), 3.2, 0, Math.PI * 2); ctx2.fillStyle = '#fff'; ctx2.fill();
+  }
+
+  /* честная метрика: площадь между графиками / площадь поля */
+  function score() {
+    let sum = 0, idx = 0;
+    const N = 500;
+    const interp = tt => {
+      while (idx < samples.length - 2 && samples[idx + 1][0] < tt) idx++;
+      const [t0, x0] = samples[idx], [t1, x1] = samples[Math.min(idx + 1, samples.length - 1)];
+      if (t1 <= t0) return x1;
+      const f = Math.min(1, Math.max(0, (tt - t0) / (t1 - t0)));
+      return x0 + (x1 - x0) * f;
+    };
+    for (let k = 0; k < N; k++) {
+      const tt = (k + 0.5) * T / N;
+      sum += Math.abs(interp(tt) - target(tt)) * (T / N);
+    }
+    return Math.max(0, Math.round(100 * (1 - sum / (XMAX * T))));
+  }
+
+  function finish() {
+    running = false; finished = true;
+    const m = score();
+    if (m >= PASS) {
+      passed = true;
+      status.className = 'rr-status ok';
+      status.innerHTML = `Совпадение: <b>${m}%</b> — заезд засчитан!`;
+      ctx.fb(`✓ Совпадение ${m}% (нужно ≥ ${PASS}%). Отлично ведёшь!`, 'ok');
+      ctx.done();
+    } else {
+      status.className = 'rr-status err';
+      status.innerHTML = `Совпадение: <b>${m}%</b> — нужно ≥ ${PASS}%. Жми ↺ и попробуй ещё`;
+      ctx.fb(`Площадь расхождения великовата: совпадение ${m}%. Смотри на зелёную точку и держись рядом с ней.`, 'err');
+      ctx.miss();
+    }
+  }
+
+  function frame(now) {
+    if (!canvas.isConnected) return;              // шаг сменился — глушим цикл
+    if (running) {
+      if (last != null) {
+        const dt = Math.min(0.05, (now - last) / 1000);
+        const v = parseFloat(slider.value);
+        t += dt;
+        x = Math.min(XMAX, Math.max(0, x + v * dt));
+        if (t >= T) { t = T; }
+        samples.push([t, x]);
+        vLbl.innerHTML = `Скорость: <b>${fmt1(v)} м/с</b>`;
+        if (!finished) status.innerHTML = `Время: <b>${fmt1(Math.min(t, T))} с</b> из ${T}`;
+        if (t >= T) finish();
+      }
+      last = now;
+    } else {
+      last = null;
+    }
+    userCar.setAttribute('transform', `translate(${carX(x)},0)`);
+    ghostCar.setAttribute('transform', `translate(${carX(target(t))},0)`);
+    draw();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  slider.addEventListener('input', () => {
+    vLbl.innerHTML = `Скорость: <b>${fmt1(parseFloat(slider.value))} м/с</b>`;
+  });
+  startBtn.addEventListener('click', () => {
+    if (running || finished) return;
+    running = true; last = null;
+    startBtn.disabled = true;
+  });
+  resetBtn.addEventListener('click', () => {
+    if (passed) return;                            // успех не сбрасываем
+    running = false; finished = false;
+    t = 0; x = 0; last = null; samples = [[0, 0]];
+    slider.value = '0';
+    vLbl.innerHTML = 'Скорость: <b>0,0 м/с</b>';
+    startBtn.disabled = false;
+    status.className = 'rr-status';
+    status.innerHTML = 'Выставь скорость и жми <b>Старт</b> — время пойдёт сразу';
+    ctx.fb('', '');
+  });
+}
+
+/* ============================================================
+   ГЕНЕРАТОРЫ ЗАЕЗДОВ (честные: целевой график строится из тех
+   же сегментов, по которым потом считается совпадение)
+   ============================================================ */
+function easyRound(rnd) {
+  const v = pick([3, 4, 5], rnd);
+  const t1 = pick([4, 5, 6], rnd);
+  return {
+    segs: [{ v, dur: t1 }, { v: 0, dur: T - t1 }],
+    vMin: 0, vMax: 8,
+    text: `Цель: ехать со скоростью ${v} м/с, а в момент t = ${t1} с остановиться и стоять до конца.`,
+  };
+}
+function mediumRound(rnd) {
+  const vs = [pick([2, 3], rnd), pick([5, 6], rnd), pick([3, 4], rnd)];
+  const durs = pick([[3, 3, 4], [4, 3, 3], [3, 4, 3]], rnd);
+  return {
+    segs: vs.map((v, i) => ({ v, dur: durs[i] })),
+    vMin: 0, vMax: 8,
+    text: `Три передачи: ${vs[0]} м/с первые ${durs[0]} с, потом ${vs[1]} м/с (${durs[1]} с), в конце ${vs[2]} м/с. Меняй скорость вовремя!`,
+  };
+}
+function hardRound(rnd) {
+  const combos = [];
+  for (const v1 of [4, 5, 6]) for (const t1 of [3, 4]) for (const t2 of [2, 3]) {
+    const t3 = T - t1 - t2;
+    for (const v2 of [2, 3, 4]) {
+      if (v1 * t1 - v2 * t3 < 0) continue;       // не упираемся в ноль раньше времени
+      combos.push({ v1, t1, t2, t3, v2 });
+    }
+  }
+  const c = pick(combos, rnd);
+  return {
+    segs: [{ v: c.v1, dur: c.t1 }, { v: 0, dur: c.t2 }, { v: -c.v2, dur: c.t3 }],
+    vMin: -6, vMax: 8,
+    text: `Туда и обратно: вперёд ${c.v1} м/с (${c.t1} с), стоянка ${c.t2} с, потом задний ход ${c.v2} м/с до конца. Слайдер умеет в минус!`,
+  };
+}
+
+function buildSteps(level, rnd) {
+  const gen = level === 'easy' ? easyRound : level === 'medium' ? mediumRound : hardRound;
+  return [1, 2].map(n => {
+    const round = gen(rnd);
+    return {
+      type: 'action',
+      title: `Заезд ${n} из 2`,
+      text: round.text + ` Совпадение с зелёным пунктиром — не меньше ${PASS}%.`,
+      render: (host, ctx) => raceScene(host, ctx, round),
+    };
+  });
+}
+
+runPractice({
+  practiceId: 'repeat-graph',
+  storageKey: 'motion-progress',
+  homeHref: '../demo/',
+  title: 'Повтори график',
+  subtitle: 'На поле — целевой график x(t). Веди машинку слайдером скорости в реальном времени так, чтобы твоя линия легла на пунктир. Совпадение считается по площади расхождения — честно, в процентах.',
+  levels: {
+    easy:   { label: 'Водитель',   desc: 'Поезжай и вовремя остановись.', xp: 40 },
+    medium: { label: 'Таксист',    desc: 'Три скорости — переключайся без опозданий.', xp: 55 },
+    hard:   { label: 'Каскадёр',   desc: 'Вперёд, стоянка и задний ход. Слайдер в минус!', xp: 70 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

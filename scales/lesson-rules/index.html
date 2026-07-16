@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Правила взвешивания · Рычажные весы</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 640px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel svg{ width: 100%; height: auto; display: block; }
+  .canvas-hint{ margin: 14px 0 0; text-align: center; font-size: 17px; color: var(--fg-2); text-wrap: pretty; }
+  .canvas-hint b{ color: var(--success); font-weight: 500; }
+  .wtray{ display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 14px; }
+  .wbtn{
+    font-family: var(--font-display); font-variant-numeric: tabular-nums;
+    font-size: 16px; font-weight: 500; color: var(--fg-1);
+    background: #fff; border: 0; border-radius: 12px; padding: 10px 15px; cursor: pointer;
+    box-shadow: 0 1px 2px rgba(35,35,35,.08), 0 4px 10px rgba(35,35,35,.07), inset 0 0 0 1px rgba(35,35,35,.07);
+    transition: transform 120ms var(--ease-standard), background-color 120ms var(--ease-standard), opacity 150ms var(--ease-standard);
+  }
+  .wbtn:hover:not(:disabled){ background: var(--purple-4); }
+  .wbtn:active:not(:disabled){ transform: scale(0.95); }
+  .wbtn:disabled{ opacity: .32; cursor: default; }
+  .pan-weight{ cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ============ Гири школьного разновеса ============ */
+const KIT = [100, 50, 20, 20, 10, 5, 2, 2, 1];
+const W_SIZES = { 100: [46, 48], 50: [40, 42], 20: [34, 36], 10: [29, 31], 5: [25, 27], 2: [21, 23], 1: [18, 20] };
+
+function weightSVG(g) {
+  const [w, h] = W_SIZES[g];
+  return `
+    <rect x="${-w / 2}" y="${(-h * 0.72).toFixed(1)}" width="${w}" height="${(h * 0.72).toFixed(1)}" rx="4" fill="#F5B93B" stroke="#C9941B" stroke-width="1.8"/>
+    <rect x="${(-w * 0.3).toFixed(1)}" y="${(-h * 0.9).toFixed(1)}" width="${(w * 0.6).toFixed(1)}" height="${(h * 0.22).toFixed(1)}" rx="3" fill="#F5B93B" stroke="#C9941B" stroke-width="1.8"/>
+    <circle cx="0" cy="${(-h * 0.94).toFixed(1)}" r="${(w * 0.13).toFixed(1)}" fill="none" stroke="#C9941B" stroke-width="3"/>
+    <text x="0" y="${(-h * 0.36).toFixed(1)}" text-anchor="middle" dominant-baseline="central" font-family="var(--font-display), sans-serif" font-weight="500" font-size="${Math.max(11, Math.round(w * 0.4))}" fill="#6E5109">${g}</text>`;
+}
+
+/* Раскладка предметов на чашке: ряды, крупные снизу */
+function layoutItems(items) {
+  const rows = []; let row = [], used = 0;
+  items.forEach(it => {
+    const need = it.w + (row.length ? 6 : 0);
+    if (used + need > 124 && row.length) { rows.push(row); row = []; used = 0; }
+    row.push(it); used += it.w + (row.length > 1 ? 6 : 0);
+  });
+  if (row.length) rows.push(row);
+  let out = '', yBase = 0;
+  rows.forEach(r => {
+    const total = r.reduce((s, it) => s + it.w, 0) + 6 * (r.length - 1);
+    let x = -total / 2, maxH = 0;
+    r.forEach(it => {
+      out += `<g transform="translate(${(x + it.w / 2).toFixed(1)} ${yBase})" ${it.attrs || ''}>${it.svg}</g>`;
+      x += it.w + 6;
+      maxH = Math.max(maxH, it.h);
+    });
+    yBase -= maxH + 2;
+  });
+  return out;
+}
+
+/* ============ Живые весы (та же сцена, что в теме 2) ============ */
+const PV = { x: 320, y: 128 }, ARM = 200, HANG = 84;
+
+function scalesSVG(id) {
+  const ticks = [-14, -7, 0, 7, 14].map(d => {
+    const a = (90 + d) * Math.PI / 180;
+    const r1 = 140, r2 = d === 0 ? 158 : 152;
+    return `<line x1="${(PV.x + Math.cos(a) * r1).toFixed(1)}" y1="${(PV.y + Math.sin(a) * r1).toFixed(1)}"
+                  x2="${(PV.x + Math.cos(a) * r2).toFixed(1)}" y2="${(PV.y + Math.sin(a) * r2).toFixed(1)}"
+                  stroke="${d === 0 ? '#6240FF' : '#B3B9C6'}" stroke-width="${d === 0 ? 4 : 3}" stroke-linecap="round"/>`;
+  }).join('');
+  const pan = side => `
+    <g id="${id}${side}" transform="translate(${side === 'PanL' ? PV.x - ARM : PV.x + ARM} ${PV.y})">
+      <circle cx="0" cy="0" r="5" fill="#4A2FD9"/>
+      <path d="M0 0 L-50 ${HANG - 10} M0 0 L50 ${HANG - 10}" stroke="#8F95A3" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <ellipse cx="0" cy="${HANG - 6}" rx="64" ry="10" fill="#C9CEDA" stroke="#A9AFBE" stroke-width="1.6"/>
+      <g id="${id}${side}Items" transform="translate(0 ${HANG - 8})"></g>
+      <path d="M-64 ${HANG - 6} a64 10 0 0 0 128 0 z" fill="#B3B9C6"/>
+    </g>`;
+  return `
+  <svg viewBox="0 0 640 430" xmlns="http://www.w3.org/2000/svg" id="${id}">
+    <rect x="240" y="372" width="160" height="16" rx="8" fill="#C9CEDA"/>
+    <rect x="252" y="372" width="136" height="6" rx="3" fill="#DFE3EC"/>
+    <rect x="312" y="${PV.y}" width="16" height="${372 - PV.y}" rx="6" fill="#C9CEDA"/>
+    <rect x="316" y="${PV.y}" width="5" height="${372 - PV.y}" rx="2.5" fill="#DFE3EC"/>
+    ${ticks}
+    <g id="${id}Beam">
+      <rect x="${PV.x - ARM - 8}" y="${PV.y - 7}" width="${(ARM + 8) * 2}" height="14" rx="7" fill="#6240FF"/>
+      <rect x="${PV.x - ARM - 8}" y="${PV.y - 7}" width="${(ARM + 8) * 2}" height="5" rx="2.5" fill="#8B6FFF"/>
+      <path d="M${PV.x} ${PV.y + 7} L${PV.x} ${PV.y + 118} L${PV.x - 5} ${PV.y + 118} L${PV.x} ${PV.y + 134} L${PV.x + 5} ${PV.y + 118} L${PV.x} ${PV.y + 118}" fill="#E5484D" stroke="#E5484D" stroke-width="3.5" stroke-linejoin="round"/>
+    </g>
+    ${pan('PanL')}
+    ${pan('PanR')}
+    <circle cx="${PV.x}" cy="${PV.y}" r="9" fill="#4A2FD9"/>
+    <circle cx="${PV.x}" cy="${PV.y}" r="3.5" fill="#EEF0FF"/>
+  </svg>`;
+}
+
+function makeBalance(svg, id) {
+  const beamG = svg.querySelector('#' + id + 'Beam');
+  const panL = svg.querySelector('#' + id + 'PanL');
+  const panR = svg.querySelector('#' + id + 'PanR');
+  let a = 0, v = 0, target = 0, running = false;
+  function apply() {
+    const rad = a * Math.PI / 180;
+    beamG.setAttribute('transform', `rotate(${a.toFixed(3)} ${PV.x} ${PV.y})`);
+    const dx = ARM * Math.cos(rad), dy = ARM * Math.sin(rad);
+    panL.setAttribute('transform', `translate(${(PV.x - dx).toFixed(2)} ${(PV.y - dy).toFixed(2)})`);
+    panR.setAttribute('transform', `translate(${(PV.x + dx).toFixed(2)} ${(PV.y + dy).toFixed(2)})`);
+  }
+  function frame() {
+    if (!svg.isConnected) return;
+    v = v * 0.86 + (target - a) * 0.05;
+    a += v;
+    apply();
+    if (Math.abs(v) > 0.0004 || Math.abs(target - a) > 0.002) requestAnimationFrame(frame);
+    else running = false;
+  }
+  return {
+    setDiff(d) {
+      target = 13 * Math.tanh(d / 55);
+      if (!running) { running = true; requestAnimationFrame(frame); }
+    },
+  };
+}
+
+/* яблоко на чашке (для интерактива) */
+const APPLE = {
+  w: 58,
+  svg: `
+    <circle cx="0" cy="-26" r="26" fill="#E5484D" stroke="#B7383C" stroke-width="2.5"/>
+    <ellipse cx="-9" cy="-33" rx="6" ry="9" fill="#F08A8E"/>
+    <path d="M0 -50 q3 -9 2 -13" stroke="#7A5B3A" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+    <path d="M2 -60 q13 -4 17 6 q-12 5 -17 -6 z" fill="#3A9D5D"/>`,
+};
+
+/* =================== ШАГИ ТЕМЫ =================== */
+const STEPS = [
+  {
+    phase: 'theory', type: 'info', visual: 'placement', big: true,
+    title: 'Предмет — слева, гири — справа',
+    text: 'Первое правило лабораторной: взвешиваемый предмет кладут на <b>левую</b> чашку, а гири — на <b>правую</b>. Так удобнее: правой рукой добавляешь и снимаешь гири, и никогда не путаешь, где что стоит.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'kit', big: true,
+    title: 'Школьный разновес',
+    text: 'В коробке разновеса девять гирь: <b>100, 50, 20, 20, 10, 5, 2, 2 и 1 г</b> — из них складывается любая масса до 210 г. Гири берут <b>только пинцетом</b>: жир и влага с пальцев оседают на гире, её масса меняется — и весы начинают врать.',
+  },
+  {
+    phase: 'theory', type: 'interact', id: 'weigh', visual: 'weigh',
+    title: 'Взвесь яблоко по правилам',
+    text: 'Ставь гири <b>от большей к меньшей</b>: перевесила — снимай и бери следующую, меньше. Клик по гире в наборе — поставить, клик по гире на чашке — снять.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'sum',
+    title: 'Результат — сумма гирь',
+    text: 'Когда весы в равновесии, взвешивание закончено. Масса предмета равна <b>сумме масс всех гирь</b> на чашке: 20 + 10 + 5 + 2 = <b>37 г</b>. Осталось записать результат в тетрадь.',
+  },
+
+  { phase: 'check', type: 'splash', title: 'Проверь себя', text: 'Два вопроса — и можно выдавать допуск к лабораторной.' },
+
+  {
+    phase: 'check', type: 'question',
+    title: 'Зачем нужен пинцет?',
+    text: 'В инструкции к разновесу написано: «гири брать только пинцетом». Почему?',
+    options: [
+      { id: 'a', text: 'С пальцев на гири попадают жир и влага — масса гирь меняется', correct: true },
+      { id: 'b', text: 'Гири слишком горячие, чтобы брать руками',                     correct: false },
+      { id: 'c', text: 'Пинцетом получается быстрее',                                  correct: false },
+      { id: 'd', text: 'Чтобы гири не намагничивались от рук',                         correct: false },
+    ],
+    right: 'Верно! Даже невидимый след от пальцев со временем изменит массу гири — и точные весы начнут ошибаться.',
+    wrong: 'Дело в точности: жир и влага с пальцев оседают на гире и меняют её массу. Поэтому — только пинцет.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Считаем результат',
+    text: 'Весы в равновесии. На правой чашке гири: 50 г, 20 г и 2 г. Какова масса предмета?',
+    options: [
+      { id: 'a', text: '72 г', correct: true  },
+      { id: 'b', text: '70 г', correct: false },
+      { id: 'c', text: '52 г', correct: false },
+      { id: 'd', text: '68 г', correct: false },
+    ],
+    right: 'Точно: 50 + 20 + 2 = 72 г. Масса предмета равна сумме гирь.',
+    wrong: 'Сложи все гири на чашке: 50 + 20 + 2 = 72 г. Ни одну гирю пропускать нельзя.',
+  },
+];
+
+/* =================== ВИЗУАЛЫ =================== */
+const visuals = {
+  placement() {
+    return `
+      <svg viewBox="0 0 640 430" xmlns="http://www.w3.org/2000/svg">
+        <rect x="240" y="372" width="160" height="16" rx="8" fill="#C9CEDA"/>
+        <rect x="312" y="128" width="16" height="244" rx="6" fill="#C9CEDA"/>
+        <rect x="112" y="121" width="416" height="14" rx="7" fill="#6240FF"/>
+        <path d="M320 135 L320 246 L315 246 L320 262 L325 246 L320 246" fill="#E5484D" stroke="#E5484D" stroke-width="3.5" stroke-linejoin="round"/>
+        <circle cx="320" cy="128" r="9" fill="#4A2FD9"/>
+        <g transform="translate(120 128)">
+          <path d="M0 0 L-50 74 M0 0 L50 74" stroke="#8F95A3" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <ellipse cx="0" cy="78" rx="64" ry="10" fill="#C9CEDA" stroke="#A9AFBE" stroke-width="1.6"/>
+          <g transform="translate(0 74)">
+            <circle cx="0" cy="-26" r="26" fill="#E5484D" stroke="#B7383C" stroke-width="2.5"/>
+            <ellipse cx="-9" cy="-33" rx="6" ry="9" fill="#F08A8E"/>
+            <path d="M2 -56 q13 -4 17 6 q-12 5 -17 -6 z" fill="#3A9D5D"/>
+            <animateTransform attributeName="transform" type="translate" values="0 74; 0 70; 0 74" dur="3s" repeatCount="indefinite"/>
+          </g>
+        </g>
+        <g transform="translate(520 128)">
+          <path d="M0 0 L-50 74 M0 0 L50 74" stroke="#8F95A3" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <ellipse cx="0" cy="78" rx="64" ry="10" fill="#C9CEDA" stroke="#A9AFBE" stroke-width="1.6"/>
+          <g transform="translate(-20 74)">${weightSVG(20)}</g>
+          <g transform="translate(18 74)">${weightSVG(10)}</g>
+          <g transform="translate(44 74)">${weightSVG(5)}</g>
+        </g>
+        <g font-family="var(--font-display), sans-serif" font-weight="500" font-size="24" text-anchor="middle">
+          <text x="120" y="280" fill="#E5484D">предмет — слева</text>
+          <text x="520" y="280" fill="#C9941B">гири — справа</text>
+        </g>
+      </svg>`;
+  },
+
+  kit() {
+    /* коробка разновеса: все 9 гирь по убыванию + пинцет */
+    let x = 40;
+    const weights = KIT.map(g => {
+      const [w] = W_SIZES[g];
+      const s = `<g transform="translate(${x + w / 2} 210)">${weightSVG(g)}</g>`;
+      x += w + 18;
+      return s;
+    }).join('');
+    return `
+      <svg viewBox="0 0 620 330" xmlns="http://www.w3.org/2000/svg">
+        <rect x="24" y="150" width="452" height="80" rx="14" fill="#EADFC8" stroke="#CBBD9E" stroke-width="2"/>
+        ${weights}
+        <text x="250" y="272" text-anchor="middle" font-family="var(--font-sans), sans-serif" font-weight="500" font-size="17" fill="#6B7180">девять гирь — любая масса от 1 до 210 г</text>
+        <!-- пинцет -->
+        <g transform="translate(544 130)">
+          <g>
+            <path d="M-12 -60 L-4 30 M12 -60 L4 30" stroke="#8A8F9C" stroke-width="6" stroke-linecap="round"/>
+            <rect x="-14" y="-74" width="28" height="18" rx="6" fill="#6240FF"/>
+            <animateTransform attributeName="transform" type="translate" values="0 0; 0 16; 0 16; 0 0" keyTimes="0;.4;.7;1" dur="3.4s" repeatCount="indefinite"/>
+          </g>
+          <text x="0" y="86" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="21" fill="#232323">пинцет</text>
+        </g>
+      </svg>`;
+  },
+
+  weigh() {
+    return `
+      <div class="canvas-panel">${scalesSVG('ruleScales')}</div>
+      <div class="wtray" id="ruleTray"></div>
+      <p class="canvas-hint" id="ruleHint">Яблоко на левой чашке перевешивает. Начни с крупной гири и смотри на коромысло.</p>`;
+  },
+
+  sum() {
+    const parts = [20, 10, 5, 2];
+    let x = 60;
+    const row = parts.map((g, i) => {
+      const [w] = W_SIZES[g];
+      const s = `
+        <g transform="translate(${x + w / 2} 150)">${weightSVG(g)}</g>
+        ${i < parts.length - 1 ? `<text x="${x + w + 22}" y="128" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="30" fill="#B0B4BE">+</text>` : ''}`;
+      x += w + 44;
+      return s;
+    }).join('');
+    return `
+      <svg viewBox="0 0 620 240" xmlns="http://www.w3.org/2000/svg">
+        ${row}
+        <text x="${x + 8}" y="128" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="30" fill="#B0B4BE">=</text>
+        <text x="${x + 96}" y="128" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="44" fill="#07BE7E">37 г
+          <animate attributeName="opacity" values="1;.55;1" dur="2s" repeatCount="indefinite"/>
+        </text>
+        <text x="310" y="216" text-anchor="middle" font-family="var(--font-sans), sans-serif" font-weight="500" font-size="18" fill="#6B7180">масса предмета = сумма масс гирь на чашке</text>
+      </svg>`;
+  },
+};
+
+/* =================== ЗАПУСК =================== */
+runLesson({
+  lessonId: 'rules',
+  storageKey: 'scales-progress',
+  homeHref: '../demo/',
+  steps: STEPS,
+  visuals,
+  onInteract(step, ctx) {
+    if (step.id !== 'weigh') return;
+    const MASS = 37;                       // яблоко: 20 + 10 + 5 + 2
+    const svg = document.getElementById('ruleScales');
+    const bal = makeBalance(svg, 'ruleScales');
+    const itemsL = svg.querySelector('#ruleScalesPanLItems');
+    const itemsR = svg.querySelector('#ruleScalesPanRItems');
+    const tray = document.getElementById('ruleTray');
+    const hint = document.getElementById('ruleHint');
+    const avail = KIT.map(g => ({ g, used: false }));
+    let done = false;
+
+    itemsL.innerHTML = layoutItems([APPLE]);
+
+    const sumR = () => avail.reduce((s, it) => s + (it.used ? it.g : 0), 0);
+
+    function refresh() {
+      tray.innerHTML = avail.map((it, i) =>
+        `<button class="wbtn" data-i="${i}" ${it.used || done ? 'disabled' : ''}>${it.g} г</button>`).join('');
+      tray.querySelectorAll('.wbtn').forEach(b => b.addEventListener('click', () => {
+        avail[+b.dataset.i].used = true;
+        update();
+      }));
+      const used = avail.map((it, i) => ({ it, i })).filter(x => x.it.used)
+        .sort((a, b) => b.it.g - a.it.g);
+      itemsR.innerHTML = layoutItems(used.map(x => ({
+        w: W_SIZES[x.it.g][0], h: W_SIZES[x.it.g][1],
+        svg: weightSVG(x.it.g),
+        attrs: `class="pan-weight" data-i="${x.i}"`,
+      })));
+      if (!done) {
+        itemsR.querySelectorAll('.pan-weight').forEach(el => el.addEventListener('click', () => {
+          avail[+el.dataset.i].used = false;
+          update();
+        }));
+      }
+    }
+
+    function update() {
+      refresh();
+      const s = sumR();
+      bal.setDiff(s - MASS);
+      if (done) return;
+      if (s === MASS) {
+        done = true;
+        refresh();
+        hint.innerHTML = `<b>Равновесие!</b> 20 + 10 + 5 + 2 = 37 г — яблоко взвешено по всем правилам.`;
+        ctx.done();
+      } else if (s > MASS) {
+        hint.textContent = 'Перевесила! Сними её (клик по гире на чашке) и возьми следующую — поменьше.';
+      } else if (s > 0) {
+        hint.textContent = 'Гирь пока мало — яблоко перевешивает. Добавь следующую по размеру.';
+      }
+    }
+
+    update();
+  },
+});
+</script>
+
+</body>
+</html>

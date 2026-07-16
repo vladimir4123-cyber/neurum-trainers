@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Формула p = F/S · Давление</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩰</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  /* пульт расчёта давления */
+  .calc-panel{
+    width: 100%; max-width: 520px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 22px 20px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .calc-row{ display: flex; align-items: center; gap: 14px; }
+  .calc-row .nm{
+    flex: none; width: 88px; text-align: left;
+    font-family: var(--font-display); font-size: 17px; font-weight: 500; color: var(--fg-2);
+  }
+  .calc-row .val{
+    flex: none; width: 96px; text-align: right;
+    font-family: var(--font-display); font-size: 19px; font-weight: 500; color: var(--fg-1);
+    font-variant-numeric: tabular-nums;
+  }
+  input[type="range"].calc-range{
+    flex: 1; -webkit-appearance: none; appearance: none;
+    height: 10px; border-radius: 9999px;
+    background: var(--purple-4);
+    outline: none; cursor: pointer;
+  }
+  input[type="range"].calc-range::-webkit-slider-thumb{
+    -webkit-appearance: none; appearance: none;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--white); border: 3px solid var(--purple-1);
+    box-shadow: 0 2px 8px rgba(0,0,0,.18); cursor: grab;
+  }
+  input[type="range"].calc-range::-moz-range-thumb{
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--white); border: 3px solid var(--purple-1);
+    box-shadow: 0 2px 8px rgba(0,0,0,.18); cursor: grab;
+  }
+  .calc-out{
+    margin-top: 4px; padding: 16px 18px; border-radius: var(--radius-md);
+    background: var(--white); box-shadow: 0 4px 14px rgba(24,12,34,.08);
+    display: flex; align-items: baseline; justify-content: center; gap: 10px; flex-wrap: wrap;
+  }
+  .calc-out .eq{
+    font-family: var(--font-display); font-size: 20px; color: var(--fg-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .calc-out .res{
+    font-family: var(--font-display); font-size: 30px; font-weight: 500; color: var(--purple-1);
+    font-variant-numeric: tabular-nums;
+  }
+  .canvas-hint{
+    margin: 14px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ============================================================
+   ТЕМА 3 «Формула p = F/S» (Пёрышкин §16).
+   Паскаль, живой расчёт на слайдерах и дуэль
+   «слон против балерины» — контринтуитивный финал.
+   Проверка арифметики: слон 50 000 Н / (4 × 0,1 м²) = 125 000 Па;
+   балерина 500 Н / 0,0002 м² = 2 500 000 Па — в 20 раз больше.
+   ============================================================ */
+
+const fmtRu = n => Math.round(n).toLocaleString('ru-RU');
+
+/* ============================================================
+   ИНТЕРАКТИВ: пульт p = F/S
+   ============================================================ */
+function startCalc(root, done) {
+  const fR = root.querySelector('#fRange');
+  const sR = root.querySelector('#sRange');
+  const fV = root.querySelector('#fVal');
+  const sV = root.querySelector('#sVal');
+  const eq = root.querySelector('#calcEq');
+  const res = root.querySelector('#calcRes');
+  const hint = root.querySelector('#calcHint');
+  const touched = new Set();
+  let doneShown = false;
+
+  function update() {
+    const F = +fR.value;                          // 100…1000 Н, шаг 50
+    const S = +sR.value / 100;                    // 0,05…1,00 м²
+    const p = F / S;
+    fV.textContent = F + ' Н';
+    sV.textContent = S.toFixed(2).replace('.', ',') + ' м²';
+    eq.textContent = 'p = ' + F + ' / ' + S.toFixed(2).replace('.', ',') + ' =';
+    res.textContent = fmtRu(p) + ' Па';
+  }
+  function onMove(which) {
+    touched.add(which);
+    update();
+    if (touched.size >= 2 && !doneShown) {
+      doneShown = true;
+      hint.innerHTML = '⚡ Видишь закономерность: <b>F больше → p больше</b>, <b>S больше → p меньше</b>.';
+      done();
+    }
+  }
+  fR.addEventListener('input', () => onMove('f'));
+  sR.addEventListener('input', () => onMove('s'));
+  update();
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'info', visual: 'formula', big: true,
+    title: 'Формула давления',
+    text: 'Давление обозначают буквой <b>p</b>, силу — <b>F</b>, площадь — <b>S</b>. Чтобы найти давление, силу делят на площадь: <b>p = F/S</b>. Единица давления — <b>паскаль</b>: 1 Па = 1 Н/м², то есть сила в один ньютон на каждый квадратный метр.',
+  },
+  {
+    phase: 'theory', type: 'interact', id: 'calc', visual: 'calc',
+    title: 'Покрути формулу руками',
+    text: 'Перед тобой живая формула. Двигай оба слайдера и следи за давлением: что происходит, когда растёт сила? А когда растёт площадь?',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'pascal', big: true,
+    title: 'Паскаль — очень маленькая величина',
+    text: 'Лист бумаги, лежащий на столе, давит всего с давлением около <b>1 Па</b>. Поэтому чаще встречаются <b>гектопаскали</b> (1 гПа = 100 Па) и <b>килопаскали</b> (1 кПа = 1000 Па). Человек, стоящий на двух ногах, давит на пол примерно с давлением 15 кПа.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'duel', big: true,
+    title: 'Дуэль: слон против балерины',
+    text: 'Слон весит <b>50 000 Н</b> и стоит на четырёх ногах, каждая площадью <b>0,1 м²</b>. Балерина весит <b>500 Н</b>, но стоит на кончике одного пуанта площадью всего <b>0,0002 м²</b>. Сила у слона в 100 раз больше. Но у кого больше давление? Посчитай в уме — ответ спросим.',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Момент истины: чем закончилась дуэль?',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос',
+    text: 'Так кто же давит на пол сильнее: слон (50 000 Н на 4 ноги по 0,1 м²) или балерина на пуанте (500 Н на 0,0002 м²)?',
+    options: [
+      { id: 'a', text: 'Слон — он же в 100 раз тяжелее', correct: false },
+      { id: 'b', text: 'Балерина — её давление в 20 раз больше', correct: true },
+      { id: 'c', text: 'Давление одинаковое', correct: false },
+    ],
+    right: 'Слон: 50 000 / 0,4 = 125 000 Па. Балерина: 500 / 0,0002 = 2 500 000 Па. Крошечная площадь пуанта побеждает огромный вес!',
+    wrong: 'Считаем: слон — 50 000 Н / (4 × 0,1 м²) = 125 000 Па. Балерина — 500 Н / 0,0002 м² = 2 500 000 Па. Давление балерины в 20 раз больше!',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос',
+    text: 'Шкаф весом 800 Н опирается на пол площадью 0,2 м². Какое давление он создаёт?',
+    options: [
+      { id: 'a', text: '160 Па', correct: false },
+      { id: 'b', text: '4000 Па', correct: true },
+      { id: 'c', text: '16 000 Па', correct: false },
+    ],
+    right: 'p = F/S = 800 Н / 0,2 м² = 4000 Па. Делим силу на площадь — и всё.',
+    wrong: 'По формуле p = F/S: 800 / 0,2 = 4000 Па. Не перемножай и не путай местами — сила делится на площадь.',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  formula: () => `
+    <svg viewBox="0 0 280 170" xmlns="http://www.w3.org/2000/svg">
+      <rect x="40" y="18" width="200" height="120" rx="20" fill="#FFFFFF" stroke="#DCD4FF" stroke-width="3"/>
+      <g font-family="var(--font-display), sans-serif" font-weight="500">
+        <text x="92" y="94" font-size="54" fill="#6240FF">p</text>
+        <text x="124" y="92" font-size="44" fill="#6B7180">=</text>
+        <text x="182" y="66" font-size="36" fill="#E5484D" text-anchor="middle">F</text>
+        <text x="182" y="126" font-size="36" fill="#2F80ED" text-anchor="middle">S</text>
+        <text x="140" y="162" text-anchor="middle" font-size="15" fill="#6B7180">1 Па = 1 Н/м²</text>
+      </g>
+      <line x1="158" y1="78" x2="206" y2="78" stroke="#6B7180" stroke-width="4" stroke-linecap="round">
+        <animate attributeName="x2" values="206;212;206" dur="2s" repeatCount="indefinite"/>
+      </line>
+      <circle cx="228" cy="32" r="8" fill="#F0B23C">
+        <animate attributeName="r" values="7;9;7" dur="1.8s" repeatCount="indefinite"/>
+      </circle>
+    </svg>`,
+  calc: () => `
+    <div class="calc-panel">
+      <div class="calc-row">
+        <span class="nm">Сила F</span>
+        <input type="range" class="calc-range" id="fRange" min="100" max="1000" step="50" value="400" aria-label="Сила">
+        <span class="val" id="fVal">400 Н</span>
+      </div>
+      <div class="calc-row">
+        <span class="nm">Площадь S</span>
+        <input type="range" class="calc-range" id="sRange" min="5" max="100" step="5" value="40" aria-label="Площадь">
+        <span class="val" id="sVal">0,40 м²</span>
+      </div>
+      <div class="calc-out">
+        <span class="eq" id="calcEq">p = 400 / 0,40 =</span>
+        <span class="res" id="calcRes">1000 Па</span>
+      </div>
+    </div>
+    <p class="canvas-hint" id="calcHint">Подвигай <b>оба</b> слайдера и понаблюдай за давлением.</p>`,
+  pascal: () => `
+    <svg viewBox="0 0 280 170" xmlns="http://www.w3.org/2000/svg">
+      <g font-family="var(--font-display), sans-serif" font-weight="500">
+        <!-- стол с листом бумаги -->
+        <rect x="24" y="104" width="108" height="12" rx="5" fill="#C9B191"/>
+        <rect x="34" y="116" width="10" height="34" rx="4" fill="#B39A78"/>
+        <rect x="112" y="116" width="10" height="34" rx="4" fill="#B39A78"/>
+        <g>
+          <rect x="46" y="92" width="64" height="10" rx="3" fill="#FFFFFF" stroke="#C9CEDA" stroke-width="2"/>
+          <animateTransform attributeName="transform" type="translate" values="0,0;0,-3;0,0" dur="2.4s" repeatCount="indefinite"/>
+        </g>
+        <text x="78" y="42" text-anchor="middle" font-size="22" fill="#6240FF">≈ 1 Па</text>
+        <text x="78" y="64" text-anchor="middle" font-size="14" fill="#6B7180">лист бумаги</text>
+        <!-- человек -->
+        <circle cx="210" cy="52" r="12" fill="#F3C89E" stroke="#D9A876" stroke-width="2"/>
+        <line x1="210" y1="64" x2="210" y2="102" stroke="#6240FF" stroke-width="6" stroke-linecap="round"/>
+        <line x1="210" y1="74" x2="192" y2="90" stroke="#6240FF" stroke-width="5" stroke-linecap="round"/>
+        <line x1="210" y1="74" x2="228" y2="90" stroke="#6240FF" stroke-width="5" stroke-linecap="round"/>
+        <line x1="210" y1="102" x2="200" y2="132" stroke="#4A2FD9" stroke-width="5" stroke-linecap="round"/>
+        <line x1="210" y1="102" x2="220" y2="132" stroke="#4A2FD9" stroke-width="5" stroke-linecap="round"/>
+        <rect x="168" y="134" width="84" height="10" rx="5" fill="#C9CEDA"/>
+        <text x="210" y="164" text-anchor="middle" font-size="15" fill="#6B7180">стоя: ≈ 15 кПа</text>
+      </g>
+    </svg>`,
+  duel: () => `
+    <svg viewBox="0 0 280 180" xmlns="http://www.w3.org/2000/svg">
+      <g font-family="var(--font-display), sans-serif" font-weight="500">
+        <rect x="12" y="140" width="256" height="12" rx="6" fill="#C9CEDA"/>
+        <!-- слон -->
+        <g>
+          <ellipse cx="72" cy="98" rx="46" ry="34" fill="#9AA0AA"/>
+          <ellipse cx="72" cy="98" rx="46" ry="34" fill="none" stroke="#7C8290" stroke-width="2.5"/>
+          <circle cx="112" cy="76" r="20" fill="#9AA0AA" stroke="#7C8290" stroke-width="2.5"/>
+          <path d="M128 84 Q142 96 134 116" fill="none" stroke="#7C8290" stroke-width="8" stroke-linecap="round"/>
+          <circle cx="117" cy="72" r="3" fill="#3E434C"/>
+          <ellipse cx="100" cy="84" rx="9" ry="13" fill="#C9CEDA"/>
+          <rect x="40" y="122" width="14" height="20" rx="6" fill="#9AA0AA" stroke="#7C8290" stroke-width="2"/>
+          <rect x="66" y="122" width="14" height="20" rx="6" fill="#9AA0AA" stroke="#7C8290" stroke-width="2"/>
+          <rect x="90" y="122" width="14" height="20" rx="6" fill="#9AA0AA" stroke="#7C8290" stroke-width="2"/>
+          <animateTransform attributeName="transform" type="translate" values="0,0;0,2;0,0" dur="2.6s" repeatCount="indefinite"/>
+        </g>
+        <text x="76" y="26" text-anchor="middle" font-size="15" fill="#3E434C">50 000 Н · 4 × 0,1 м²</text>
+        <!-- балерина -->
+        <g>
+          <circle cx="216" cy="46" r="11" fill="#F3C89E" stroke="#D9A876" stroke-width="2"/>
+          <line x1="216" y1="57" x2="216" y2="94" stroke="#E5484D" stroke-width="5.5" stroke-linecap="round"/>
+          <line x1="216" y1="66" x2="196" y2="52" stroke="#E5484D" stroke-width="4.5" stroke-linecap="round"/>
+          <line x1="216" y1="66" x2="236" y2="52" stroke="#E5484D" stroke-width="4.5" stroke-linecap="round"/>
+          <path d="M202 86 L230 86 L222 100 L210 100 Z" fill="#FFD2C5" stroke="#E5484D" stroke-width="2" stroke-linejoin="round"/>
+          <line x1="216" y1="100" x2="216" y2="134" stroke="#B23A3F" stroke-width="5" stroke-linecap="round"/>
+          <line x1="216" y1="102" x2="232" y2="118" stroke="#B23A3F" stroke-width="4.5" stroke-linecap="round"/>
+          <path d="M213 134 L219 134 L216 142 Z" fill="#B23A3F"/>
+          <animateTransform attributeName="transform" type="rotate" values="-2 216 140;2 216 140;-2 216 140" dur="2.2s" repeatCount="indefinite"/>
+        </g>
+        <text x="214" y="26" text-anchor="middle" font-size="15" fill="#3E434C">500 Н · 0,0002 м²</text>
+        <text x="140" y="172" text-anchor="middle" font-size="18" fill="#6240FF">у кого давление больше?
+          <animate attributeName="opacity" values="1;.45;1" dur="1.8s" repeatCount="indefinite"/>
+        </text>
+      </g>
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'calc') startCalc(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'formula',
+  storageKey: 'pressure-progress',
+  homeHref: '../demo/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

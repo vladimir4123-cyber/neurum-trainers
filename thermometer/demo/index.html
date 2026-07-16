@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Термометр · Урок для класса</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌡️</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@48,500,1&display=block">
+<style>
+  *{ box-sizing: border-box; }
+  body{
+    margin: 0; font-family: var(--font-sans);
+    background: var(--white); color: var(--fg-1);
+    min-height: 100vh; -webkit-font-smoothing: antialiased;
+  }
+  .ms{ font-family: 'Material Symbols Rounded'; font-variation-settings: 'FILL' 1, 'wght' 500; line-height: 1; }
+
+  /* ============ TOP BAR (sticky) ============ */
+  .topbar{
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    max-width: 1120px; margin: 0 auto; padding: 18px 24px;
+    background: var(--white);
+  }
+  .home-link{
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 16px; border-radius: 9999px;
+    background: var(--white); color: var(--fg-1);
+    text-decoration: none; font-weight: 500; font-size: 14px;
+    box-shadow: 0 1px 2px rgba(35,35,35,.05), 0 4px 12px rgba(35,35,35,.06), inset 0 0 0 1px rgba(35,35,35,.05);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .home-link:hover{ background: var(--purple-3); }
+  .home-link:active{ transform: scale(0.96); }
+
+  /* Поделиться */
+  .share-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: 9999px;
+    background: var(--purple-1); color: #fff;
+    border: 0; cursor: pointer;
+    font-family: var(--font-sans); font-weight: 500; font-size: 14px;
+    box-shadow: 0 4px 12px rgba(101,31,255,.28);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .share-btn .ms{ font-size: 18px; }
+  .share-btn:hover{ background: var(--purple-2); }
+  .share-btn:active{ transform: scale(0.96); }
+  .share-toast{
+    position: fixed; left: 50%; bottom: 24px;
+    transform: translateX(-50%) translateY(20px);
+    padding: 12px 20px; border-radius: 12px;
+    background: var(--fg-1); color: #fff;
+    font-family: var(--font-sans); font-weight: 500; font-size: 15px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.2);
+    opacity: 0; pointer-events: none; z-index: 100;
+    transition: opacity 200ms var(--ease-standard), transform 200ms var(--ease-standard);
+  }
+  .share-toast.is-open{ opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  main.kit{ max-width: 1120px; margin: 0 auto; padding: 0 24px 120px; }
+
+  /* ============ HERO (шапка на всю ширину) ============ */
+  .hero{
+    width: 100%;
+    background: var(--white);
+    box-shadow: 0 4px 16px rgba(0,0,0,.06);
+  }
+  .hero-inner{
+    max-width: 1120px; margin: 0 auto;
+    padding: 32px 24px;
+    display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 32px; align-items: stretch;
+  }
+  @media (max-width: 860px){ .hero-inner{ grid-template-columns: 1fr; gap: 22px; padding: 24px; } }
+  .hero-preview{
+    width: 100%; aspect-ratio: 4 / 3;
+    border-radius: var(--radius-2xl); overflow: hidden;
+    background: linear-gradient(180deg, #EEF0FF, #FBF8FF);
+    display: grid; place-items: center; padding: 28px;
+  }
+  .hero-preview img{ max-width: 100%; max-height: 100%; object-fit: contain; }
+  .hero-body{ display: flex; flex-direction: column; padding: 12px 0; }
+  .hero h1{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(28px, 3.4vw, 40px); line-height: 1.05;
+    letter-spacing: -0.02em; margin: 0 0 12px; text-wrap: balance;
+  }
+  .hero-value{
+    font-size: var(--t-base); line-height: var(--lh-base); color: var(--fg-2);
+    margin: 0 0 18px; text-wrap: pretty;
+  }
+  .hero-meta{
+    display: flex; flex-wrap: wrap; gap: 18px; margin: 0 0 22px;
+  }
+  .hero-meta .meta-item{ display: inline-flex; align-items: center; gap: 7px; color: var(--fg-2); font-size: 14px; font-weight: 500; }
+  .hero-meta .meta-item .ms{ font-size: 19px; color: var(--purple-1); }
+  .hero-cta{ display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: auto; }
+  .btn-primary{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 14px 32px;
+    border-radius: var(--radius-md);
+    background: var(--purple-1);
+    color: var(--white); text-decoration: none;
+    font-family: var(--font-sans); font-weight: 500; font-size: 16px;
+    box-shadow: var(--shadow-purple);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .btn-primary .ms{ font-size: 20px; }
+  .btn-primary:hover{ background: var(--purple-2); }
+  .btn-primary:active{ transform: scale(0.96); }
+
+  /* ============ SECTIONS ============ */
+  .sec{ margin-top: 52px; }
+  .sec-head{ margin-bottom: 20px; }
+  .sec-head h2{
+    margin: 0;
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(24px, 3.4vw, 32px); letter-spacing: -0.02em;
+  }
+
+  /* ============ КРУПНАЯ КАРТОЧКА ТЕМЫ ============ */
+  .topic-grid{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  @media (max-width: 780px){ .topic-grid{ grid-template-columns: 1fr; } }
+  .topic{
+    display: grid; grid-template-columns: 168px 1fr; gap: 20px; align-items: center;
+    padding: 22px; border-radius: var(--radius-2xl);
+    background: var(--white); text-decoration: none; color: var(--fg-1);
+    border: 1px solid var(--purple-4);
+    box-shadow: none;
+    transition: transform 160ms var(--ease-standard), box-shadow 160ms var(--ease-standard);
+  }
+  .topic:hover{
+    transform: translateY(-4px);
+    box-shadow: 0 8px 28px rgba(0,0,0,.12);
+  }
+  .topic:active{ transform: translateY(-1px) scale(0.99); }
+  @media (max-width: 520px){
+    .topic{ grid-template-columns: 1fr; padding: 20px; }
+    .topic__illus{ order: -1; }
+  }
+  .topic__illus{
+    width: 168px; height: 138px; border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    display: grid; place-items: center; overflow: hidden;
+    padding: 12px;
+  }
+  .topic__illus svg{ width: 100%; height: 100%; display: block; }
+  .topic__body{ display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .topic__step{
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 500; color: var(--purple-1);
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .topic__title{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: 22px; line-height: 1.15; letter-spacing: -0.01em; margin: 0;
+    text-wrap: balance;
+  }
+  .topic__desc{ margin: 0; color: var(--fg-2); font-size: 15px; line-height: 1.4; text-wrap: pretty; }
+
+  /* ============ КРУПНАЯ КАРТОЧКА ПРАКТИКИ ============ */
+  .practice-grid{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  @media (max-width: 600px){ .practice-grid{ grid-template-columns: 1fr; } }
+  .practice{
+    display: flex; flex-direction: column; gap: 14px;
+    padding: 20px; border-radius: var(--radius-2xl);
+    background: var(--white); text-decoration: none; color: var(--fg-1);
+    border: 1px solid var(--purple-4);
+    box-shadow: none;
+    transition: transform 160ms var(--ease-standard), box-shadow 160ms var(--ease-standard);
+  }
+  .practice:hover{
+    transform: translateY(-4px);
+    box-shadow: 0 8px 28px rgba(0,0,0,.12);
+  }
+  .practice__illus{
+    width: 100%; height: 200px;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    display: grid; place-items: center; overflow: hidden;
+    padding: 10px;
+  }
+  .practice__illus svg{ width: 100%; height: 100%; display: block; }
+  .practice__top{
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .practice__kind{
+    font-size: 12px; font-weight: 500; color: var(--fg-3);
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .practice__xp{
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 13px; font-weight: 500; color: var(--purple-1);
+    background: var(--purple-4); padding: 5px 10px; border-radius: 9999px;
+  }
+  .practice__xp .ms{ font-size: 15px; }
+  .practice__title{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: 20px; line-height: 1.15; letter-spacing: -0.01em; margin: 0;
+    text-wrap: balance;
+  }
+  .practice__desc{ margin: 0; color: var(--fg-2); font-size: 15px; line-height: 1.4; text-wrap: pretty; flex: 1; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="home-link" href="../../">← Все тренажёры</a>
+  <button class="share-btn" id="shareBtn">
+    <span class="ms">share</span>
+    Поделиться с учениками
+  </button>
+</div>
+<div class="share-toast" id="shareToast">Ссылка скопирована</div>
+
+<!-- ============ HERO (на всю ширину) ============ -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-preview">
+      <img src="../../assets/images/trainers/thermometer.svg" alt="Термометр">
+    </div>
+    <div class="hero-body">
+      <h1>Термометр</h1>
+      <p class="hero-value">Готовый интерактивный урок для 7 класса. Покажите классу, что температура — это движение молекул, разберите жидкостный термометр по частям и научите определять цену деления. Ученики закрепят на двух практиках: снимут показания со случайных шкал и разберутся, когда термометру можно верить.</p>
+      <div class="hero-meta" id="heroMeta"></div>
+      <div class="hero-cta">
+        <a class="btn-primary" id="startBtn" href="../lesson-temperature/"><span class="ms">play_arrow</span> Провести урок</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<main class="kit">
+
+  <!-- ============ ТЕМЫ УРОКА ============ -->
+  <section class="sec">
+    <div class="sec-head">
+      <h2>Темы урока</h2>
+    </div>
+    <div class="topic-grid" id="topicGrid"></div>
+  </section>
+
+  <!-- ============ ПРАКТИКА ДЛЯ УЧЕНИКОВ ============ -->
+  <section class="sec">
+    <div class="sec-head">
+      <h2>Практика для учеников</h2>
+    </div>
+    <div class="practice-grid" id="practiceGrid"></div>
+  </section>
+
+</main>
+
+<script type="module">
+
+/* Анимированные inline-SVG иллюстрации карточек (плоский стиль §8) */
+const ILLUS = {
+  // Тема 1: температура — молекулы в коробке дрожат, рядом пламя
+  temperature: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <rect x="26" y="18" width="108" height="82" rx="12" fill="#fff" stroke="#C9CEDA" stroke-width="2.5"/>
+      <g fill="#2F80ED">
+        <circle cx="52" cy="44" r="7"><animateTransform attributeName="transform" type="translate" values="0 0; 3 -2; -2 3; 0 0" dur="1.1s" repeatCount="indefinite"/></circle>
+        <circle cx="86" cy="36" r="7"><animateTransform attributeName="transform" type="translate" values="0 0; -3 2; 2 -3; 0 0" dur="0.9s" repeatCount="indefinite"/></circle>
+        <circle cx="114" cy="52" r="7"><animateTransform attributeName="transform" type="translate" values="0 0; 2 3; -3 -2; 0 0" dur="1.3s" repeatCount="indefinite"/></circle>
+      </g>
+      <g fill="#E5484D">
+        <circle cx="60" cy="76" r="7"><animateTransform attributeName="transform" type="translate" values="0 0; 5 -4; -4 5; 0 0" dur="0.55s" repeatCount="indefinite"/></circle>
+        <circle cx="94" cy="82" r="7"><animateTransform attributeName="transform" type="translate" values="0 0; -5 4; 4 -5; 0 0" dur="0.5s" repeatCount="indefinite"/></circle>
+        <circle cx="120" cy="72" r="7"><animateTransform attributeName="transform" type="translate" values="0 0; 4 4; -5 -3; 0 0" dur="0.6s" repeatCount="indefinite"/></circle>
+      </g>
+      <path d="M80 124 q-14 -10 -6 -20 q4 -5 3 -10 q10 6 9 15 q6 -3 5 -9 q7 9 1 18 q-5 8 -12 6" fill="#F5B93B" stroke="#D97A1F" stroke-width="1.5">
+        <animateTransform attributeName="transform" type="scale" values="1 1; 1.06 1.1; 1 1" dur="0.8s" repeatCount="indefinite" additive="sum"/>
+      </path>
+    </svg>`,
+  // Тема 2: устройство — термометр: резервуар, столбик дышит вверх-вниз
+  device: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <rect x="66" y="10" width="28" height="88" rx="14" fill="#fff" stroke="#C9CEDA" stroke-width="2.5"/>
+      <circle cx="80" cy="106" r="17" fill="#E5484D" stroke="#B93840" stroke-width="2.5"/>
+      <rect x="76" y="20" width="8" height="72" rx="4" fill="#EDEFF5"/>
+      <rect x="76" y="46" width="8" height="46" rx="4" fill="#E5484D">
+        <animate attributeName="y" values="58;30;58" dur="3.2s" repeatCount="indefinite"/>
+        <animate attributeName="height" values="34;62;34" dur="3.2s" repeatCount="indefinite"/>
+      </rect>
+      <g stroke="#5D6472" stroke-width="2" stroke-linecap="round">
+        <line x1="48" y1="26" x2="60" y2="26"/><line x1="52" y1="42" x2="60" y2="42"/>
+        <line x1="48" y1="58" x2="60" y2="58"/><line x1="52" y1="74" x2="60" y2="74"/>
+        <line x1="48" y1="90" x2="60" y2="90"/>
+      </g>
+      <g font-family="var(--font-display), sans-serif" font-weight="500" font-size="12" fill="#3E434C" text-anchor="end">
+        <text x="44" y="30">40</text>
+        <text x="44" y="62">20</text>
+        <text x="44" y="94">0</text>
+      </g>
+      <g font-family="var(--font-display), sans-serif" font-weight="500" font-size="11" fill="#6240FF">
+        <text x="102" y="30">шкала</text>
+        <text x="102" y="70">капилляр</text>
+        <text x="102" y="112">резервуар</text>
+      </g>
+    </svg>`,
+  // Тема 3: цена деления — фрагмент шкалы, бегущая точка, формула
+  measure: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <rect x="20" y="40" width="120" height="34" rx="8" fill="#F4F1FF" stroke="#C9CEDA" stroke-width="2"/>
+      <g stroke="#2B2B33" stroke-width="2.4" stroke-linecap="round">
+        <line x1="34" y1="50" x2="34" y2="64"/><line x1="55" y1="53" x2="55" y2="64"/>
+        <line x1="76" y1="53" x2="76" y2="64"/><line x1="97" y1="53" x2="97" y2="64"/>
+        <line x1="118" y1="50" x2="118" y2="64"/>
+      </g>
+      <circle cx="76" cy="46" r="5" fill="#6240FF"><animate attributeName="cx" values="34;118;34" dur="4s" repeatCount="indefinite"/></circle>
+      <text x="34" y="88" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="13" fill="#2B2B33">10</text>
+      <text x="118" y="88" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="13" fill="#2B2B33">20</text>
+      <text x="80" y="112" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="15" fill="#6240FF">(20 − 10) : 4 = 2,5 °C</text>
+    </svg>`,
+  // Практика: сними показания — термометр + зелёное число
+  reading: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <rect x="46" y="10" width="26" height="86" rx="13" fill="#fff" stroke="#C9CEDA" stroke-width="2.5"/>
+      <circle cx="59" cy="104" r="15" fill="#E5484D" stroke="#B93840" stroke-width="2.5"/>
+      <rect x="55" y="18" width="8" height="74" rx="4" fill="#EDEFF5"/>
+      <rect x="55" y="44" width="8" height="48" rx="4" fill="#E5484D"/>
+      <g stroke="#5D6472" stroke-width="2" stroke-linecap="round">
+        <line x1="30" y1="24" x2="40" y2="24"/><line x1="34" y1="44" x2="40" y2="44"/>
+        <line x1="30" y1="64" x2="40" y2="64"/><line x1="34" y1="84" x2="40" y2="84"/>
+      </g>
+      <path d="M78 44 L100 44" stroke="#6240FF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 6"/>
+      <text x="128" y="52" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="26" fill="#07BE7E">23°
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.2;.8;1" dur="3s" repeatCount="indefinite"/>
+      </text>
+    </svg>`,
+  // Практика: измерь правильно — стакан с водой, термометр, столбик ползёт, часики
+  equilibrium: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <path d="M40 34 L44 112 Q44 120 52 120 L96 120 Q104 120 104 112 L108 34" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M45 56 Q74 62 103 56 L100 111 Q100 117 94 117 L54 117 Q48 117 48 111 Z" fill="#BFDCF9"/>
+      <g transform="rotate(8 88 60)">
+        <rect x="80" y="8" width="16" height="84" rx="8" fill="#fff" stroke="#C9CEDA" stroke-width="2"/>
+        <circle cx="88" cy="98" r="10" fill="#E5484D" stroke="#B93840" stroke-width="2"/>
+        <rect x="85" y="14" width="6" height="76" rx="3" fill="#EDEFF5"/>
+        <rect x="85" y="50" width="6" height="40" rx="3" fill="#E5484D">
+          <animate attributeName="y" values="66;38;38;66" keyTimes="0;.5;.85;1" dur="4s" repeatCount="indefinite"/>
+          <animate attributeName="height" values="24;52;52;24" keyTimes="0;.5;.85;1" dur="4s" repeatCount="indefinite"/>
+        </rect>
+      </g>
+      <g transform="translate(30,88)">
+        <circle r="16" fill="#fff" stroke="#6240FF" stroke-width="2.5"/>
+        <line x1="0" y1="0" x2="0" y2="-10" stroke="#6240FF" stroke-width="2.5" stroke-linecap="round">
+          <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="4s" repeatCount="indefinite"/>
+        </line>
+        <line x1="0" y1="0" x2="7" y2="4" stroke="#2B2B33" stroke-width="2.5" stroke-linecap="round"/>
+        <circle r="2.4" fill="#2B2B33"/>
+      </g>
+    </svg>`,
+};
+
+const TOPICS = [
+  { title: 'Что такое температура',            desc: 'Молекулы дрожат всегда: чем быстрее — тем горячее. И почему рукам верить нельзя.', href: '../lesson-temperature/', illus: 'temperature' },
+  { title: 'Как устроен термометр',            desc: 'Резервуар, капилляр, шкала — и жидкость, которая расширяется при нагревании.',      href: '../lesson-device/',      illus: 'device' },
+  { title: 'Цена деления и правила измерения', desc: 'Сколько градусов «стоит» одно деление и как не испортить измерение.',               href: '../lesson-measure/',     illus: 'measure' },
+];
+
+const PRACTICES = [
+  { title: 'Сними показания',  kind: 'лабораторная',      xp: '+30–80 XP', href: '../practice-reading/',
+    desc: 'Случайная температура на шкале — определи цену деления и впиши значение. На сложном уровне — мороз и половинки делений.', illus: 'reading' },
+  { title: 'Измерь правильно', kind: 'мини-исследование', xp: '+30–80 XP', href: '../practice-equilibrium/',
+    desc: 'Столбик ещё ползёт — записывать или ждать? Разбери ловушки измерения и дождись теплового равновесия сам.', illus: 'equilibrium' },
+];
+
+/* ---------- Строка тегов в hero ---------- */
+const heroMeta = [
+  { ic: 'auto_stories', text: `${TOPICS.length} интерактивные темы` },
+  { ic: 'device_thermostat', text: 'живые опыты с нагревом' },
+  { ic: 'construction', text: `${PRACTICES.length} практики` },
+];
+document.getElementById('heroMeta').innerHTML = heroMeta.map(m =>
+  `<span class="meta-item"><span class="ms">${m.ic}</span> ${m.text}</span>`
+).join('');
+document.getElementById('startBtn').href = TOPICS[0].href;
+
+/* ---------- Темы урока ---------- */
+document.getElementById('topicGrid').innerHTML = TOPICS.map((t, i) => `
+  <a class="topic" href="${t.href}">
+    <div class="topic__illus">${ILLUS[t.illus]}</div>
+    <div class="topic__body">
+      <span class="topic__step">Тема ${i + 1}</span>
+      <h3 class="topic__title">${t.title}</h3>
+      <p class="topic__desc">${t.desc}</p>
+    </div>
+  </a>`).join('');
+
+/* ---------- Практика ---------- */
+document.getElementById('practiceGrid').innerHTML = PRACTICES.map(p => `
+  <a class="practice" href="${p.href}">
+    <div class="practice__illus">${ILLUS[p.illus]}</div>
+    <div class="practice__top">
+      <span class="practice__kind">${p.kind}</span>
+      <span class="practice__xp"><span class="ms">bolt</span> ${p.xp}</span>
+    </div>
+    <h3 class="practice__title">${p.title}</h3>
+    <p class="practice__desc">${p.desc}</p>
+  </a>`).join('');
+
+/* ---------- Поделиться с учениками ---------- */
+const shareBtn = document.getElementById('shareBtn');
+const shareToast = document.getElementById('shareToast');
+let toastTimer;
+function showToast(text){
+  shareToast.textContent = text;
+  shareToast.classList.add('is-open');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => shareToast.classList.remove('is-open'), 2200);
+}
+shareBtn.addEventListener('click', async () => {
+  const url = location.origin + location.pathname;
+  const title = 'Термометр — интерактивный урок';
+  if (navigator.share) {
+    try { await navigator.share({ title, url }); return; } catch(e) { /* пользователь отменил — падаем в copy */ }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Ссылка скопирована');
+  } catch(e){
+    showToast('Скопируйте: ' + url);
+  }
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Прочитай график · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .graph-panel{
+    width: 100%; max-width: 560px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 12px;
+  }
+  .graph-panel svg{ width: 100%; height: auto; display: block; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Прочитай график» — классика ОГЭ.
+   Случайный кусочно-линейный график x(t). Все числа честные:
+   наклон каждого участка = заявленная скорость, все ответы
+   пересчитываются из тех же параметров, что рисуют график.
+   Уровни: easy — один участок; medium — три участка с
+   остановкой; hard — с возвратом и встречей двух тел.
+   ============================================================ */
+
+const PURPLE = '#6240FF', ORANGE = '#F76B15';
+
+/* ---------- отрисовка графика x(t) ---------- */
+function graphSVG(cfg) {
+  const { T, XM, xStep, series, band } = cfg;
+  const W = 640, H = 380, pad = { l: 74, r: 22, t: 26, b: 56 };
+  const px = t => pad.l + (t / T) * (W - pad.l - pad.r);
+  const py = x => H - pad.b - (x / XM) * (H - pad.t - pad.b);
+
+  const grid = [];
+  for (let s = 0; s <= T; s++) grid.push(`<line x1="${px(s)}" y1="${py(0)}" x2="${px(s)}" y2="${py(XM)}"/>`);
+  for (let m = 0; m <= XM; m += xStep) grid.push(`<line x1="${px(0)}" y1="${py(m)}" x2="${px(T)}" y2="${py(m)}"/>`);
+
+  const tLbl = [], xLbl = [];
+  const tEvery = T > 10 ? 2 : 1;
+  for (let s = 0; s <= T; s += tEvery) tLbl.push(`<text x="${px(s)}" y="${py(0) + 30}" text-anchor="middle">${s}</text>`);
+  for (let m = 0; m <= XM; m += xStep) xLbl.push(`<text x="${px(0) - 12}" y="${py(m)}" text-anchor="end" dominant-baseline="central">${m}</text>`);
+
+  const bandRect = band ? `
+    <rect x="${px(band[0])}" y="${py(XM)}" width="${px(band[1]) - px(band[0])}" height="${py(0) - py(XM)}"
+          fill="${PURPLE}" opacity="0.08"/>
+    <line x1="${px(band[0])}" y1="${py(0)}" x2="${px(band[0])}" y2="${py(XM)}" stroke="${PURPLE}" stroke-width="2" stroke-dasharray="4 6" opacity=".5"/>
+    <line x1="${px(band[1])}" y1="${py(0)}" x2="${px(band[1])}" y2="${py(XM)}" stroke="${PURPLE}" stroke-width="2" stroke-dasharray="4 6" opacity=".5"/>` : '';
+
+  const lines = series.map(s => {
+    const d = s.pts.map(([t, x], i) => `${i === 0 ? 'M' : 'L'}${px(t).toFixed(1)} ${py(x).toFixed(1)}`).join(' ');
+    const [lt, lx] = s.labelAt || s.pts[s.pts.length - 1];
+    const anchor = s.labelAnchor || 'start';
+    const label = s.label ? `
+      <text x="${(px(lt) + (s.labelDx || 6)).toFixed(1)}" y="${(py(lx) + (s.labelDy || -10)).toFixed(1)}"
+            text-anchor="${anchor}" font-family="var(--font-display), sans-serif" font-size="17"
+            font-weight="500" fill="${s.color}">${s.label}</text>` : '';
+    const dots = s.pts.map(([t, x]) =>
+      `<circle cx="${px(t).toFixed(1)}" cy="${py(x).toFixed(1)}" r="5" fill="${s.color}"/>`).join('');
+    return `
+      <path d="${d}" fill="none" stroke="${s.color}" stroke-width="5"
+            stroke-linecap="round" stroke-linejoin="round"${s.dash ? ` stroke-dasharray="${s.dash}"` : ''}/>
+      ${dots}${label}`;
+  }).join('');
+
+  return `
+    <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+      ${bandRect}
+      <g stroke="#E4E7F2" stroke-width="1.6">${grid.join('')}</g>
+      <g stroke="#B0B4BE" stroke-width="3" stroke-linecap="round" fill="none">
+        <path d="M${px(0)} ${py(XM)} L${px(0)} ${py(0)} L${px(T)} ${py(0)}"/>
+      </g>
+      <g font-family="var(--font-display), sans-serif" font-size="16" font-weight="500" fill="#6B7180">
+        ${tLbl.join('')}${xLbl.join('')}
+        <text x="${px(0) - 44}" y="${py(XM) - 8}" fill="#232323">x, м</text>
+        <text x="${px(T)}" y="${H - 6}" text-anchor="end" fill="#232323">t, с</text>
+      </g>
+      ${lines}
+    </svg>`;
+}
+
+function scene(cfg) {
+  return host => { host.innerHTML = `<div class="graph-panel">${graphSVG(cfg)}</div>`; };
+}
+const pick = (arr, rnd) => arr[Math.floor(rnd() * arr.length)];
+function pickXStep(XM) {
+  for (const s of [5, 10, 15, 20, 25, 30, 40]) if (XM % s === 0 && XM / s <= 8) return s;
+  return XM / 4;
+}
+
+/* ============================================================
+   ГЕНЕРАТОРЫ УРОВНЕЙ
+   ============================================================ */
+
+/* --- easy: один участок равномерного движения --- */
+function easySteps(rnd) {
+  const v = pick([5, 10, 15, 20], rnd);
+  const T = 8, XM = v * T;
+  const cfg = { T, XM, xStep: pickXStep(XM), series: [{ pts: [[0, 0], [T, XM]], color: PURPLE }] };
+  return [
+    {
+      type: 'reading',
+      title: 'Скорость по графику',
+      text: 'Автомобиль ехал равномерно. Определи его скорость по графику: возьми любую точку линии и раздели x на t.',
+      render: scene(cfg),
+      answer: v, tolerance: 0, unit: 'м/с',
+      hints: [
+        `Возьми удобную точку: за 2 с пройдено ${2 * v} м. Скорость = путь : время.`,
+        `За каждую секунду график поднимается на ${v} м. Это и есть скорость.`,
+      ],
+      right: `Наклон графика: за ${T} с — ${XM} м, значит ${XM} : ${T} = ${v} м/с.`,
+    },
+    {
+      type: 'reading',
+      title: 'Путь за всё время',
+      text: `Сколько метров автомобиль проехал за все ${T} секунд наблюдения?`,
+      render: scene({ ...cfg, band: [0, T] }),
+      answer: XM, tolerance: 0, unit: 'м',
+      hints: [
+        `Посмотри, на какой высоте линия в момент t = ${T} с.`,
+        `Конечная точка графика: t = ${T} с, x = ${XM} м. Стартовал из нуля.`,
+      ],
+      right: `К концу восьмой секунды координата ${XM} м — столько и проехал.`,
+    },
+    {
+      type: 'choice',
+      title: 'Задача 3 из 3',
+      text: 'Какое утверждение об этом движении верно?',
+      render: scene(cfg),
+      options: [
+        { text: 'Тело двигалось равномерно, с постоянной скоростью', correct: true },
+        { text: 'Тело стояло на месте', correct: false },
+        { text: 'Тело двигалось всё быстрее и быстрее', correct: false },
+        { text: 'Тело вернулось в исходную точку', correct: false },
+      ],
+      right: 'График x(t) — прямая с постоянным наклоном, значит скорость всё время одна и та же.',
+      wrong: 'Прямая линия на графике x(t) = постоянный наклон = постоянная скорость. Разгон выглядел бы кривой, стоянка — полочкой, возврат — спуском.',
+    },
+  ];
+}
+
+/* --- medium: разгон → остановка → снова в путь --- */
+function mediumSteps(rnd) {
+  /* честный перебор допустимых наборов */
+  const combos = [];
+  for (const t1 of [2, 3, 4]) for (const t2 of [2, 3]) {
+    const t3 = 10 - t1 - t2;
+    if (t3 < 3) continue;
+    for (const v1 of [5, 10, 15]) for (const v2 of [5, 10, 15]) {
+      if (v1 === v2) continue;
+      const XM = v1 * t1 + v2 * t3;
+      if (XM > 100) continue;
+      combos.push({ t1, t2, t3, v1, v2, XM });
+    }
+  }
+  const c = pick(combos, rnd);
+  const X1 = c.v1 * c.t1;
+  const pts = [[0, 0], [c.t1, X1], [c.t1 + c.t2, X1], [10, c.XM]];
+  const cfg = { T: 10, XM: c.XM, xStep: pickXStep(c.XM), series: [{ pts, color: PURPLE }] };
+  const path = c.v1 * c.t1 + c.v2 * c.t3;
+  return [
+    {
+      type: 'reading',
+      title: 'Скорость на первом участке',
+      text: `Велокурьер выехал с постоянной скоростью, потом остановился у заказчика и поехал дальше. Какова его скорость в первые ${c.t1} с?`,
+      render: scene({ ...cfg, band: [0, c.t1] }),
+      answer: c.v1, tolerance: 0, unit: 'м/с',
+      hints: [
+        `Смотри на выделенный участок: за ${c.t1} с координата выросла до ${X1} м.`,
+        `v = Δx / Δt = ${X1} : ${c.t1}.`,
+      ],
+      right: `${X1} м за ${c.t1} с — это ${c.v1} м/с.`,
+    },
+    {
+      type: 'reading',
+      title: 'Сколько длилась остановка',
+      text: 'Найди на графике полочку — участок, где координата не меняется. Сколько секунд курьер стоял?',
+      render: scene({ ...cfg, band: [c.t1, c.t1 + c.t2] }),
+      answer: c.t2, tolerance: 0, unit: 'с',
+      hints: [
+        `Полочка начинается в t = ${c.t1} с. Когда она заканчивается?`,
+        `Полочка тянется от ${c.t1} до ${c.t1 + c.t2} с. Вычти одно из другого.`,
+      ],
+      right: `Полочка от ${c.t1} до ${c.t1 + c.t2} с — стоял ${c.t2} с.`,
+    },
+    {
+      type: 'reading',
+      title: 'Путь за всю поездку',
+      text: 'Сколько всего метров проехал курьер за 10 секунд?',
+      render: scene(cfg),
+      answer: path, tolerance: 0, unit: 'м',
+      hints: [
+        'Курьер ехал всё время вперёд, поэтому путь равен конечной координате.',
+        `Первый участок ${X1} м, потом стоянка, потом ещё ${c.v2 * c.t3} м. Сложи.`,
+      ],
+      right: `${X1} + ${c.v2 * c.t3} = ${path} м. Здесь путь совпал с координатой — назад курьер не поворачивал.`,
+    },
+    {
+      type: 'choice',
+      title: 'Задача 4 из 4',
+      text: 'Где скорость курьера была больше?',
+      render: scene(cfg),
+      options: [
+        { text: 'На первом участке — до остановки', correct: c.v1 > c.v2 },
+        { text: 'На последнем участке — после остановки', correct: c.v2 > c.v1 },
+        { text: 'Скорость на обоих участках одинаковая', correct: false },
+        { text: 'По графику это определить нельзя', correct: false },
+      ],
+      right: `Сравни наклоны: до остановки ${c.v1} м/с, после — ${c.v2} м/с. Круче наклон — больше скорость.`,
+      wrong: `Скорость видна по наклону: до остановки ${c.v1} м/с (${X1} м за ${c.t1} с), после — ${c.v2} м/с (${c.v2 * c.t3} м за ${c.t3} с).`,
+    },
+  ];
+}
+
+/* --- hard: возврат + встреча двух тел --- */
+function hardSteps(rnd) {
+  /* тело А: вперёд v1 (t1 c) → стоянка (t2 с) → назад v2 (t3 с), конец > 0.
+     тело Б: стартует с x = xB0 навстречу со скоростью vb, встреча в t = tm
+     (единственное пересечение: vb ≥ v2 гарантирует, что второго не будет). */
+  const combos = [];
+  for (const v1 of [5, 10]) for (const t1 of [3, 4]) for (const t2 of [2, 3]) {
+    const t3 = 10 - t1 - t2;
+    if (t3 < 3) continue;
+    const v2 = 5;
+    const xEnd = v1 * t1 - v2 * t3;
+    if (xEnd <= 0) continue;
+    for (const tm of [1, 2]) {
+      if (tm >= t1) continue;
+      const xm = v1 * tm;
+      for (const vb of [5, 10, 20]) {
+        if (vb < v2 || xm % vb !== 0) continue;
+        const xB0 = xm + vb * tm;
+        if (xB0 > 80) continue;
+        const tB0 = tm + xm / vb;          // Б добрался до нуля
+        combos.push({ v1, t1, t2, t3, v2, xEnd, tm, xm, vb, xB0, tB0 });
+      }
+    }
+  }
+  const c = pick(combos, rnd);
+  const X1 = c.v1 * c.t1;
+  const XM = Math.max(X1, c.xB0);
+  const xStep = pickXStep(XM);
+  const ptsA = [[0, 0], [c.t1, X1], [c.t1 + c.t2, X1], [10, c.xEnd]];
+  const ptsB = c.tB0 < 10 ? [[0, c.xB0], [c.tB0, 0], [10, 0]] : [[0, c.xB0], [10, c.xB0 - c.vb * 10]];
+  const seriesAB = [
+    { pts: ptsA, color: PURPLE, label: 'А', labelAt: [c.t1 + c.t2 / 2, X1], labelDy: -12, labelAnchor: 'middle' },
+    { pts: ptsB, color: ORANGE, label: 'Б', labelAt: [0, c.xB0], labelDx: 10, labelDy: -12 },
+  ];
+  const cfgA = { T: 10, XM, xStep, series: [{ pts: ptsA, color: PURPLE }] };
+  const cfgAB = { T: 10, XM, xStep, series: seriesAB };
+  const path = c.v1 * c.t1 + c.v2 * c.t3;
+
+  /* 4 различных варианта времени встречи */
+  const times = [c.tm];
+  for (const cand of [c.tB0, c.t1, c.t1 + c.t2, 10, c.tm + 1, c.t2]) {
+    if (times.length >= 4) break;
+    if (Number.isInteger(cand) && cand > 0 && cand <= 10 && !times.includes(cand)) times.push(cand);
+  }
+  const meetOptions = times.map((t, i) => ({ text: `t = ${t} с`, correct: i === 0 }));
+
+  return [
+    {
+      type: 'reading',
+      title: 'Скорость на обратном пути',
+      text: `Пешеход А ушёл от дома, постоял и повернул назад. С какой скоростью он шёл обратно (последние ${c.t3} с)? Впиши модуль скорости.`,
+      render: scene({ ...cfgA, band: [c.t1 + c.t2, 10] }),
+      answer: c.v2, tolerance: 0, unit: 'м/с',
+      hints: [
+        `На выделенном участке координата упала с ${X1} до ${c.xEnd} м за ${c.t3} с.`,
+        `Δx = ${X1} − ${c.xEnd} = ${X1 - c.xEnd} м. Раздели на ${c.t3} с.`,
+      ],
+      right: `${X1 - c.xEnd} м за ${c.t3} с — обратно А шёл со скоростью ${c.v2} м/с.`,
+    },
+    {
+      type: 'reading',
+      title: 'Сколько стоял',
+      text: 'Сколько секунд пешеход А стоял на месте?',
+      render: scene({ ...cfgA, band: [c.t1, c.t1 + c.t2] }),
+      answer: c.t2, tolerance: 0, unit: 'с',
+      hints: [
+        'Ищи полочку — горизонтальный участок графика.',
+        `Полочка от ${c.t1} до ${c.t1 + c.t2} с.`,
+      ],
+      right: `Полочка длится ${c.t2} с — столько А стоял.`,
+    },
+    {
+      type: 'reading',
+      title: 'Полный путь — внимание, ловушка!',
+      text: 'Какой ПУТЬ прошёл пешеход А за все 10 секунд? Помни: при развороте путь и перемещение — разные вещи.',
+      render: scene(cfgA),
+      answer: path, tolerance: 0, unit: 'м',
+      hints: [
+        `Конечная координата ${c.xEnd} м — это ПЕРЕМЕЩЕНИЕ, а спрашивают путь. Обратные метры тоже считаются!`,
+        `Туда ${X1} м, обратно ${X1 - c.xEnd} м. Сложи оба куска.`,
+      ],
+      right: `Путь = ${X1} + ${X1 - c.xEnd} = ${path} м. А перемещение — всего ${c.xEnd} м: вот она, любимая ловушка ОГЭ.`,
+    },
+    {
+      type: 'choice',
+      title: 'Задача 4 из 4',
+      text: 'Навстречу пешеходу А двигалось тело Б (оранжевый график). В какой момент они встретились?',
+      render: scene(cfgAB),
+      options: meetOptions,
+      right: `Графики пересекаются в t = ${c.tm} с на высоте ${c.xm} м — одно время, одно место, встреча.`,
+      wrong: `Встреча — это точка пересечения графиков: t = ${c.tm} с, x = ${c.xm} м. Момент, когда Б дошёл до нуля, встречей не считается.`,
+    },
+  ];
+}
+
+/* ---------- сборка ---------- */
+function buildSteps(level, rnd) {
+  if (level === 'easy') return easySteps(rnd);
+  if (level === 'medium') return mediumSteps(rnd);
+  return hardSteps(rnd);
+}
+
+runPractice({
+  practiceId: 'read-graph',
+  storageKey: 'motion-progress',
+  homeHref: '../demo/',
+  title: 'Прочитай график',
+  subtitle: 'Перед тобой график x(t) — как в настоящем ОГЭ. Сними с него скорость, время стоянки и путь. Числа каждый раз новые.',
+  levels: {
+    easy:   { label: 'Разминка',  desc: 'Один участок: найди скорость и путь.', xp: 30 },
+    medium: { label: 'Курьер',    desc: 'Три участка с остановкой посередине.', xp: 50 },
+    hard:   { label: 'ОГЭ-детектив', desc: 'Возврат, ловушка «путь ≠ перемещение» и встреча двух тел.', xp: 70 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

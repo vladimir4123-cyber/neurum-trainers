@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Что такое давление · Давление</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📌</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  /* панель+подсказка+кнопки визуала — колонкой */
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 560px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; }
+  .canvas-hint{
+    margin: 14px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+  .mini-actions{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  /* Кнопки внутри урока — ЧЁРНЫЕ. Фиолетовая — только «Дальше». */
+  .mini-play-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border: 0; border-radius: var(--radius-md);
+    background: var(--fg-1); color: #fff; cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .mini-play-btn:hover:not(:disabled){ background: #3a3a3f; }
+  .mini-play-btn:active:not(:disabled){ transform: scale(0.96); }
+  .mini-play-btn:disabled{ opacity: .55; cursor: default; }
+  .chip-btn{
+    padding: 12px 18px; border: 1px solid var(--purple-4); border-radius: var(--radius-md);
+    background: var(--white); color: var(--fg-2); cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .chip-btn:hover{ background: var(--purple-4); }
+  .chip-btn:active{ transform: scale(0.96); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ============================================================
+   ТЕМА 1 «Что такое давление» (Пёрышкин §16, зацепка).
+   Интерактив: дави на кнопку с двух сторон — остриё втыкается,
+   шляпка нет. Плоский стиль §8.
+   ============================================================ */
+
+/* ---------- общие рисовалки ---------- */
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+function rr(ctx, x, y, w2, h2, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w2, y, x + w2, y + h2, r);
+  ctx.arcTo(x + w2, y + h2, x, y + h2, r);
+  ctx.arcTo(x, y + h2, x, y, r);
+  ctx.arcTo(x, y, x + w2, y, r);
+  ctx.closePath();
+}
+function shade(hex, t) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  r = Math.round(r * (1 - t)); g = Math.round(g * (1 - t)); b = Math.round(b * (1 - t));
+  return `rgb(${r},${g},${b})`;
+}
+
+const WOOD = '#E9D7BC', WOOD_E = '#C9B191';
+const METAL = '#AEB4C2', METAL_E = '#8A8F9C';
+const HEAD = '#6240FF', HEAD_E = '#4A2FD9';
+const SKIN = '#F3C89E', SKIN_E = '#D9A876';
+const RED = '#E5484D';
+/* canvas не понимает var() в font — берём уже вычисленное семейство */
+const FONT = getComputedStyle(document.body).fontFamily || "'Aeonik Pro', sans-serif";
+
+/* ============================================================
+   ИНТЕРАКТИВ: кнопка остриём и шляпкой
+   ============================================================ */
+function startTack(root, done) {
+  const canvas = root.querySelector('#tackCanvas');
+  const hint = root.querySelector('#tackHint');
+  const btnPoint = root.querySelector('#btnPoint');
+  const btnHead = root.querySelector('#btnHead');
+  const btnReset = root.querySelector('#tackReset');
+  const ctx = canvas.getContext('2d');
+
+  let mode = null;            // 'point' | 'head'
+  let animT = -9;             // время старта анимации, сек
+  const tried = new Set();
+  let doneShown = false;
+
+  function press(m) {
+    mode = m;
+    animT = performance.now() / 1000;
+    tried.add(m);
+  }
+  btnPoint.addEventListener('click', () => press('point'));
+  btnHead.addEventListener('click', () => press('head'));
+  btnReset.addEventListener('click', () => {
+    mode = null; animT = -9; tried.clear(); doneShown = false;
+    hint.innerHTML = 'Одна и та же рука, одна и та же сила. Попробуй <b>оба способа</b>.';
+  });
+
+  /* прогресс нажатия: 0 → 1 (вниз) → лёгкий отскок */
+  function pressAmount(t) {
+    const dt = t - animT;
+    if (dt < 0) return 0;
+    if (dt < 0.5) return dt / 0.5;                 // едем вниз
+    if (dt < 0.8) return 1 - (dt - 0.5) / 0.3 * 0.12; // лёгкий отжим
+    return 0.88;
+  }
+
+  /* размеры в «дизайн-единицах» × u (u = w/560): крупно с задней парты */
+  const TACK = { HW: 100, HH: 22, NW: 52, NH: 16, PL: 50 };
+  const tackTotal = u => (TACK.NH + TACK.HH + TACK.PL - 4) * u;
+
+  function drawTack(cx, topY, pointDown, u) {
+    const HW = TACK.HW * u, HH = TACK.HH * u, NW = TACK.NW * u,
+          NH = TACK.NH * u, PL = TACK.PL * u;
+    ctx.save();
+    ctx.translate(cx, topY);
+    if (pointDown) {
+      /* рука держит сверху, остриё внизу */
+      rr(ctx, -NW / 2, 0, NW, NH, 8 * u);
+      ctx.fillStyle = '#8B6FFF'; ctx.fill();
+      ctx.lineWidth = 2.5 * u; ctx.strokeStyle = HEAD; ctx.stroke();
+      rr(ctx, -HW / 2, NH - 2 * u, HW, HH, 10 * u);
+      ctx.fillStyle = HEAD; ctx.fill();
+      ctx.strokeStyle = HEAD_E; ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-8 * u, NH + HH - 4 * u);
+      ctx.lineTo(0, NH + HH - 4 * u + PL);
+      ctx.lineTo(8 * u, NH + HH - 4 * u);
+      ctx.closePath();
+      ctx.fillStyle = METAL; ctx.fill();
+      ctx.lineWidth = 2 * u; ctx.strokeStyle = METAL_E; ctx.stroke();
+    } else {
+      /* перевёрнута: остриё вверх, шляпка внизу */
+      ctx.beginPath();
+      ctx.moveTo(-8 * u, PL);
+      ctx.lineTo(0, 0);
+      ctx.lineTo(8 * u, PL);
+      ctx.closePath();
+      ctx.fillStyle = METAL; ctx.fill();
+      ctx.lineWidth = 2 * u; ctx.strokeStyle = METAL_E; ctx.stroke();
+      rr(ctx, -NW / 2, PL - 2 * u, NW, NH, 8 * u);
+      ctx.fillStyle = '#8B6FFF'; ctx.fill();
+      ctx.lineWidth = 2.5 * u; ctx.strokeStyle = HEAD; ctx.stroke();
+      rr(ctx, -HW / 2, PL + NH - 4 * u, HW, HH, 10 * u);
+      ctx.fillStyle = HEAD; ctx.fill();
+      ctx.strokeStyle = HEAD_E; ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawHand(cx, y, u, ouch) {
+    /* ладонь — плоская округлая, давит сверху */
+    rr(ctx, cx - 55 * u, y - 60 * u, 110 * u, 60 * u, 26 * u);
+    ctx.fillStyle = SKIN; ctx.fill();
+    ctx.lineWidth = 2.5 * u; ctx.strokeStyle = SKIN_E; ctx.stroke();
+    /* пальцы — три полоски */
+    for (let i = -1; i <= 1; i++) {
+      rr(ctx, (cx - 12 * u) + i * 30 * u, y - 22 * u, 24 * u, 22 * u, 10 * u);
+      ctx.fillStyle = SKIN; ctx.fill();
+      ctx.strokeStyle = SKIN_E; ctx.stroke();
+    }
+    if (ouch) {
+      /* больно: красные чёрточки */
+      ctx.strokeStyle = RED; ctx.lineWidth = 3 * u; ctx.lineCap = 'round';
+      [[-66, -32], [66, -32], [-58, -58], [58, -58]].forEach(d => {
+        ctx.beginPath();
+        ctx.moveTo(cx + d[0] * u, y + d[1] * u);
+        ctx.lineTo(cx + d[0] * 1.16 * u, y + d[1] * 1.3 * u);
+        ctx.stroke();
+      });
+    }
+  }
+
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 280);
+    ctx.clearRect(0, 0, w, h);
+
+    const u = w / 560;                      // дизайн-единицы → device px
+    const boardY = h * 0.70, boardH = h * 0.22;
+    const cx = w * 0.5;
+    const p = mode ? pressAmount(t) : 0;
+    const TT = tackTotal(u);
+
+    /* доска */
+    rr(ctx, w * 0.08, boardY, w * 0.84, boardH, 14 * u);
+    ctx.fillStyle = WOOD; ctx.fill();
+    ctx.lineWidth = 3 * u; ctx.strokeStyle = WOOD_E; ctx.stroke();
+    ctx.strokeStyle = '#D8C3A2'; ctx.lineWidth = 2.5 * u; ctx.lineCap = 'round';
+    [[0.14, 0.4], [0.62, 0.35], [0.3, 0.72], [0.7, 0.75]].forEach(f => {
+      ctx.beginPath();
+      ctx.moveTo(w * f[0], boardY + boardH * f[1]);
+      ctx.lineTo(w * f[0] + w * 0.12, boardY + boardH * f[1]);
+      ctx.stroke();
+    });
+
+    let handTop = 0;
+    if (!mode) {
+      /* кнопка лежит и ждёт */
+      const topY = boardY - TT + 2 * u;
+      drawTack(cx, topY, true, u);
+      drawHand(cx, topY - 6 * u, u, false);
+      handTop = topY - 66 * u;
+    } else if (mode === 'point') {
+      const sink = p * 34 * u;                   // остриё входит в доску
+      const topY = boardY - TT + 2 * u + sink;
+      /* лунка */
+      if (sink > 5 * u) {
+        ctx.beginPath();
+        ctx.moveTo(cx - 9 * u, boardY);
+        ctx.lineTo(cx, boardY + sink * 0.8);
+        ctx.lineTo(cx + 9 * u, boardY);
+        ctx.closePath();
+        ctx.fillStyle = WOOD_E; ctx.fill();
+      }
+      drawTack(cx, topY, true, u);
+      drawHand(cx, topY - 6 * u, u, false);
+      handTop = topY - 66 * u;
+      if (p > 0.8) {
+        ctx.font = '500 ' + Math.round(w * 0.04) + 'px ' + FONT;
+        ctx.fillStyle = shade('#F0B23C', 0.3);
+        ctx.textAlign = 'center';
+        ctx.fillText('Вошла!', cx + w * 0.26, boardY - 16 * u);
+        ctx.textAlign = 'start';
+      }
+    } else {
+      /* шляпкой вниз: не втыкается, руке больно */
+      const dip = p * 6 * u;                      // еле заметная вмятина
+      const topY = boardY - TT + 2 * u + dip;
+      drawTack(cx, topY, false, u);
+      drawHand(cx, topY - 2 * u, u, p > 0.55);
+      handTop = topY - 62 * u;
+      if (p > 0.8) {
+        ctx.font = '500 ' + Math.round(w * 0.038) + 'px ' + FONT;
+        ctx.fillStyle = shade(RED, 0.1);
+        ctx.textAlign = 'center';
+        ctx.fillText('Не входит!', cx + w * 0.26, boardY - 16 * u - Math.round(w * 0.052));
+        ctx.fillText('Остриё колет руку', cx + w * 0.26, boardY - 16 * u);
+        ctx.textAlign = 'start';
+      }
+    }
+
+    /* стрелка силы — одинаковая в обоих случаях */
+    if (mode) {
+      const ay = h * 0.05;
+      const len = Math.max(h * 0.1, handTop - ay - 26 * u);
+      ctx.fillStyle = RED;
+      rr(ctx, cx - 7 * u, ay, 14 * u, len, 7 * u);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx, ay + len + 18 * u);
+      ctx.lineTo(cx - 16 * u, ay + len);
+      ctx.lineTo(cx + 16 * u, ay + len);
+      ctx.closePath();
+      ctx.fill();
+      ctx.font = '500 ' + Math.round(w * 0.04) + 'px ' + FONT;
+      ctx.fillStyle = shade(RED, 0.15);
+      ctx.fillText('F — сила та же', cx + 26 * u, ay + len * 0.6);
+    }
+
+    /* сообщения */
+    if (tried.size === 1 && !doneShown && (performance.now() / 1000 - animT) > 0.9) {
+      hint.innerHTML = mode === 'point'
+        ? 'Остриё <b>вошло в доску</b>. Теперь переверни кнопку — дави шляпкой.'
+        : 'Шляпка <b>не входит</b>. Теперь попробуй остриём.';
+    }
+    if (tried.size >= 2 && !doneShown) {
+      doneShown = true;
+      hint.innerHTML = '⚡ Сила одна и та же, а результат разный. Всё дело в <b>площади</b>!';
+      done();
+    }
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'interact', id: 'tack', visual: 'tack',
+    title: 'Почему кнопка входит остриём, а не шляпкой?',
+    text: 'Возьми канцелярскую кнопку и дави на неё с одинаковой силой — сначала остриём к доске, потом шляпкой. Рука та же, сила та же. А результат?',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'twoWays', big: true,
+    title: 'Сила одна — результат разный',
+    text: 'Остриё крошечное: вся сила собирается на <b>маленькой площади</b> — и кнопка легко протыкает дерево. Шляпка широкая: та же сила «размазывается» по <b>большой площади</b> — и доске хоть бы что. Значит, результат действия силы зависит не только от силы, но и от площади опоры.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'define', big: true,
+    title: 'Знакомься: давление',
+    text: 'Физики придумали величину, которая учитывает и силу, и площадь сразу. <b>Давление</b> — это величина, равная отношению силы, действующей перпендикулярно поверхности, к площади этой поверхности. Чем меньше площадь при той же силе — тем больше давление.',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Два вопроса — и тема твоя.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос',
+    text: 'Почему кнопка легко входит в доску остриём, но не входит шляпкой?',
+    options: [
+      { id: 'a', text: 'Остриё давит с большей силой, чем шляпка', correct: false },
+      { id: 'b', text: 'Площадь острия мала, поэтому давление огромно', correct: true },
+      { id: 'c', text: 'Шляпка сделана из более мягкого материала', correct: false },
+    ],
+    right: 'Сила одинаковая, но у острия она собрана на крошечной площади — давление в тысячи раз больше.',
+    wrong: 'Сила в обоих случаях одна и та же — рука-то одна. Разная только площадь: у острия она крошечная, поэтому давление огромно.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос',
+    text: 'Одна и та же сила действует сначала на маленькую площадь, потом на большую. Где давление больше?',
+    options: [
+      { id: 'a', text: 'На маленькой площади', correct: true },
+      { id: 'b', text: 'На большой площади', correct: false },
+      { id: 'c', text: 'Давление одинаковое — сила же одна', correct: false },
+    ],
+    right: 'Именно! Та же сила на меньшей площади — большее давление. Поэтому острый нож режет, а тупой — нет.',
+    wrong: 'Давление — это сила, делённая на площадь. Делим на меньшее число — получаем большее давление.',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  tack: () => `
+    <div class="canvas-panel"><canvas id="tackCanvas" height="280"></canvas></div>
+    <p class="canvas-hint" id="tackHint">Одна и та же рука, одна и та же сила. Попробуй <b>оба способа</b>.</p>
+    <div class="mini-actions">
+      <button class="mini-play-btn" id="btnPoint">📌 Давить остриём</button>
+      <button class="mini-play-btn" id="btnHead">Давить шляпкой</button>
+      <button class="chip-btn" id="tackReset">↺ Сначала</button>
+    </div>`,
+  twoWays: () => `
+    <svg viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg">
+      <g font-family="var(--font-display), sans-serif" font-weight="500">
+        <!-- слева: остриём -->
+        <rect x="14" y="108" width="110" height="26" rx="7" fill="#E9D7BC" stroke="#C9B191" stroke-width="2.5"/>
+        <path d="M64 108 L69 122 L74 108 Z" fill="#C9B191"/>
+        <g>
+          <path d="M64 78 L69 116 L74 78 Z" fill="#AEB4C2" stroke="#8A8F9C" stroke-width="1.6"/>
+          <rect x="45" y="64" width="48" height="15" rx="7" fill="#6240FF" stroke="#4A2FD9" stroke-width="2"/>
+          <animateTransform attributeName="transform" type="translate" values="0,-5;0,2;0,-5" dur="2s" repeatCount="indefinite"/>
+        </g>
+        <g fill="#E5484D">
+          <rect x="65" y="14" width="8" height="26" rx="4"/>
+          <path d="M69 52 L58 38 L80 38 Z"/>
+          <animateTransform attributeName="transform" type="translate" values="0,-4;0,3;0,-4" dur="2s" repeatCount="indefinite"/>
+        </g>
+        <text x="69" y="152" text-anchor="middle" font-size="14" fill="#30A46C">вошла</text>
+        <!-- справа: шляпкой -->
+        <rect x="156" y="108" width="110" height="26" rx="7" fill="#E9D7BC" stroke="#C9B191" stroke-width="2.5"/>
+        <g>
+          <rect x="187" y="92" width="48" height="15" rx="7" fill="#6240FF" stroke="#4A2FD9" stroke-width="2"/>
+          <path d="M206 92 L211 54 L216 92 Z" fill="#AEB4C2" stroke="#8A8F9C" stroke-width="1.6"/>
+          <animateTransform attributeName="transform" type="translate" values="0,-3;0,1;0,-3" dur="2s" repeatCount="indefinite"/>
+        </g>
+        <g fill="#E5484D">
+          <rect x="207" y="6" width="8" height="22" rx="4"/>
+          <path d="M211 40 L200 26 L222 26 Z"/>
+          <animateTransform attributeName="transform" type="translate" values="0,-3;0,1;0,-3" dur="2s" repeatCount="indefinite"/>
+        </g>
+        <text x="211" y="152" text-anchor="middle" font-size="14" fill="#B23A3F">не вошла</text>
+      </g>
+    </svg>`,
+  define: () => `
+    <svg viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg">
+      <rect x="30" y="118" width="220" height="22" rx="8" fill="#C9CEDA"/>
+      <!-- сила, размазанная по площади: пять маленьких стрелок -->
+      <g fill="#8B6FFF">
+        <g>
+          <rect x="56" y="58" width="6" height="34" rx="3"/>
+          <path d="M59 104 L49 92 L69 92 Z"/>
+          <animateTransform attributeName="transform" type="translate" values="0,-4;0,2;0,-4" dur="1.8s" repeatCount="indefinite"/>
+        </g>
+        <g>
+          <rect x="106" y="58" width="6" height="34" rx="3"/>
+          <path d="M109 104 L99 92 L119 92 Z"/>
+          <animateTransform attributeName="transform" type="translate" values="0,-4;0,2;0,-4" dur="1.8s" repeatCount="indefinite" begin=".2s"/>
+        </g>
+        <g>
+          <rect x="156" y="58" width="6" height="34" rx="3"/>
+          <path d="M159 104 L149 92 L169 92 Z"/>
+          <animateTransform attributeName="transform" type="translate" values="0,-4;0,2;0,-4" dur="1.8s" repeatCount="indefinite" begin=".4s"/>
+        </g>
+        <g>
+          <rect x="206" y="58" width="6" height="34" rx="3"/>
+          <path d="M209 104 L199 92 L219 92 Z"/>
+          <animateTransform attributeName="transform" type="translate" values="0,-4;0,2;0,-4" dur="1.8s" repeatCount="indefinite" begin=".6s"/>
+        </g>
+      </g>
+      <g font-family="var(--font-display), sans-serif" font-weight="500">
+        <text x="140" y="34" text-anchor="middle" font-size="20" fill="#6240FF">давление = сила на каждый кусочек площади</text>
+        <text x="140" y="156" text-anchor="middle" font-size="15" fill="#6B7180">площадь опоры S</text>
+      </g>
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'tack') startTack(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'what',
+  storageKey: 'pressure-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-area/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

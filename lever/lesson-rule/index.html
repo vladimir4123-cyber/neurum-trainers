@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Правило рычага · Рычаг</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 560px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; }
+  .canvas-hint{
+    margin: 14px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+
+  /* слайдер опоры */
+  .slider-row{
+    display: flex; align-items: center; gap: 14px;
+    max-width: 480px; margin: 16px auto 0; width: 100%;
+  }
+  .slider-row label{ font-size: 15px; font-weight: 500; color: var(--fg-2); flex: none; }
+  .slider-row input[type="range"]{
+    flex: 1; accent-color: var(--purple-1); height: 28px; cursor: pointer;
+  }
+  /* живые числа */
+  .live-nums{
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
+    margin: 14px auto 0; max-width: 560px;
+  }
+  .live-num{
+    background: var(--white); border-radius: var(--radius-md);
+    box-shadow: 0 2px 10px rgba(24,12,34,.07);
+    padding: 10px 16px; font-size: 15px; color: var(--fg-3);
+  }
+  .live-num b{
+    display: block; font-family: var(--font-display); font-weight: 500;
+    font-size: 22px; color: var(--fg-1); font-variant-numeric: tabular-nums;
+  }
+  .live-num.force b{ color: var(--danger); transition: color 200ms var(--ease-standard); }
+  .live-num.force.ok b{ color: var(--success); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ============================================================
+   ТЕМА 2 «Правило рычага».
+   Интерактив: двигай точку опоры слайдером — маленькая сила
+   поднимает большой валун. Числа живые: F₂ = F₁·l₁ / l₂.
+   ============================================================ */
+
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+function shade(hex, t) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  r = Math.round(r * (1 - t)); g = Math.round(g * (1 - t)); b = Math.round(b * (1 - t));
+  return `rgb(${r},${g},${b})`;
+}
+function rr(ctx, x, y, w2, h2, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w2, y, x + w2, y + h2, r);
+  ctx.arcTo(x + w2, y + h2, x, y + h2, r);
+  ctx.arcTo(x, y + h2, x, y, r);
+  ctx.arcTo(x, y, x + w2, y, r);
+  ctx.closePath();
+}
+
+const WOOD = '#D9BC8E', RED = '#E5484D', STONE = '#B6BCC9';
+/* canvas не понимает var() в ctx.font — берём уже вычисленный шрифт body */
+const FONT = getComputedStyle(document.body).fontFamily || "'Aeonik Pro', 'Inter', sans-serif";
+const F1 = 1200;              // вес валуна, Н
+const L = 3;                  // длина лома, м
+const MAX_PUSH = 150;         // столько может дать твоя рука, Н
+const fmt2 = v => (Math.round(v * 100) / 100).toFixed(2).replace('.', ',');
+
+/* ============================================================
+   ИНТЕРАКТИВ: точка опоры на слайдере
+   ============================================================ */
+function startFulcrum(root, done) {
+  const canvas = root.querySelector('#fulcrumCanvas');
+  const slider = root.querySelector('#fulcrumSlider');
+  const hint = root.querySelector('#fulcrumHint');
+  const elL1 = root.querySelector('#numL1');
+  const elL2 = root.querySelector('#numL2');
+  const elF2 = root.querySelector('#numF2');
+  const cardF2 = root.querySelector('#cardF2');
+  const ctx = canvas.getContext('2d');
+
+  let l1 = parseFloat(slider.value);   // плечо груза, м
+  let angle = 0;
+  let won = false;
+
+  slider.addEventListener('input', () => { l1 = parseFloat(slider.value); });
+
+  function draw() {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 300);
+    ctx.clearRect(0, 0, w, h);
+
+    const l2 = L - l1;
+    const F2 = F1 * l1 / l2;               // честное правило рычага
+    const lifted = F2 <= MAX_PUSH;
+
+    // живые числа
+    elL1.textContent = fmt2(l1) + ' м';
+    elL2.textContent = fmt2(l2) + ' м';
+    elF2.textContent = Math.round(F2) + ' Н';
+    cardF2.classList.toggle('ok', lifted);
+
+    const groundY = h * 0.80;
+    const x0 = w * 0.07, x1 = w * 0.93;
+    const pxm = (x1 - x0) / L;
+    const fx = x0 + l1 * pxm;
+    const fy = h * 0.64;
+
+    // земля
+    ctx.fillStyle = '#E3E6F2';
+    ctx.fillRect(0, groundY, w, h * 0.06);
+
+    // угол: поднято — левый конец вверх
+    const target = lifted ? -0.11 : 0;
+    angle += (target - angle) * 0.10;
+
+    // опора-бревно
+    ctx.beginPath();
+    ctx.arc(fx, (fy + groundY) / 2 + 6, (groundY - fy) / 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#C99B62'; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = '#A67B47'; ctx.stroke();
+
+    // лом с валуном — поворачиваем вокруг опоры
+    ctx.save();
+    ctx.translate(fx, fy);
+    ctx.rotate(angle);
+    const lx = x0 - fx, rx = x1 - fx;
+    // лом
+    rr(ctx, lx, -7, rx - lx, 14, 7);
+    ctx.fillStyle = '#8A8F9C'; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = '#6E7380'; ctx.stroke();
+    // валун на левом конце
+    const bs = h * 0.15;
+    ctx.beginPath();
+    ctx.moveTo(lx - bs * 0.2, -7);
+    ctx.quadraticCurveTo(lx - bs * 0.7, -bs * 1.5, lx + bs * 0.4, -bs * 1.7);
+    ctx.quadraticCurveTo(lx + bs * 1.4, -bs * 1.5, lx + bs * 1.2, -bs * 0.4);
+    ctx.quadraticCurveTo(lx + bs * 1.1, -7, lx + bs * 0.5, -7);
+    ctx.closePath();
+    ctx.fillStyle = STONE; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = shade(STONE, 0.22); ctx.stroke();
+    // стрелка силы руки на правом конце (вниз)
+    ctx.strokeStyle = RED; ctx.fillStyle = RED;
+    ctx.lineWidth = 6; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(rx - 10, -h * 0.30);
+    ctx.lineTo(rx - 10, -h * 0.08);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(rx - 10, -h * 0.03);
+    ctx.lineTo(rx - 24, -h * 0.10);
+    ctx.lineTo(rx + 4, -h * 0.10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // подписи
+    const fs = Math.round(w * 0.036);
+    ctx.font = '700 ' + fs + 'px ' + FONT;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#6B7180';
+    ctx.fillText('валун 1200 Н', x0 + bs, h * 0.16);
+    ctx.fillStyle = RED;
+    ctx.fillText('твоя рука: до 150 Н', x1 - w * 0.13, h * 0.16);
+    ctx.fillStyle = '#6B7180';
+    ctx.fillText('опора', fx, h * 0.97);
+    ctx.textAlign = 'start';
+
+    if (lifted && !won) {
+      won = true;
+      hint.innerHTML = `🎉 Валун пошёл! Плечо силы в ${Math.round(l2 / l1)} раз больше плеча груза — и хватило ${Math.round(F2)} Н вместо 1200 Н.`;
+      done();
+    }
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'interact', id: 'fulcrum', visual: 'fulcrum',
+    title: 'Подними валун весом 1200 Н',
+    text: 'Лом уже под валуном, рука давит на дальний конец с силой не больше <b>150 Н</b>. Пока камень не шевелится. Двигай <b>точку опоры</b> слайдером и следи за живыми числами.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'law', big: true,
+    title: 'Правило рычага',
+    text: 'Рычаг в равновесии, когда <b>силы обратно пропорциональны плечам</b>: во сколько раз плечо длиннее, во столько раз сила меньше. Записывают так: <b>F₁ · l₁ = F₂ · l₂</b>. Ты только что проверил это правило на валуне: плечо силы стало в девять раз длиннее — и сила понадобилась в девять раз меньше.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'archimedes', big: true,
+    title: '«Дайте мне точку опоры — и я переверну Землю»',
+    text: 'Правило рычага открыл <b>Архимед</b> больше 2200 лет назад — и так поверил в его силу, что произнёс знаменитую фразу про Землю. Он прав: рычаг позволяет сколь угодно малой силой уравновесить сколь угодно большую. Вопрос лишь в длине плеча — для Земли рычаг понадобился бы длиной в триллионы километров.',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Два вопроса — и правило твоё.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 1',
+    text: 'Плечо силы в 4 раза длиннее плеча груза. Какая сила удержит груз весом 400 Н?',
+    options: [
+      { id: 'a', text: '1600 Н — сила должна быть больше', correct: false },
+      { id: 'b', text: '400 Н — силы всегда равны', correct: false },
+      { id: 'c', text: '100 Н — во сколько раз плечо больше, во столько раз сила меньше', correct: true },
+    ],
+    right: 'Точно: F₂ = 400 · l₁ / (4·l₁) = 100 Н. Плечо ×4 — сила ÷4.',
+    wrong: 'Правило рычага: F₁·l₁ = F₂·l₂. Плечо силы в 4 раза больше, значит самой силы нужно в 4 раза меньше: 400 / 4 = 100 Н.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 2',
+    text: 'Груз весом 300 Н висит в 0,5 м от опоры. С какой силой надо давить на другое плечо длиной 1,5 м, чтобы рычаг был в равновесии?',
+    options: [
+      { id: 'a', text: '100 Н', correct: true },
+      { id: 'b', text: '900 Н', correct: false },
+      { id: 'c', text: '300 Н', correct: false },
+    ],
+    right: 'Да: F₂ = F₁·l₁ / l₂ = 300 · 0,5 / 1,5 = 100 Н.',
+    wrong: 'Считаем по правилу: F₂ = F₁·l₁ / l₂ = 300 · 0,5 / 1,5 = 100 Н. Плечо втрое больше — сила втрое меньше.',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  fulcrum: () => `
+    <div class="canvas-panel"><canvas id="fulcrumCanvas" height="300"></canvas></div>
+    <div class="slider-row">
+      <label for="fulcrumSlider">Опора ближе к валуну →</label>
+      <input type="range" id="fulcrumSlider" min="0.25" max="1.5" step="0.05" value="1.5">
+    </div>
+    <div class="live-nums">
+      <div class="live-num">плечо груза l₁<b id="numL1">1,50 м</b></div>
+      <div class="live-num">плечо силы l₂<b id="numL2">1,50 м</b></div>
+      <div class="live-num force" id="cardF2">нужная сила F₂<b id="numF2">1200 Н</b></div>
+    </div>
+    <p class="canvas-hint" id="fulcrumHint">Двигай слайдер: чем ближе опора к валуну, тем меньше нужная сила</p>`,
+  law: () => `
+    <svg viewBox="0 0 260 170" xmlns="http://www.w3.org/2000/svg">
+      <path d="M104 90 L88 130 L120 130 Z" fill="#C9CEDA"/>
+      <g>
+        <animateTransform attributeName="transform" type="rotate" values="-2 104 85; 2 104 85; -2 104 85" dur="3s" repeatCount="indefinite"/>
+        <rect x="10" y="80" width="240" height="10" rx="5" fill="#D9BC8E" stroke="#B99862" stroke-width="2.5"/>
+        <rect x="20" y="46" width="34" height="34" rx="7" fill="#E5484D" stroke="#B4373B" stroke-width="2.5"/>
+        <rect x="222" y="60" width="20" height="20" rx="5" fill="#2F80ED" stroke="#2361B6" stroke-width="2.5"/>
+      </g>
+      <circle cx="104" cy="85" r="6" fill="#6240FF"/>
+      <g stroke="#6240FF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 7">
+        <path d="M40 108 L98 108"/>
+        <path d="M110 108 L230 108"/>
+      </g>
+      <text x="69" y="126" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="15" fill="#6240FF">l₁</text>
+      <text x="170" y="126" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="15" fill="#6240FF">l₂</text>
+      <text x="130" y="30" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="24" fill="#6240FF">F₁ · l₁ = F₂ · l₂</text>
+      <text x="130" y="160" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="15" fill="#6B7180">большая сила × короткое плечо = малая сила × длинное плечо</text>
+    </svg>`,
+  archimedes: () => `
+    <svg viewBox="0 0 260 170" xmlns="http://www.w3.org/2000/svg">
+      <!-- Земля на коротком плече -->
+      <g>
+        <animateTransform attributeName="transform" type="translate" values="0,0; 0,-4; 0,0" dur="2.8s" repeatCount="indefinite"/>
+        <circle cx="52" cy="60" r="30" fill="#2F80ED" stroke="#2361B6" stroke-width="2.5"/>
+        <path d="M34 48 Q44 40 54 48 Q60 54 52 58 Q42 60 38 54 Z" fill="#7FB4F2"/>
+        <path d="M56 68 Q66 62 72 70 Q70 78 60 76 Z" fill="#7FB4F2"/>
+      </g>
+      <!-- рычаг -->
+      <path d="M96 112 L84 142 L108 142 Z" fill="#C9CEDA"/>
+      <g>
+        <animateTransform attributeName="transform" type="rotate" values="-2 96 108; 1.5 96 108; -2 96 108" dur="2.8s" repeatCount="indefinite"/>
+        <rect x="24" y="102" width="228" height="9" rx="4.5" fill="#D9BC8E" stroke="#B99862" stroke-width="2.5"/>
+      </g>
+      <circle cx="96" cy="106" r="5.5" fill="#6240FF"/>
+      <!-- Архимед давит на длинный конец -->
+      <g>
+        <animateTransform attributeName="transform" type="translate" values="0,0; 0,3; 0,0" dur="2.8s" repeatCount="indefinite"/>
+        <circle cx="236" cy="62" r="10" fill="#F3C89E" stroke="#D9A876" stroke-width="2"/>
+        <rect x="226" y="72" width="20" height="24" rx="7" fill="#E5484D" stroke="#B4373B" stroke-width="2"/>
+      </g>
+      <text x="52" y="20" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="15" fill="#6B7180">Земля</text>
+      <text x="236" y="40" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="15" fill="#6B7180">Архимед</text>
+      <text x="96" y="162" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="15" fill="#6B7180">точка опоры</text>
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'fulcrum') startFulcrum(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'rule',
+  storageKey: 'lever-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-around/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

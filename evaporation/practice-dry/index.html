@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Высуши бельё · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👕</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .p-scene svg{ max-width: 340px; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Высуши бельё».
+   Сравниваем условия сушки. Честная модель: скорость испарения =
+   температура × ветер × площадь; правильный ответ всегда
+   вычисляется по этой модели, а не «на глазок».
+   ============================================================ */
+
+const TEMP = [
+  { n: 'холод, +5 °C',  k: 1 },
+  { n: 'тепло, +20 °C', k: 2 },
+  { n: 'жара, +35 °C',  k: 3 },
+];
+const WIND = [
+  { n: 'штиль',          k: 1 },
+  { n: 'лёгкий ветерок', k: 2 },
+  { n: 'сильный ветер',  k: 4 },
+];
+const AREA = [
+  { n: 'бельё комком',      k: 1 },
+  { n: 'бельё расправлено', k: 3 },
+];
+
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const combo = (ti, wi, ai) => ({
+  ti, wi, ai,
+  score: TEMP[ti].k * WIND[wi].k * AREA[ai].k,
+  text: cap(`${TEMP[ti].n}, ${WIND[wi].n}, ${AREA[ai].n.replace('бельё ', '')}`),
+});
+
+function pick(arr, rnd) { return arr[Math.floor(rnd() * arr.length)]; }
+function pickShuffle(arr, rnd) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* Сцена: футболка на верёвке */
+function sceneSVG() {
+  return `
+  <svg viewBox="0 0 260 130" xmlns="http://www.w3.org/2000/svg">
+    <line x1="16" y1="30" x2="244" y2="30" stroke="#8A8F9C" stroke-width="3" stroke-linecap="round"/>
+    <path d="M102 34 L158 34 L152 50 L162 100 Q130 112 98 100 L108 50 Z" fill="#8B6FFF" stroke="#6240FF" stroke-width="2">
+      <animateTransform attributeName="transform" type="rotate" values="0 130 34; 4 130 34; 0 130 34; -3 130 34; 0 130 34" dur="3s" repeatCount="indefinite"/>
+    </path>
+    <g stroke="#8A8F9C" stroke-width="3" fill="none" stroke-linecap="round">
+      <path d="M186 56 q14 -8 28 0"><animateTransform attributeName="transform" type="translate" values="0,0;10,0;0,0" dur="1.6s" repeatCount="indefinite"/></path>
+      <path d="M190 74 q14 -8 28 0"><animateTransform attributeName="transform" type="translate" values="0,0;12,0;0,0" dur="1.9s" repeatCount="indefinite"/></path>
+    </g>
+    <g fill="#2F80ED">
+      <circle cx="116" cy="108" r="3.5"><animate attributeName="cy" values="108;124" dur="1.7s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0" dur="1.7s" repeatCount="indefinite"/></circle>
+      <circle cx="142" cy="110" r="3.5"><animate attributeName="cy" values="110;126" dur="2s" repeatCount="indefinite" begin=".6s"/><animate attributeName="opacity" values="1;0" dur="2s" repeatCount="indefinite" begin=".6s"/></circle>
+    </g>
+    <circle cx="44" cy="72" r="13" fill="#F5B93B"><animate attributeName="r" values="13;15;13" dur="2.2s" repeatCount="indefinite"/></circle>
+  </svg>`;
+}
+const scene = host => { host.innerHTML = sceneSVG(); };
+
+/* ---------- сборка choice-раунда из 4 комбинаций ---------- */
+function mkRound(combos, why) {
+  // корректность гарантируем моделью: правильный = строго максимальный балл
+  const max = Math.max(...combos.map(c => c.score));
+  const best = combos.filter(c => c.score === max);
+  const correct = best[0];
+  return {
+    type: 'choice',
+    title: '',
+    text: 'Где бельё высохнет быстрее всего?',
+    render: scene,
+    options: combos.map(c => ({ text: c.text, correct: c === correct })),
+    right: why,
+    wrong: `Быстрее всего — «${correct.text}». ${why}`,
+  };
+}
+
+/* ---------- easy: меняется один фактор ---------- */
+function easyRounds(rnd) {
+  const rounds = [];
+
+  // фактор: ветер (температура и площадь одинаковые)
+  {
+    const t = 1 + Math.floor(rnd() * 2);   // тепло или жара
+    rounds.push(mkRound(
+      [combo(t, 0, 1), combo(t, 1, 1), combo(t, 2, 1), combo(0, 0, 0)],
+      'Температура и площадь тут одинаковые, решает ветер: он уносит вылетевшие молекулы и не даёт им вернуться. Чем сильнее ветер — тем быстрее сушка.'
+    ));
+  }
+  // фактор: температура (ветер и площадь одинаковые)
+  {
+    const w = 1;
+    rounds.push(mkRound(
+      [combo(0, w, 1), combo(1, w, 1), combo(2, w, 1), combo(2, 0, 0)],
+      'Ветер и площадь у первой тройки одинаковые, решает температура: чем теплее, тем больше быстрых молекул-беглецов. А «жара, но штиль и комком» проигрывает: без ветра и поверхности жара не спасает.'
+    ));
+  }
+  // фактор: площадь
+  {
+    rounds.push(mkRound(
+      [combo(1, 1, 0), combo(1, 1, 1), combo(0, 1, 0), combo(0, 1, 1)],
+      'Испарение идёт с поверхности: у расправленного белья она в разы больше, чем у комка. При равном тепле и ветре побеждает расправленное — и лучше в тепле, чем в холоде.'
+    ));
+  }
+
+  const base = pick([2, 4, 6], rnd);
+  const reading = {
+    type: 'reading',
+    title: 'Задача на сравнение',
+    text: `В тёплый безветренный день футболка на верёвке высохла за ${base} ч. В такой же день, но с ветерком, испарение идёт вдвое быстрее. За сколько часов высохла бы футболка на ветерке?`,
+    render: scene,
+    answer: base / 2, tolerance: 0, unit: 'ч',
+    hints: [
+      'Испарение вдвое быстрее — значит, времени нужно вдвое меньше.',
+      `Раздели ${base} ч на 2.`,
+    ],
+    right: `✓ Верно: ${base} : 2 = ${base / 2} ч. Скорость вдвое больше — время вдвое меньше.`,
+  };
+
+  return [...pickShuffle(rounds, rnd), reading];
+}
+
+/* ---------- medium: меняются два фактора ---------- */
+function mediumRounds(rnd) {
+  const pool = [
+    mkRound(
+      [combo(1, 2, 1), combo(2, 0, 1), combo(2, 1, 0), combo(0, 2, 0)],
+      'Считаем по факторам: у победителя и сильный ветер, и расправленное бельё — вместе они перевешивают чужую жару при штиле или комке.'
+    ),
+    mkRound(
+      [combo(2, 1, 1), combo(2, 2, 0), combo(1, 0, 1), combo(0, 1, 1)],
+      'Жара + ветерок + расправлено — все три фактора работают. Комок съедает выгоду даже от сильного ветра: поверхности-то почти нет.'
+    ),
+    mkRound(
+      [combo(1, 2, 0), combo(0, 0, 1), combo(1, 0, 0), combo(0, 1, 0)],
+      'Тепло с сильным ветром обгоняет холодные и безветренные варианты, даже комком: ветер постоянно уносит пар от ткани.'
+    ),
+    mkRound(
+      [combo(2, 2, 1), combo(2, 2, 0), combo(1, 1, 1), combo(2, 0, 1)],
+      'Тут собраны все козыри сразу: жара, сильный ветер и расправленное бельё. Убери любой фактор — и сушка замедлится в разы.'
+    ),
+  ];
+
+  const base = pick([6, 12], rnd);
+  const reading = {
+    type: 'reading',
+    title: 'Задача на сравнение',
+    text: `Скомканная футболка в тазу сохла бы ${base} ч. Её расправили на верёвке — поверхность стала втрое больше, — да ещё подул ветерок, ускорив испарение ещё вдвое. За сколько часов она высохнет теперь?`,
+    render: scene,
+    answer: base / 6, tolerance: 0, unit: 'ч',
+    hints: [
+      'Втрое больше поверхность → втрое быстрее. Ещё вдвое от ветра → всего в 6 раз быстрее.',
+      `Раздели ${base} ч на 6.`,
+    ],
+    right: `✓ Верно: испарение ускорилось в 3 × 2 = 6 раз, значит ${base} : 6 = ${base / 6} ч.`,
+  };
+
+  return [...pickShuffle(pool, rnd), reading];
+}
+
+/* ---------- hard: контр-интуитивные ловушки ---------- */
+function hardRounds(rnd) {
+  const pool = [
+    mkRound(
+      [combo(0, 2, 1), combo(2, 0, 0), combo(2, 0, 1), combo(1, 1, 0)],
+      'Ловушка! Холодный, но сильный ветер сушит быстрее жаркого штиля: ветер непрерывно уносит пар, а в неподвижном воздухе молекулы возвращаются обратно в ткань. Плюс расправленная поверхность.'
+    ),
+    mkRound(
+      [combo(1, 2, 0), combo(2, 0, 0), combo(0, 1, 1), combo(1, 0, 0)],
+      'Даже комком бельё на сильном ветру обходит жару при штиле: без ветра над бельём висит «одеяло» из пара, и испарение почти останавливается.'
+    ),
+    mkRound(
+      [combo(0, 2, 1), combo(1, 1, 0), combo(2, 1, 0), combo(1, 0, 1)],
+      'Снова холод побеждает: сильный ветер × большая поверхность дают больше, чем пара десятков лишних градусов у скомканного белья.'
+    ),
+    mkRound(
+      [combo(1, 2, 1), combo(2, 2, 0), combo(2, 0, 1), combo(2, 1, 0)],
+      'Жара — не главный козырь. Тепло + сильный ветер + расправлено обгоняет все жаркие варианты, где ветра нет или бельё комком.'
+    ),
+  ];
+
+  const t1 = pick([6, 9], rnd);
+  const reading = {
+    type: 'reading',
+    title: 'Задача на сравнение',
+    text: `Вчера ведро воды разлили во дворе, и лужа высохла за ${t1} ч. Сегодня такое же ведро разлили по площадке втрое большей площади (погода та же). За сколько часов высохнет сегодняшняя лужа?`,
+    render: scene,
+    answer: t1 / 3, tolerance: 0, unit: 'ч',
+    hints: [
+      'Воды столько же, а поверхность испарения втрое больше — каждую секунду улетает втрое больше молекул.',
+      `Раздели ${t1} ч на 3.`,
+    ],
+    right: `✓ Верно: поверхность втрое больше → испарение втрое быстрее → ${t1} : 3 = ${t1 / 3} ч.`,
+  };
+
+  return [...pickShuffle(pool, rnd), reading];
+}
+
+/* ---------- сборка шагов ---------- */
+function buildSteps(level, rnd) {
+  const rounds = level === 'easy' ? easyRounds(rnd)
+    : level === 'medium' ? mediumRounds(rnd)
+    : hardRounds(rnd);
+  // нумеруем choice-раунды
+  let n = 0;
+  const total = rounds.filter(r => r.type === 'choice').length;
+  rounds.forEach(r => {
+    if (r.type === 'choice') { n++; r.title = `Раунд ${n} из ${total}`; }
+  });
+  return rounds;
+}
+
+runPractice({
+  practiceId: 'dry',
+  storageKey: 'evaporation-progress',
+  homeHref: '../demo/',
+  title: 'Высуши бельё',
+  subtitle: 'Ты — главный по сушке. Сравнивай условия: температура, ветер, площадь. Правильный ответ всегда считается по честной модели испарения.',
+  levels: {
+    easy:   { label: 'Дачник',    desc: 'Меняется один фактор. Разберись, какая ручка что делает.', xp: 30 },
+    medium: { label: 'Прачечная', desc: 'Меняются два фактора сразу — взвешивай оба.', xp: 45 },
+    hard:   { label: 'Синоптик',  desc: 'Ловушки: холодный ветер против тёплого штиля!', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

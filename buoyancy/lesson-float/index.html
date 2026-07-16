@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Тонет, плавает или висит · Архимедова сила</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛟</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 560px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; }
+  .canvas-hint{
+    margin: 14px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+  .mix-controls{
+    width: 100%; max-width: 560px; margin: 14px auto 0;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .mix-row{ display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; align-items: center; }
+  .mix-lbl{ font-size: 14px; color: var(--fg-3); min-width: 76px; text-align: right; }
+  .mix-chip{
+    padding: 10px 14px; border: 1px solid var(--purple-4); border-radius: 9999px;
+    background: var(--white); color: var(--fg-1); cursor: pointer;
+    font-family: var(--font-sans); font-size: 14.5px; font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard), color 120ms var(--ease-standard);
+  }
+  .mix-chip:hover{ background: var(--purple-4); }
+  .mix-chip:active{ transform: scale(0.96); }
+  .mix-chip.on{ background: var(--fg-1); color: #fff; border-color: var(--fg-1); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ============================================================
+   ТЕМА 3 «Тонет, плавает или висит».
+   Интерактив: выбирай материал и жидкость — тело всплывает,
+   висит или тонет. Всё решают две плотности.
+   ============================================================ */
+
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+
+const MATS = [
+  { key: 'wood',    name: 'дерево',  dens: 0.7,  fill: '#C9975C', edge: '#9C7040' },
+  { key: 'ice',     name: 'лёд',     dens: 0.9,  fill: '#DDF1FF', edge: '#8FB6D9' },
+  { key: 'plastic', name: 'пластик', dens: 1.05, fill: '#E5484D', edge: '#B0353A' },
+  { key: 'steel',   name: 'сталь',   dens: 7.8,  fill: '#8A8F9C', edge: '#5A5F6E' },
+];
+const LIQS = [
+  { key: 'water', name: 'вода',         dens: 1.0,  fill: '#BFDCF9', edge: '#5D9BE0' },
+  { key: 'oil',   name: 'масло',        dens: 0.9,  fill: '#F2DCA0', edge: '#CBA84E' },
+  { key: 'salt',  name: 'солёная вода', dens: 1.03, fill: '#B9E3DE', edge: '#5FB3A8' },
+  { key: 'merc',  name: 'ртуть',        dens: 13.6, fill: '#D6DAE3', edge: '#9AA0AA' },
+];
+const fd = v => String(v).replace('.', ',');
+/* canvas не понимает var() в font — разворачиваем токен руками */
+const FONT = '"Aeonik Pro", "Inter", sans-serif';
+
+function outcomeOf(dBody, dLiq) {
+  if (Math.abs(dBody - dLiq) < 1e-9) return 'hover';
+  return dBody > dLiq ? 'sink' : 'float';
+}
+
+/* ============================================================
+   ИНТЕРАКТИВ: пары «тело + жидкость»
+   ============================================================ */
+function startMix(root, done) {
+  const canvas = root.querySelector('#mixCanvas');
+  const hint = root.querySelector('#mixHint');
+  const ctx = canvas.getContext('2d');
+
+  let mat = MATS[0], liq = LIQS[0];
+  const tried = new Set();
+  let isDone = false;
+
+  /* состояние анимации тела */
+  const body = { y: 0, vy: 0, started: false };
+
+  function resetDrop() {
+    body.started = true;
+    body.y = -1;      // проставим при первом кадре (в px): над стаканом
+    body.vy = 0;
+    tried.add(mat.key + '|' + liq.key);
+    const out = outcomeOf(mat.dens, liq.dens);
+    const cmp = out === 'sink' ? '>' : out === 'hover' ? '=' : '<';
+    const verdict = out === 'sink' ? 'тонет' : out === 'hover' ? 'зависает в глубине' : 'всплывает и плавает';
+    let extra = '';
+    if (mat.key === 'ice' && liq.key === 'water') extra = ' Смотри: 9/10 льда — под водой!';
+    if (mat.key === 'steel' && liq.key === 'merc') extra = ' Да-да, сталь плавает!';
+    hint.innerHTML = `ρ ${mat.name} (${fd(mat.dens)}) ${cmp} ρ ${liq.name === 'вода' ? 'воды' : liq.name} (${fd(liq.dens)}) → <b>${verdict}</b>.${extra}`;
+    if (tried.size >= 3 && !isDone) { isDone = true; done(); }
+  }
+
+  root.querySelectorAll('.mix-chip[data-mat]').forEach(b => b.addEventListener('click', () => {
+    mat = MATS.find(m => m.key === b.dataset.mat);
+    root.querySelectorAll('.mix-chip[data-mat]').forEach(x => x.classList.toggle('on', x === b));
+    resetDrop();
+  }));
+  root.querySelectorAll('.mix-chip[data-liq]').forEach(b => b.addEventListener('click', () => {
+    liq = LIQS.find(l => l.key === b.dataset.liq);
+    root.querySelectorAll('.mix-chip[data-liq]').forEach(x => x.classList.toggle('on', x === b));
+    resetDrop();
+  }));
+
+  let lastT = 0;
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const dt = Math.min(0.033, t - lastT || 0.016);
+    lastT = t;
+    const { w, h } = fit(canvas, 300);
+    ctx.clearRect(0, 0, w, h);
+
+    /* стакан */
+    const gx = w * 0.5, gw = w * 0.44;
+    const gTop = h * 0.10, gBot = h * 0.94;
+    const ly = h * 0.30;                     // уровень жидкости
+    const size = h * 0.155;                  // сторона кубика
+
+    /* жидкость */
+    ctx.fillStyle = liq.fill;
+    ctx.fillRect(gx - gw / 2 + 3, ly, gw - 6, gBot - ly - 3);
+
+    /* цель тела */
+    const out = outcomeOf(mat.dens, liq.dens);
+    const fr = Math.min(1, mat.dens / liq.dens);           // доля под поверхностью при плавании
+    const targetY = out === 'sink' ? gBot - 6 - size / 2
+      : out === 'hover' ? (ly + gBot) / 2
+      : ly - size / 2 + size * fr;                          // центр при плавании
+
+    if (body.y === -1) body.y = gTop - size;                // старт над жидкостью
+    if (!body.started) { body.y = targetY; body.started = true; tried.add(mat.key + '|' + liq.key); }
+
+    /* простая физика: падение + затухающее приближение к цели */
+    const inLiquid = body.y + size / 2 > ly;
+    if (!inLiquid) {
+      body.vy += h * 2.4 * dt;
+    } else {
+      body.vy += (targetY - body.y) * 22 * dt;
+      body.vy *= Math.exp(-4.6 * dt);
+    }
+    body.y += body.vy * dt;
+    if (body.y > gBot - 6 - size / 2) { body.y = gBot - 6 - size / 2; body.vy = 0; }
+
+    const bob = out === 'float' && Math.abs(body.y - targetY) < 4 ? Math.sin(t * 2.2) * 2.5 : 0;
+
+    /* кубик */
+    const bx = gx, by = body.y + bob;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx - size / 2, by - size / 2, size, size, 10);
+    else ctx.rect(bx - size / 2, by - size / 2, size, size);
+    ctx.fillStyle = mat.fill;
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = mat.edge;
+    ctx.stroke();
+    ctx.font = '500 ' + Math.round(w * 0.030) + 'px ' + FONT;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = mat.edge;
+    ctx.fillText(fd(mat.dens), bx, by + Math.round(w * 0.010));
+    ctx.textAlign = 'start';
+
+    /* поверхность жидкости поверх кубика */
+    ctx.strokeStyle = liq.edge;
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    const wob = Math.sin(t * 2) * 2.5;
+    ctx.moveTo(gx - gw / 2 + 3, ly);
+    ctx.quadraticCurveTo(gx, ly + wob, gx + gw / 2 - 3, ly);
+    ctx.stroke();
+
+    /* стенки стакана */
+    ctx.strokeStyle = '#C9CEDA';
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(gx - gw / 2, gTop);
+    ctx.lineTo(gx - gw / 2, gBot - 14);
+    ctx.quadraticCurveTo(gx - gw / 2, gBot, gx - gw / 2 + 14, gBot);
+    ctx.lineTo(gx + gw / 2 - 14, gBot);
+    ctx.quadraticCurveTo(gx + gw / 2, gBot, gx + gw / 2, gBot - 14);
+    ctx.lineTo(gx + gw / 2, gTop);
+    ctx.stroke();
+
+    /* подписи плотностей */
+    ctx.font = '500 ' + Math.round(w * 0.032) + 'px ' + FONT;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = liq.edge;
+    ctx.fillText(liq.name + ': ' + fd(liq.dens) + ' г/см³', w * 0.03, h * 0.09);
+    ctx.fillStyle = mat.edge;
+    ctx.fillText(mat.name + ': ' + fd(mat.dens) + ' г/см³', w * 0.03, h * 0.09 + Math.round(w * 0.045));
+    ctx.textAlign = 'start';
+
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'interact', id: 'mix', visual: 'mix',
+    title: 'Собери пару: тело + жидкость',
+    text: 'Выбери материал и жидкость. Но прежде чем бросить тело в стакан — прикинь сам: чья плотность больше? Попробуй хотя бы три разные пары.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'rule', big: true,
+    title: 'Всё решают две плотности',
+    text: 'Сравни плотность тела и жидкости — и судьба тела предрешена. <b>ρ тела &gt; ρ жидкости</b> — тонет. <b>ρ тела = ρ жидкости</b> — висит внутри жидкости, где оставили. <b>ρ тела &lt; ρ жидкости</b> — всплывает и плавает на поверхности.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'iceberg', big: true,
+    title: 'Айсберг: 90% под водой',
+    text: 'Лёд (0,9 г/см³) лишь чуть-чуть легче воды (1,0 г/см³). Поэтому плавающий лёд прячет под поверхностью <b>девять десятых</b> своего объёма. У айсберга над водой торчит только «верхушка» — из-за этого их так боятся корабли.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'mercury', big: true,
+    title: 'Сталь-поплавок и море-матрас',
+    text: 'Сталь (7,8 г/см³) камнем идёт ко дну в воде — но в ртути (13,6 г/см³) <b>плавает</b>, как пробка. А в Мёртвом море вода настолько солёная и плотная, что человек лежит на её поверхности без единого движения — море само держит.',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Два вопроса — и тема твоя.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 1',
+    text: 'Кусочек пластика (ρ = 1,05 г/см³) опустили в солёную воду (ρ = 1,03 г/см³). Что произойдёт?',
+    options: [
+      { id: 'a', text: 'Всплывёт — солёная вода держит всё', correct: false },
+      { id: 'b', text: 'Утонет — его плотность всё-таки больше', correct: true },
+      { id: 'c', text: 'Зависнет посередине', correct: false },
+    ],
+    right: '1,05 > 1,03 — пусть и еле-еле, но пластик плотнее. Он медленно, «нехотя», опустится на дно.',
+    wrong: 'Сравни числа: 1,05 > 1,03. Плотность тела больше — значит, тонет, пусть и медленно. «Почти равные» не значит «равные».',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 2',
+    text: 'Кубик льда (ρ = 0,9 г/см³) опустили в подсолнечное масло (ρ = 0,9 г/см³). Что произойдёт?',
+    options: [
+      { id: 'a', text: 'Всплывёт — лёд всегда плавает', correct: false },
+      { id: 'b', text: 'Утонет — масло не вода', correct: false },
+      { id: 'c', text: 'Зависнет в толще масла, где отпустили', correct: true },
+    ],
+    right: 'Плотности равны: выталкивающая сила в точности уравновешивает вес. Кубик висит внутри жидкости — редкий и красивый случай.',
+    wrong: '«Лёд всегда плавает» — только в воде! Здесь плотности равны (0,9 = 0,9): силы уравновешены, и кубик зависает там, где его отпустили.',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  mix: () => `
+    <div class="canvas-panel"><canvas id="mixCanvas" height="300"></canvas></div>
+    <div class="mix-controls">
+      <div class="mix-row">
+        <span class="mix-lbl">материал:</span>
+        ${MATS.map((m, i) => `<button class="mix-chip ${i === 0 ? 'on' : ''}" data-mat="${m.key}">${m.name} · ${fd(m.dens)}</button>`).join('')}
+      </div>
+      <div class="mix-row">
+        <span class="mix-lbl">жидкость:</span>
+        ${LIQS.map((l, i) => `<button class="mix-chip ${i === 0 ? 'on' : ''}" data-liq="${l.key}">${l.name} · ${fd(l.dens)}</button>`).join('')}
+      </div>
+    </div>
+    <p class="canvas-hint" id="mixHint">Плотности — в г/см³. Выбирай пару и смотри, что будет!</p>`,
+  rule: () => `
+    <svg viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#C9CEDA" stroke-width="3" fill="#F4F8FE" stroke-linecap="round">
+        <path d="M20 26 L20 116 Q20 128 32 128 L68 128 Q80 128 80 116 L80 26"/>
+        <path d="M120 26 L120 116 Q120 128 132 128 L168 128 Q180 128 180 116 L180 26"/>
+        <path d="M220 26 L220 116 Q220 128 232 128 L268 128 Q280 128 280 116 L280 26"/>
+      </g>
+      <rect x="23" y="52" width="54" height="73" rx="7" fill="#BFDCF9"/>
+      <rect x="123" y="52" width="54" height="73" rx="7" fill="#BFDCF9"/>
+      <rect x="223" y="52" width="54" height="73" rx="7" fill="#BFDCF9"/>
+      <rect x="36" y="42" width="28" height="28" rx="6" fill="#C9975C" stroke="#9C7040" stroke-width="2.5">
+        <animate attributeName="y" values="42;46;42" dur="2.6s" repeatCount="indefinite"/>
+      </rect>
+      <rect x="136" y="74" width="28" height="28" rx="6" fill="#DDF1FF" stroke="#8FB6D9" stroke-width="2.5">
+        <animate attributeName="y" values="74;78;74" dur="3.2s" repeatCount="indefinite"/>
+      </rect>
+      <rect x="236" y="94" width="28" height="28" rx="6" fill="#8A8F9C" stroke="#5A5F6E" stroke-width="2.5"/>
+      <g font-family="var(--font-display), sans-serif" font-weight="500" font-size="15" text-anchor="middle">
+        <text x="50" y="20" fill="#30A46C">ρ меньше</text>
+        <text x="150" y="20" fill="#6240FF">ρ равны</text>
+        <text x="250" y="20" fill="#E5484D">ρ больше</text>
+      </g>
+    </svg>`,
+  iceberg: () => `
+    <svg viewBox="0 0 260 170" xmlns="http://www.w3.org/2000/svg">
+      <rect x="10" y="56" width="240" height="106" rx="10" fill="#BFDCF9"/>
+      <g>
+        <path d="M96 56 L112 24 L134 42 L152 30 L168 56 L178 92 L150 132 L108 124 L84 92 Z"
+              fill="#DDF1FF" stroke="#8FB6D9" stroke-width="3" stroke-linejoin="round"/>
+        <animateTransform attributeName="transform" type="translate" values="0,0;0,4;0,0" dur="3.4s" repeatCount="indefinite"/>
+      </g>
+      <path d="M10 58 L94 58 M172 58 L250 58" stroke="#5D9BE0" stroke-width="3" stroke-linecap="round"/>
+      <g font-family="var(--font-display), sans-serif" font-weight="500" font-size="14">
+        <text x="196" y="42" fill="#6B7180">1/10 сверху</text>
+        <text x="192" y="118" fill="#3E6E9E">9/10 под водой</text>
+      </g>
+    </svg>`,
+  mercury: () => `
+    <svg viewBox="0 0 260 160" xmlns="http://www.w3.org/2000/svg">
+      <path d="M28 30 L28 128 Q28 142 42 142 L110 142 Q124 142 124 128 L124 30" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+      <rect x="31" y="76" width="90" height="63" rx="8" fill="#D6DAE3"/>
+      <path d="M31 78 Q76 84 121 78" fill="none" stroke="#9AA0AA" stroke-width="3" stroke-linecap="round"/>
+      <g>
+        <circle cx="76" cy="76" r="18" fill="#8A8F9C" stroke="#5A5F6E" stroke-width="2.5"/>
+        <animateTransform attributeName="transform" type="translate" values="0,0;0,3;0,0" dur="2.6s" repeatCount="indefinite"/>
+      </g>
+      <text x="76" y="26" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="14" fill="#6B7180">сталь в ртути</text>
+      <rect x="152" y="66" width="96" height="76" rx="12" fill="#B9E3DE"/>
+      <path d="M152 70 Q200 76 248 70" fill="none" stroke="#5FB3A8" stroke-width="3" stroke-linecap="round"/>
+      <g>
+        <circle cx="181" cy="62" r="9" fill="#F3C89E" stroke="#D9A876" stroke-width="2"/>
+        <path d="M190 66 Q206 58 224 64 Q232 67 236 72" fill="none" stroke="#F3C89E" stroke-width="9" stroke-linecap="round"/>
+        <animateTransform attributeName="transform" type="translate" values="0,0;0,3;0,0" dur="3s" repeatCount="indefinite"/>
+      </g>
+      <text x="200" y="26" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="14" fill="#6B7180">Мёртвое море</text>
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'mix') startMix(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'float',
+  storageKey: 'buoyancy-progress',
+  homeHref: '../demo/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

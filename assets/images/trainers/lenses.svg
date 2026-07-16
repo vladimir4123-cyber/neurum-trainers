@@ -1,0 +1,39 @@
+<svg viewBox="0 0 320 240" xmlns="http://www.w3.org/2000/svg">
+  <!-- Линзы: плоский стиль §8 — собирающая линза и сходящиеся лучи -->
+  <!-- Тень-подложка -->
+  <ellipse cx="160" cy="216" rx="120" ry="10" fill="#EEF0FF"/>
+  <!-- Оптическая ось -->
+  <line x1="14" y1="120" x2="306" y2="120" stroke="#C9CEDA" stroke-width="2.5" stroke-dasharray="2 8" stroke-linecap="round"/>
+  <!-- Лучи до линзы (параллельный пучок) -->
+  <g stroke="#F0B23C" stroke-width="4" stroke-linecap="round">
+    <line x1="22" y1="72"  x2="128" y2="72"/>
+    <line x1="22" y1="96"  x2="128" y2="96"/>
+    <line x1="22" y1="120" x2="128" y2="120"/>
+    <line x1="22" y1="144" x2="128" y2="144"/>
+    <line x1="22" y1="168" x2="128" y2="168"/>
+  </g>
+  <!-- Лучи после линзы — сходятся в фокус -->
+  <g stroke="#F0B23C" stroke-width="4" stroke-linecap="round">
+    <line x1="152" y1="72"  x2="252" y2="120"/>
+    <line x1="152" y1="96"  x2="252" y2="120"/>
+    <line x1="152" y1="120" x2="252" y2="120"/>
+    <line x1="152" y1="144" x2="252" y2="120"/>
+    <line x1="152" y1="168" x2="252" y2="120"/>
+  </g>
+  <!-- Точка фокуса (пульсирует) -->
+  <circle cx="252" cy="120" r="14" fill="#F0B23C" opacity=".28">
+    <animate attributeName="r" values="11;17;11" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="252" cy="120" r="6.5" fill="#F0B23C"/>
+  <circle cx="252" cy="120" r="3" fill="#FFE6AE"/>
+  <!-- Линза (двояковыпуклая, стекло) -->
+  <path d="M140 34 C 158 62, 158 178, 140 206 C 122 178, 122 62, 140 34 Z"
+        fill="#DCE9FB" stroke="#8FB4E8" stroke-width="3" stroke-linejoin="round"/>
+  <ellipse cx="134" cy="84" rx="4" ry="22" fill="#F4F8FE"/>
+  <!-- Штрих фокусного расстояния -->
+  <g stroke="#6240FF" stroke-width="2.5" stroke-linecap="round">
+    <line x1="140" y1="192" x2="140" y2="204" opacity="0"/>
+    <line x1="252" y1="132" x2="252" y2="142"/>
+  </g>
+  <text x="252" y="164" text-anchor="middle" font-family="'Aeonik Pro', 'Inter', sans-serif" font-size="19" font-weight="500" fill="#6240FF">F</text>
+</svg>

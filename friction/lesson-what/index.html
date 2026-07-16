@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Почему всё останавливается · Сила трения</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛷</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  /* панель + подсказка + кнопки визуала — колонкой */
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 560px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; }
+  .canvas-hint{
+    margin: 14px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+  .mini-actions{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  /* Кнопки внутри урока — ЧЁРНЫЕ/белые. Фиолетовая — только «Дальше». */
+  .mini-play-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border: 0; border-radius: var(--radius-md);
+    background: var(--fg-1); color: #fff; cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .mini-play-btn:hover:not(:disabled){ background: #3a3a3f; }
+  .mini-play-btn:active:not(:disabled){ transform: scale(0.96); }
+  .mini-play-btn:disabled{ opacity: .55; cursor: default; }
+  .chip-btn{
+    padding: 12px 18px; border: 1px solid var(--purple-4); border-radius: var(--radius-md);
+    background: var(--white); color: var(--fg-2); cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .chip-btn:hover{ background: var(--purple-4); }
+  .chip-btn:active{ transform: scale(0.96); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ============================================================
+   ТЕМА 1 «Почему всё останавливается» (Пёрышкин §15).
+   Интерактив: одна и та же шайба, один и тот же толчок —
+   три поверхности. Торможение честное: a = μ·g,
+   тормозной путь s = v²/(2μg).
+   ============================================================ */
+
+/* ---------- общие рисовалки (плоский стиль §8) ---------- */
+/* canvas не умеет var() в ctx.font — резолвим токен один раз */
+const CANVAS_FONT = ((getComputedStyle(document.body).getPropertyValue('--font-display') || '').trim() || '"Aeonik Pro"') + ', sans-serif';
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+function rr(ctx, x, y, w2, h2, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w2, y, x + w2, y + h2, r);
+  ctx.arcTo(x + w2, y + h2, x, y + h2, r);
+  ctx.arcTo(x, y + h2, x, y, r);
+  ctx.arcTo(x, y, x + w2, y, r);
+  ctx.closePath();
+}
+function shade(hex, t) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  r = Math.round(r * (1 - t)); g = Math.round(g * (1 - t)); b = Math.round(b * (1 - t));
+  return `rgb(${r},${g},${b})`;
+}
+
+/* ============================================================
+   ИНТЕРАКТИВ: три поверхности — ковёр, стол, лёд
+   ============================================================ */
+const G = 10;                       // м/с²
+const V0 = 2;                       // м/с — одинаковый толчок
+const TRACK_M = 2.0;                // видимая длина дорожки, м
+const LANES = [
+  { name: 'ковёр',  mu: 0.5,  base: '#D98D7E', edge: '#B06A5C' },
+  { name: 'стол',   mu: 0.15, base: '#E8C797', edge: '#C49A62' },
+  { name: 'лёд',    mu: 0.02, base: '#BFDCF9', edge: '#8FBDEB' },
+];
+
+function startPush(root, done) {
+  const canvas = root.querySelector('#pushCanvas');
+  const hint = root.querySelector('#pushHint');
+  const btn = root.querySelector('#pushBtn');
+  const resetBtn = root.querySelector('#pushReset');
+  const ctx = canvas.getContext('2d');
+
+  // состояние шайб: x в метрах, v в м/с
+  let pucks = LANES.map(() => ({ x: 0, v: 0, gone: false, stopped: false }));
+  let running = false, launched = false;
+
+  btn.addEventListener('click', () => {
+    pucks = LANES.map(() => ({ x: 0, v: V0, gone: false, stopped: false }));
+    running = true; launched = true;
+    hint.innerHTML = 'Толчок одинаковый — смотри, кто уедет дальше…';
+  });
+  resetBtn.addEventListener('click', () => {
+    pucks = LANES.map(() => ({ x: 0, v: 0, gone: false, stopped: false }));
+    running = false; launched = false;
+    hint.innerHTML = 'Один и тот же толчок — <b>три поверхности</b>. Жми «Толкнуть шайбы»!';
+  });
+
+  function step(dt) {
+    let allDone = true;
+    pucks.forEach((p, i) => {
+      if (!launched || p.stopped || p.gone) return;
+      allDone = false;
+      const a = LANES[i].mu * G;          // честное замедление
+      p.v = Math.max(0, p.v - a * dt);
+      p.x += p.v * dt;
+      if (p.v === 0) p.stopped = true;
+      if (p.x > TRACK_M * 1.04) p.gone = true;   // лёд: уехала за край
+    });
+    if (launched && allDone && running) {
+      running = false;
+      hint.innerHTML = 'По ковру — ближе всех, по льду — <b>уехала за край</b>! Чем более гладкая поверхность, тем слабее трение.';
+      done();
+    }
+  }
+
+  // цикл анимации: dt считаем в секундах
+  let prev = null;
+  function loop(tsMs) {
+    if (!canvas.isConnected) return;
+    const ts = tsMs / 1000;
+    if (prev === null) prev = ts;
+    const dt = Math.min(0.04, ts - prev);
+    prev = ts;
+    if (running) step(dt);
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  function render() {
+    const { w, h } = fit(canvas, 300);
+    ctx.clearRect(0, 0, w, h);
+    const padL = w * 0.16, padR = w * 0.05;
+    const trackW = w - padL - padR;
+    const laneH = h / LANES.length;
+    const m2px = trackW / TRACK_M;
+    const fmt2 = v => (Math.round(v * 10) / 10).toFixed(1).replace('.', ',');
+
+    LANES.forEach((lane, i) => {
+      const cy = laneH * i + laneH * 0.62;
+      const surfH = laneH * 0.16;
+
+      rr(ctx, padL, cy, trackW, surfH, surfH / 2);
+      ctx.fillStyle = lane.base;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = lane.edge;
+      ctx.stroke();
+
+      ctx.strokeStyle = lane.edge;
+      ctx.lineWidth = 1.6;
+      if (i === 0) {
+        for (let k = 0; k < 26; k++) {
+          const x = padL + 10 + k * (trackW - 20) / 25;
+          ctx.beginPath(); ctx.moveTo(x, cy + 3); ctx.lineTo(x, cy + surfH - 3); ctx.stroke();
+        }
+      } else if (i === 1) {
+        for (let k = 1; k < 5; k++) {
+          const x = padL + k * trackW / 5;
+          ctx.beginPath(); ctx.moveTo(x, cy + 2); ctx.lineTo(x, cy + surfH - 2); ctx.stroke();
+        }
+      } else {
+        ctx.strokeStyle = '#E3F0FC';
+        ctx.lineWidth = 3;
+        [0.25, 0.55, 0.8].forEach(f => {
+          ctx.beginPath();
+          ctx.moveTo(padL + trackW * f, cy + surfH * 0.35);
+          ctx.lineTo(padL + trackW * f + 26, cy + surfH * 0.35);
+          ctx.stroke();
+        });
+      }
+
+      ctx.font = '500 ' + Math.round(w * 0.036) + 'px ' + CANVAS_FONT;
+      ctx.fillStyle = '#6B7180';
+      ctx.textAlign = 'left';
+      ctx.fillText(lane.name + '  μ = ' + String(lane.mu).replace('.', ','), w * 0.02, cy - surfH * 0.8);
+
+      const p = pucks[i];
+      const px = padL + Math.min(p.x, TRACK_M * 1.06) * m2px;
+      const pr = laneH * 0.155;
+      if (!p.gone) {
+        ctx.beginPath();
+        ctx.ellipse(px, cy - pr * 0.62, pr, pr * 0.62, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#2B2B33';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = shade('#2B2B33', 0.35);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.ellipse(px, cy - pr * 0.95, pr * 0.8, pr * 0.34, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#44444E';
+        ctx.fill();
+      }
+
+      ctx.font = '700 ' + Math.round(w * 0.038) + 'px ' + CANVAS_FONT;
+      if (p.stopped && launched) {
+        ctx.fillStyle = '#6240FF';
+        ctx.textAlign = 'left';
+        ctx.fillText(fmt2(p.x) + ' м', Math.min(px + pr + 10, w - padR - 80), cy - pr * 0.5);
+      } else if (p.gone) {
+        ctx.fillStyle = '#2F80ED';
+        ctx.textAlign = 'right';
+        ctx.fillText('уехала дальше 2 м!', w - padR - 4, cy - pr * 1.1);
+      }
+      ctx.textAlign = 'start';
+    });
+  }
+
+  requestAnimationFrame(loop);
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'interact', id: 'push', visual: 'push',
+    title: 'Толкни шайбу — кто уедет дальше?',
+    text: 'Одна и та же шайба, один и тот же толчок. Разные только поверхности: ковёр, стол и лёд. Проверь, где шайба остановится.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'direction', big: true,
+    title: 'Это сила трения',
+    text: 'Шайбу никто не держал, а она остановилась. Значит, на неё действовала сила — <b>сила трения скольжения</b>. Она возникает там, где тело касается поверхности, и направлена всегда <b>против движения</b>. Чем шершавее поверхность, тем сильнее трение — поэтому по ковру шайба проехала меньше всего.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'walk', big: true,
+    title: 'А без трения нельзя даже ходить!',
+    text: 'Кажется, что трение только мешает. Но при ходьбе нога <b>отталкивается</b> от земли именно благодаря трению: подошва давит назад — трение толкает нас вперёд. На гладком льду трение почти исчезает, и ноги проскальзывают. В мире без трения ты не смог бы сделать ни шагу — и даже гвоздь не держался бы в стене.',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Два вопроса — и тема твоя.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 1',
+    text: 'Шайба скользит по столу вправо. Куда направлена сила трения, действующая на шайбу?',
+    options: [
+      { id: 'a', text: 'Вправо — туда же, куда едет шайба', correct: false },
+      { id: 'b', text: 'Влево — против движения шайбы', correct: true },
+      { id: 'c', text: 'Вниз — она прижимает шайбу к столу', correct: false },
+    ],
+    right: 'Сила трения скольжения всегда направлена против движения — поэтому шайба и тормозит.',
+    wrong: 'Вспомни: шайба замедлялась. Тормозить может только сила, направленная против движения — то есть влево.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 2',
+    text: 'Почему по льду шайба уехала намного дальше, чем по ковру?',
+    options: [
+      { id: 'a', text: 'Лёд подталкивает шайбу вперёд', correct: false },
+      { id: 'b', text: 'На льду шайба становится легче', correct: false },
+      { id: 'c', text: 'Лёд гладкий — сила трения на нём гораздо меньше', correct: true },
+    ],
+    right: 'Именно! Лёд гладкий, трение крошечное — шайба почти не тормозится. Толчок-то был одинаковый.',
+    wrong: 'Лёд ничего не подталкивает, и вес шайбы не меняется. Просто лёд гладкий: сила трения мала — и тормозной путь огромный.',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  push: () => `
+    <div class="canvas-panel"><canvas id="pushCanvas" height="300"></canvas></div>
+    <p class="canvas-hint" id="pushHint">Один и тот же толчок — <b>три поверхности</b>. Жми «Толкнуть шайбы»!</p>
+    <div class="mini-actions">
+      <button class="mini-play-btn" id="pushBtn">🏒 Толкнуть шайбы</button>
+      <button class="chip-btn" id="pushReset">↺ Сначала</button>
+    </div>`,
+  direction: () => `
+    <svg viewBox="0 0 260 150" xmlns="http://www.w3.org/2000/svg">
+      <rect x="14" y="98" width="232" height="14" rx="7" fill="#E8C797" stroke="#C49A62" stroke-width="2"/>
+      <g>
+        <ellipse cx="120" cy="86" rx="30" ry="14" fill="#2B2B33"/>
+        <ellipse cx="120" cy="78" rx="24" ry="8" fill="#44444E"/>
+        <animateTransform attributeName="transform" type="translate" values="-40,0;44,0;44,0;-40,0" keyTimes="0;.55;.75;1" dur="3.4s" repeatCount="indefinite" calcMode="spline" keySplines=".2 .7 .5 1;0 0 1 1;.3 0 .7 1"/>
+      </g>
+      <g font-family="var(--font-display), sans-serif" font-weight="500" font-size="15">
+        <g fill="#6240FF">
+          <rect x="176" y="34" width="40" height="6" rx="3"/>
+          <path d="M216 26 L236 37 L216 48 Z"/>
+          <text x="206" y="20" text-anchor="middle" fill="#6240FF">скорость</text>
+        </g>
+        <g fill="#E5484D">
+          <rect x="56" y="126" width="40" height="6" rx="3"/>
+          <path d="M56 121 L36 129 L56 137 Z"/>
+          <text x="78" y="148" text-anchor="middle" fill="#E5484D">сила трения</text>
+        </g>
+      </g>
+    </svg>`,
+  walk: () => `
+    <svg viewBox="0 0 260 160" xmlns="http://www.w3.org/2000/svg">
+      <rect x="10" y="128" width="240" height="12" rx="6" fill="#C9CEDA"/>
+      <g stroke="#2B2B33" stroke-width="5" stroke-linecap="round" fill="none">
+        <circle cx="118" cy="40" r="13" fill="#F3C89E" stroke="#D9A876" stroke-width="2.5"/>
+        <line x1="118" y1="53" x2="114" y2="92"/>
+        <line x1="114" y1="92" x2="94" y2="126"/>
+        <line x1="114" y1="92" x2="138" y2="124"/>
+        <line x1="117" y1="62" x2="98" y2="84"/>
+        <line x1="117" y1="62" x2="140" y2="80"/>
+        <animateTransform attributeName="transform" type="translate" values="0,0;3,-2;0,0" dur="1.2s" repeatCount="indefinite"/>
+      </g>
+      <g font-family="var(--font-display), sans-serif" font-weight="500" font-size="14">
+        <g fill="#9AA0AA">
+          <rect x="86" y="144" width="30" height="5" rx="2.5"/>
+          <path d="M86 139.5 L70 146.5 L86 153.5 Z"/>
+          <text x="100" y="120" text-anchor="middle" fill="#9AA0AA">нога давит назад</text>
+        </g>
+        <g fill="#30A46C">
+          <rect x="150" y="144" width="30" height="5" rx="2.5"/>
+          <path d="M180 139.5 L196 146.5 L180 153.5 Z"/>
+          <text x="188" y="120" text-anchor="middle" fill="#30A46C">трение толкает вперёд</text>
+        </g>
+      </g>
+      <g fill="#2F80ED" opacity=".85">
+        <circle cx="34" cy="30" r="4"><animate attributeName="opacity" values=".3;1;.3" dur="2s" repeatCount="indefinite"/></circle>
+        <circle cx="228" cy="44" r="3.5"><animate attributeName="opacity" values="1;.3;1" dur="2.4s" repeatCount="indefinite"/></circle>
+      </g>
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'push') startPush(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'what',
+  storageKey: 'friction-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-depends/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

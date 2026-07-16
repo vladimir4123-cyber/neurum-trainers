@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Объём и его единицы · Мензурка</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧪</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .pour-wrap{ width: 100%; max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .pour-wrap svg{ width: 100%; height: auto; display: block; }
+  .canvas-hint{ margin: 10px 0 0; text-align: center; font-size: 17px; color: var(--fg-2); text-wrap: pretty; }
+  .pour-btn{
+    margin-top: 14px; padding: 13px 28px;
+    border: 0; border-radius: var(--radius-md);
+    background: var(--fg-1); color: #fff;
+    font-family: var(--font-sans); font-size: 16px; font-weight: 500;
+    cursor: pointer;
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard), opacity 150ms;
+  }
+  .pour-btn:hover{ background: var(--black-2); }
+  .pour-btn:active{ transform: scale(0.96); }
+  .pour-btn:disabled{ opacity: .4; cursor: default; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ---------- Плоская мензурка (стиль §8: сплошные заливки, тонкие края) ---------- */
+const fmtV = v => String(Math.round(v * 100) / 100).replace('.', ',');
+function beakerBody({ max, label, minor, level = 0 }) {
+  const yZero = 284, yTop = 66;
+  const price = label / minor;
+  const y = v => yZero - (v / max) * (yZero - yTop);
+  let ticks = '';
+  const n = Math.round(max / price);
+  for (let i = 0; i <= n; i++) {
+    const v = i * price;
+    const major = Math.round(v * 100) % Math.round(label * 100) === 0;
+    const len = major ? 20 : 12;
+    const yy = y(v).toFixed(1);
+    ticks += `<line x1="69" y1="${yy}" x2="${69 + len}" y2="${yy}" stroke="#5D6472" stroke-width="${major ? 2.4 : 1.5}" stroke-linecap="round"/>`;
+    if (major) ticks += `<text x="${69 + len + 5}" y="${yy}" dominant-baseline="central" font-family="var(--font-display), sans-serif" font-weight="500" font-size="14" fill="#3E434C">${fmtV(v)}</text>`;
+  }
+  const yL = y(level);
+  const liquid = level > 0 ? `
+    <path d="M69 ${(yL - 4).toFixed(1)} Q110 ${(yL + 4).toFixed(1)} 151 ${(yL - 4).toFixed(1)} L151 283 Q151 299 135 299 L85 299 Q69 299 69 283 Z" fill="#BFDCF9"/>
+    <path d="M69 ${(yL - 4).toFixed(1)} Q110 ${(yL + 4).toFixed(1)} 151 ${(yL - 4).toFixed(1)}" fill="none" stroke="#5D9BE0" stroke-width="2.6" stroke-linecap="round"/>` : '';
+  return `
+    <path d="M66 36 L66 284 Q66 302 84 302 L136 302 Q154 302 154 284 L154 36" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+    <path d="M66 36 L57 28" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+    <path d="M154 36 L160 31" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+    ${liquid}
+    ${ticks}`;
+}
+
+/* =================== ШАГИ ТЕМЫ =================== */
+const STEPS = [
+  {
+    phase: 'theory', type: 'info', visual: 'sizes', big: true,
+    title: 'Что такое объём',
+    text: 'Объём — это <b>сколько места занимает</b> тело или жидкость. В ложке воды мало, в стакане больше, в ведре — очень много. Чтобы сравнивать честно, объём нужно <b>измерять</b>.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'units',
+    title: 'Единицы объёма',
+    text: 'Большие объёмы меряют в <b>литрах (л)</b>, маленькие — в <b>миллилитрах (мл)</b>. А ещё есть <b>кубический сантиметр (см³)</b> — объём кубика со стороной 1 см. Главное равенство темы: <b>1 мл = 1 см³</b>.',
+  },
+  {
+    phase: 'theory', type: 'interact', id: 'pour', visual: 'pour',
+    title: 'Форма меняется — объём нет',
+    text: 'В кубике ровно <b>100 см³</b> воды. Перельём её в мензурку и посмотрим, что покажет шкала.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'why', big: true,
+    title: 'Зачем измерять объём',
+    text: 'Точный объём нужен каждый день: <b>доза лекарства</b> — 15 мл, молоко по рецепту — 250 мл, бензин в баке — 50 л. Прибор для измерения объёма жидкости в лаборатории — <b>мензурка</b>.',
+  },
+
+  { phase: 'check', type: 'splash', title: 'Проверь себя', text: 'Пара вопросов — и тема твоя.' },
+
+  {
+    phase: 'check', type: 'question',
+    title: 'Сок перелили из широкого стакана в узкую высокую мензурку',
+    text: 'Уровень поднялся заметно выше, чем был в стакане. Что стало с объёмом сока?',
+    options: [
+      { id: 'a', text: 'Объём увеличился — уровень же выше', correct: false },
+      { id: 'b', text: 'Объём не изменился', correct: true },
+      { id: 'c', text: 'Объём уменьшился', correct: false },
+      { id: 'd', text: 'Нельзя сказать без весов', correct: false },
+    ],
+    right: 'Именно! При переливании форма меняется, а объём сохраняется — сока не стало ни больше, ни меньше.',
+    wrong: 'Уровень выше, потому что сосуд узкий. Сока столько же: при переливании объём не меняется.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Сколько это — один миллилитр?',
+    text: 'На мензурке подписано «мл», а в задачнике объёмы даны в см³. Как перевести?',
+    options: [
+      { id: 'a', text: '1 мл = 1 см³', correct: true },
+      { id: 'b', text: '1 мл = 10 см³', correct: false },
+      { id: 'c', text: '1 мл = 100 см³', correct: false },
+      { id: 'd', text: '1 мл = 1 дм³', correct: false },
+    ],
+    right: 'Верно! Миллилитр и кубический сантиметр — один и тот же объём, поэтому мензуркой меряют объём и в см³.',
+    wrong: 'Запомни главное равенство: 1 мл = 1 см³. А вот 1 л — это уже 1 дм³, то есть 1000 см³.',
+  },
+];
+
+/* =================== ВИЗУАЛЫ =================== */
+const visuals = {
+  /* Ложка → стакан → ведро: объёмы разные */
+  sizes() {
+    return `
+      <svg viewBox="0 0 620 320" xmlns="http://www.w3.org/2000/svg">
+        <!-- чайная ложка -->
+        <g transform="translate(105,150)">
+          <rect x="-5" y="-96" width="10" height="86" rx="5" fill="#C9CEDA"/>
+          <ellipse cx="0" cy="10" rx="34" ry="22" fill="#D9DDE7"/>
+          <ellipse cx="0" cy="7" rx="27" ry="15" fill="#BFDCF9">
+            <animate attributeName="ry" values="15;13;15" dur="2.6s" repeatCount="indefinite"/>
+          </ellipse>
+          <text x="0" y="70" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="26" fill="#6240FF">5 мл</text>
+          <text x="0" y="98" text-anchor="middle" font-family="var(--font-sans), sans-serif" font-size="16" fill="#6B7180">ложка</text>
+        </g>
+        <!-- стакан -->
+        <g transform="translate(310,150)">
+          <path d="M-45 -90 L-36 32 Q-35 42 -25 42 L25 42 Q35 42 36 32 L45 -90" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+          <path d="M-40 -38 Q0 -30 40 -38 L37 30 Q36 39 27 39 L-27 39 Q-36 39 -37 30 Z" fill="#BFDCF9"/>
+          <path d="M-40 -38 Q0 -30 40 -38" fill="none" stroke="#5D9BE0" stroke-width="2.6"/>
+          <text x="0" y="70" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="26" fill="#6240FF">250 мл</text>
+          <text x="0" y="98" text-anchor="middle" font-family="var(--font-sans), sans-serif" font-size="16" fill="#6B7180">стакан</text>
+        </g>
+        <!-- ведро -->
+        <g transform="translate(510,150)">
+          <path d="M-62 -84 L-46 34 Q-44 44 -34 44 L34 44 Q44 44 46 34 L62 -84" fill="#E3E7F0" stroke="#B9BFCD" stroke-width="3" stroke-linecap="round"/>
+          <path d="M-58 -60 Q0 -50 58 -60 L45 32 Q44 41 35 41 L-35 41 Q-44 41 -45 32 Z" fill="#BFDCF9"/>
+          <path d="M-58 -60 Q0 -50 58 -60" fill="none" stroke="#5D9BE0" stroke-width="2.6"/>
+          <path d="M-60 -82 Q0 -136 60 -82" fill="none" stroke="#8E95A5" stroke-width="5" stroke-linecap="round"/>
+          <text x="0" y="74" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="26" fill="#6240FF">10 л</text>
+          <text x="0" y="102" text-anchor="middle" font-family="var(--font-sans), sans-serif" font-size="16" fill="#6B7180">ведро</text>
+        </g>
+      </svg>`;
+  },
+
+  /* Карточки единиц */
+  units() {
+    const card = (x, title, sub, icon) => `
+      <g transform="translate(${x},0)">
+        <rect x="-66" y="20" width="132" height="248" rx="18" fill="#fff" stroke="#E3E6F2" stroke-width="2"/>
+        ${icon}
+        <text x="0" y="212" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="25" fill="#6240FF">${title}</text>
+        <text x="0" y="240" text-anchor="middle" font-family="var(--font-sans), sans-serif" font-size="14" fill="#6B7180">${sub}</text>
+      </g>`;
+    const milk = `
+      <rect x="-30" y="62" width="60" height="98" rx="8" fill="#EAF3FD" stroke="#B9CFE6" stroke-width="2"/>
+      <path d="M-30 78 L30 78" stroke="#B9CFE6" stroke-width="2"/>
+      <rect x="-14" y="50" width="28" height="14" rx="4" fill="#7FA8D0"/>
+      <circle cx="0" cy="118" r="18" fill="#BFDCF9"/>`;
+    const cube = `
+      <path d="M-26 92 L0 78 L26 92 L26 132 L0 146 L-26 132 Z" fill="#BFDCF9" stroke="#5D9BE0" stroke-width="2"/>
+      <path d="M-26 92 L0 106 L26 92 M0 106 L0 146" fill="none" stroke="#5D9BE0" stroke-width="2"/>
+      <text x="0" y="172" text-anchor="middle" font-family="var(--font-sans), sans-serif" font-size="13" fill="#6B7180">сторона 1 см</text>`;
+    const spoon = `
+      <rect x="-4" y="52" width="8" height="70" rx="4" fill="#C9CEDA"/>
+      <ellipse cx="0" cy="136" rx="26" ry="17" fill="#D9DDE7"/>
+      <ellipse cx="0" cy="134" rx="20" ry="11" fill="#BFDCF9"/>`;
+    const glass = `
+      <path d="M-28 58 L-22 148 Q-21 156 -13 156 L13 156 Q21 156 22 148 L28 58" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="2.6"/>
+      <path d="M-25 92 Q0 98 25 92 L22 146 Q21 153 14 153 L-14 153 Q-21 153 -22 146 Z" fill="#BFDCF9"/>`;
+    return `
+      <svg viewBox="0 0 620 290" xmlns="http://www.w3.org/2000/svg">
+        ${card(85,  '1 л',  'пакет молока', milk)}
+        ${card(235, '1 см³', '= 1 мл', cube)}
+        ${card(385, '5 мл', 'чайная ложка', spoon)}
+        ${card(535, '200 мл', 'стакан', glass)}
+      </svg>`;
+  },
+
+  /* Интерактив: переливание из кубика в мензурку */
+  pour() {
+    return `
+      <div class="pour-wrap">
+        <svg viewBox="0 0 620 380" id="pourScene" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="canvas-hint" id="pourHint">Нажми «Перелить» и следи за шкалой мензурки.</div>
+        <button class="pour-btn" id="pourBtn">Перелить →</button>
+      </div>`;
+  },
+
+  /* Зачем измерять: три жизненные карточки */
+  why() {
+    const card = (x, title, sub, icon) => `
+      <g transform="translate(${x},0)">
+        <rect x="-88" y="16" width="176" height="256" rx="20" fill="#fff" stroke="#E3E6F2" stroke-width="2"/>
+        ${icon}
+        <text x="0" y="216" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="26" fill="#6240FF">${title}</text>
+        <text x="0" y="246" text-anchor="middle" font-family="var(--font-sans), sans-serif" font-size="15" fill="#6B7180">${sub}</text>
+      </g>`;
+    const med = `
+      <rect x="-24" y="58" width="48" height="76" rx="8" fill="#FBE3E4" stroke="#E5A5A8" stroke-width="2"/>
+      <rect x="-16" y="46" width="32" height="14" rx="4" fill="#E5484D"/>
+      <path d="M-10 96 h20 M0 86 v20" stroke="#E5484D" stroke-width="5" stroke-linecap="round"/>
+      <path d="M34 96 L34 140 Q34 150 44 150 L58 150 Q68 150 68 140 L68 96" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="2.4" transform="translate(-2,8)"/>
+      <path d="M34 126 Q49 130 64 126 L64 146 Q64 156 54 156 L44 156 Q34 156 34 146 Z" fill="#BFDCF9" transform="translate(-2,2)"/>`;
+    const recipe = `
+      <rect x="-58" y="50" width="82" height="104" rx="8" fill="#FFFDF5" stroke="#E0D9BE" stroke-width="2"/>
+      <g stroke="#D6D0B8" stroke-width="4" stroke-linecap="round">
+        <line x1="-46" y1="72" x2="12" y2="72"/><line x1="-46" y1="92" x2="4" y2="92"/>
+        <line x1="-46" y1="112" x2="12" y2="112"/><line x1="-46" y1="132" x2="-4" y2="132"/>
+      </g>
+      <path d="M32 74 L38 148 Q39 156 47 156 L61 156 Q69 156 70 148 L76 74" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="2.4"/>
+      <path d="M36 104 Q54 110 72 104 L70 146 Q69 153 62 153 L46 153 Q39 153 38 146 Z" fill="#F4EBDD"/>`;
+    const fuel = `
+      <rect x="-46" y="58" width="72" height="96" rx="10" fill="#E3E7F0" stroke="#B9BFCD" stroke-width="2.4"/>
+      <rect x="-34" y="72" width="48" height="34" rx="6" fill="#fff"/>
+      <text x="-10" y="94" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="18" fill="#3E434C">50 л</text>
+      <path d="M26 70 L46 70 Q54 70 54 78 L54 132" fill="none" stroke="#8E95A5" stroke-width="6" stroke-linecap="round"/>
+      <circle cx="54" cy="140" r="8" fill="#8E95A5"/>`;
+    return `
+      <svg viewBox="0 0 620 290" xmlns="http://www.w3.org/2000/svg">
+        ${card(115, '15 мл', 'доза лекарства', med)}
+        ${card(310, '250 мл', 'молоко по рецепту', recipe)}
+        ${card(505, '50 л', 'бензин в баке', fuel)}
+      </svg>`;
+  },
+};
+
+/* ---------- Сцена переливания: кубик слева, мензурка справа ---------- */
+const CUBE_V = 100;                                   // см³ в кубике
+const B_CFG = { max: 200, label: 50, minor: 5 };      // цена деления 10 мл
+function pourScene(cubeFrac, beakerLevel, done) {
+  // кубик: внутренняя полость 150×150 px = 100 см³
+  const ch = 150 * cubeFrac;
+  const cubeWater = ch > 0.5 ? `<rect x="83" y="${(258 - ch).toFixed(1)}" width="144" height="${ch.toFixed(1)}" rx="4" fill="#BFDCF9"/>` : '';
+  const doneLabel = done ? `
+    <g>
+      <rect x="220" y="30" width="212" height="46" rx="23" fill="#E6F9F2"/>
+      <text x="326" y="53" text-anchor="middle" dominant-baseline="central" font-family="var(--font-display), sans-serif" font-weight="500" font-size="22" fill="#07BE7E">100 см³ = 100 мл</text>
+    </g>` : '';
+  return `
+    <rect x="80" y="105" width="150" height="156" rx="6" fill="none"/>
+    <path d="M80 105 L80 255 Q80 261 86 261 L224 261 Q230 261 230 255 L230 105" fill="none" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+    ${cubeWater}
+    <text x="155" y="292" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="19" fill="#3E434C">Кубик · 100 см³</text>
+    <path d="M258 180 H296 M288 171 L300 180 L288 189" fill="none" stroke="#6240FF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(330,10) scale(0.95)">${beakerBody({ ...B_CFG, level: beakerLevel })}</g>
+    <text x="435" y="322" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="19" fill="#3E434C">Мензурка · мл</text>
+    ${doneLabel}`;
+}
+
+/* =================== ЗАПУСК =================== */
+runLesson({
+  lessonId: 'volume',
+  storageKey: 'beaker-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-price/',
+  steps: STEPS,
+  visuals,
+  onInteract(step, ctx) {
+    if (step.id !== 'pour') return;
+    const scene = document.getElementById('pourScene');
+    const btn = document.getElementById('pourBtn');
+    const hint = document.getElementById('pourHint');
+    if (!scene || !btn) return;
+    scene.innerHTML = pourScene(1, 0, false);
+    let poured = false;
+    btn.addEventListener('click', () => {
+      if (poured) return;
+      poured = true;
+      btn.disabled = true;
+      const t0 = performance.now(), dur = 1800;
+      const ease = t => 1 - Math.pow(1 - t, 3);
+      const frame = now => {
+        if (!scene.isConnected) return;
+        const k = Math.min(1, (now - t0) / dur);
+        const e = ease(k);
+        scene.innerHTML = pourScene(1 - e, CUBE_V * e, k >= 1);
+        if (k < 1) requestAnimationFrame(frame);
+        else {
+          hint.innerHTML = 'Шкала показывает ровно <b>100 мл</b>. Форма другая — объём тот же: 1 мл = 1 см³.';
+          ctx.done();
+        }
+      };
+      requestAnimationFrame(frame);
+    });
+  },
+});
+</script>
+
+</body>
+</html>

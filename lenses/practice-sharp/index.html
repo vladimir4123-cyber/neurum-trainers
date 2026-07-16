@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Наведи резкость · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .canvas-panel{
+    width: 100%; max-width: 640px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; }
+  .lab-chips{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  .lab-chip{
+    padding: 8px 16px; border-radius: 9999px; font-size: 15px; font-weight: 500;
+    background: var(--purple-4); color: var(--fg-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .lab-chip b{ color: var(--purple-1); font-weight: 500; }
+  .slider-row{
+    display: flex; align-items: center; gap: 14px; justify-content: center;
+    max-width: 520px; margin: 16px auto 0;
+  }
+  .slider-row label{ font-size: 15px; font-weight: 500; color: var(--fg-2); flex: none; }
+  .slider-row input[type="range"]{
+    flex: 1; height: 6px; border-radius: 3px; appearance: none; -webkit-appearance: none;
+    background: var(--purple-4); outline: none; cursor: pointer;
+  }
+  .slider-row input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance: none; appearance: none;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--fg-1); border: 3px solid #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  }
+  .sharp-status{
+    margin-top: 12px; text-align: center; font-size: 16.5px; font-weight: 500;
+    min-height: 24px; color: var(--fg-3); font-variant-numeric: tabular-nums;
+  }
+  .sharp-status.warm{ color: var(--warning-ink); }
+  .sharp-status.ok{ color: var(--success); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА-ЛАБОРАТОРНАЯ «Наведи резкость».
+   Свеча → линза (случайное F) → экран. Резкость считается
+   ЧЕСТНО по формуле тонкой линзы: изображение стоит на
+   f = d·F/(d−F) от линзы, и чем дальше экран от этой точки,
+   тем сильнее размытие (конус лучей расходится).
+   easy   — двигаешь экран;
+   medium — двигаешь линзу (экран прибит);
+   hard   — F неизвестно: две наводки → вычисли F.
+   ============================================================ */
+
+const fmt = v => String(Math.round(v * 10) / 10).replace('.', ',');
+
+/* canvas не понимает var() в ctx.font — берём готовый стек из токена */
+const FONT_STACK = getComputedStyle(document.documentElement)
+  .getPropertyValue('--font-display').trim() || "'Aeonik Pro', 'Inter', sans-serif";
+
+/* пары (F, d) с целым f = dF/(d−F) */
+const EASY_POOL = [
+  { F: 10, d: 15, f: 30 }, { F: 10, d: 30, f: 15 }, { F: 10, d: 20, f: 20 },
+  { F: 12, d: 18, f: 36 }, { F: 12, d: 36, f: 18 }, { F: 15, d: 30, f: 30 },
+];
+const MED_POOL = [
+  { F: 10, d: 15, f: 30 }, { F: 12, d: 18, f: 36 },
+  { F: 10, d: 14, f: 35 }, { F: 12, d: 16, f: 48 },
+];
+const HARD_POOL = {
+  10: [ { d: 15, f: 30 }, { d: 30, f: 15 }, { d: 20, f: 20 }, { d: 14, f: 35 }, { d: 35, f: 14 } ],
+  12: [ { d: 18, f: 36 }, { d: 36, f: 18 }, { d: 24, f: 24 }, { d: 16, f: 48 } ],
+  15: [ { d: 30, f: 30 }, { d: 24, f: 40 }, { d: 40, f: 24 } ],
+};
+
+function pick(arr, rnd) { return arr[Math.floor(rnd() * arr.length)]; }
+function pickTwo(arr, rnd) {
+  const i = Math.floor(rnd() * arr.length);
+  let j = Math.floor(rnd() * (arr.length - 1));
+  if (j >= i) j++;
+  return [arr[i], arr[j]];
+}
+
+/* ---------- отрисовка сцены ---------- */
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+
+function drawCandleAt(ctx, x, axisY, hObj, km, dir, alpha, t) {
+  ctx.save();
+  ctx.translate(x, axisY);
+  ctx.scale(km, km * dir);
+  ctx.globalAlpha = alpha;
+  const bw = hObj * 0.20, bh = hObj * 0.66;
+  ctx.beginPath();
+  ctx.rect(-bw / 2, -bh, bw, bh);
+  ctx.fillStyle = '#EFE6D2'; ctx.fill();
+  ctx.lineWidth = 2.5 / km; ctx.strokeStyle = '#C8BC9F'; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, -bh); ctx.lineTo(0, -bh - hObj * 0.06);
+  ctx.strokeStyle = '#8A8F9C'; ctx.stroke();
+  const fl = Math.sin((t || 0) * 7 + x) * 0.03;
+  ctx.beginPath();
+  ctx.ellipse(0, -bh - hObj * 0.19, hObj * (0.085 + fl * 0.3), hObj * (0.17 + fl), 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#F0B23C'; ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(0, -bh - hObj * 0.15, hObj * 0.04, hObj * 0.08, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#FFE6AE'; ctx.fill();
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+/* o = { W, lens, screen (см от свечи), F, showF, t } */
+function drawScene(canvas, o) {
+  const ctx = canvas.getContext('2d');
+  const { w, h } = fit(canvas, 280);
+  ctx.clearRect(0, 0, w, h);
+
+  const ox = w * 0.05;
+  const s = (w * 0.90) / o.W;
+  const X = cm => ox + cm * s;
+  const axisY = h * 0.50;
+  const hObj = h * 0.17;
+  const d = o.lens;
+  const tip = { x: X(0), y: axisY - hObj };
+  const lensX = X(o.lens);
+  const scrX = X(o.screen);
+  const edgeA = hObj * 1.15;
+
+  // ось
+  ctx.setLineDash([3, 12]);
+  ctx.strokeStyle = '#C9CEDA'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(0, axisY); ctx.lineTo(w, axisY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // изображение: расстояние от линзы (честная формула)
+  const i = d - o.F > 0.05 ? d * o.F / (d - o.F) : (d - o.F < -0.05 ? d * o.F / (d - o.F) : Infinity);
+  const finite = isFinite(i);
+  const imgTip = finite ? { x: X(o.lens + i), y: axisY + hObj * (i / d) } : null;
+
+  /* конус лучей: вершина пламени → края линзы → к точке изображения → до экрана */
+  const yAt = (E, xs) => {
+    if (!finite) return E.y;                                 // d≈F: после линзы параллельно
+    return E.y + (imgTip.y - E.y) * (xs - E.x) / (imgTip.x - E.x);
+  };
+  const eTop = { x: lensX, y: axisY - edgeA };
+  const eBot = { x: lensX, y: axisY + edgeA };
+  const yTopScr = yAt(eTop, scrX), yBotScr = yAt(eBot, scrX);
+
+  ctx.fillStyle = 'rgba(240,178,60,0.16)';
+  ctx.beginPath();
+  ctx.moveTo(tip.x, tip.y);
+  ctx.lineTo(eTop.x, eTop.y);
+  ctx.lineTo(scrX, yTopScr);
+  ctx.lineTo(scrX, yBotScr);
+  ctx.lineTo(eBot.x, eBot.y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(240,178,60,0.85)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  [[eTop, yTopScr], [eBot, yBotScr]].forEach(([E, ys]) => {
+    ctx.beginPath(); ctx.moveTo(tip.x, tip.y); ctx.lineTo(E.x, E.y); ctx.lineTo(scrX, ys); ctx.stroke();
+  });
+
+  /* изображение на экране */
+  const blurCm = finite && i > 0 ? Math.abs((o.screen - o.lens) - i) : 99;
+  if (finite && i > 0) {
+    const km = i / d;
+    const blurPx = Math.min(26, blurCm * s * 0.30);
+    ctx.save();
+    ctx.filter = blurPx > 0.4 ? `blur(${blurPx.toFixed(1)}px)` : 'none';
+    drawCandleAt(ctx, scrX - 5, axisY, hObj, km, -1, Math.max(0.35, 1 - blurCm * 0.04), o.t);
+    ctx.restore();
+    ctx.filter = 'none';
+  } else {
+    // изображения нет — мутное пятно света
+    ctx.save();
+    ctx.filter = 'blur(18px)';
+    ctx.fillStyle = 'rgba(240,178,60,0.8)';
+    ctx.beginPath(); ctx.ellipse(scrX - 6, axisY, 20, Math.abs(yBotScr - yTopScr) / 2 || edgeA, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.filter = 'none';
+  }
+
+  /* экран */
+  ctx.fillStyle = '#ECEFF5';
+  ctx.strokeStyle = '#B4BAC8'; ctx.lineWidth = 2.5;
+  const scrH = h * 0.35;
+  ctx.beginPath();
+  ctx.roundRect(scrX, axisY - scrH, 9, scrH * 2, 4);
+  ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.roundRect(scrX - 12, axisY + scrH, 34, 7, 3);
+  ctx.fillStyle = '#D9DDE7'; ctx.fill();
+
+  /* свеча и линза */
+  drawCandleAt(ctx, X(0), axisY, hObj, 1, 1, 1, o.t);
+  ctx.beginPath();
+  ctx.moveTo(lensX, axisY - edgeA - 8);
+  ctx.quadraticCurveTo(lensX + h * 0.055, axisY, lensX, axisY + edgeA + 8);
+  ctx.quadraticCurveTo(lensX - h * 0.055, axisY, lensX, axisY - edgeA - 8);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(220,233,251,0.85)'; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = '#8FB4E8'; ctx.stroke();
+
+  /* линейка от линзы вправо (0 у линзы) */
+  const ry = axisY + scrH + 26;
+  ctx.strokeStyle = '#8A8F9C'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(lensX, ry); ctx.lineTo(w - 8, ry); ctx.stroke();
+  ctx.font = '500 ' + Math.round(w * 0.024) + 'px ' + FONT_STACK;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let cm = 0; o.lens + cm <= o.W + 0.01; cm += 5) {
+    const x = X(o.lens + cm);
+    if (x > w - 10) break;
+    const major = cm % 10 === 0;
+    ctx.beginPath(); ctx.moveTo(x, ry); ctx.lineTo(x, ry - (major ? 12 : 7)); ctx.stroke();
+    if (major) { ctx.fillStyle = '#6B7180'; ctx.fillText(String(cm), x, ry + 6); }
+  }
+  ctx.fillStyle = '#9AA0AA';
+  ctx.textAlign = 'left';
+  ctx.fillText('см от линзы', lensX + 8, ry - 34);
+
+  /* скобка d */
+  const by = axisY + scrH * 0.62;
+  ctx.strokeStyle = '#6B7180'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(X(0), by); ctx.lineTo(lensX, by); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(X(0), by - 6); ctx.lineTo(X(0), by + 6); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(lensX, by - 6); ctx.lineTo(lensX, by + 6); ctx.stroke();
+  ctx.fillStyle = '#6B7180'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ctx.fillText('d = ' + fmt(d) + ' см', (X(0) + lensX) / 2, by - 6);
+
+  /* F над линзой */
+  if (o.showF) {
+    ctx.fillStyle = '#6240FF';
+    ctx.font = '500 ' + Math.round(w * 0.028) + 'px ' + FONT_STACK;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('F = ' + fmt(o.F) + ' см', lensX, axisY - edgeA - 18);
+  } else {
+    ctx.fillStyle = '#6240FF';
+    ctx.font = '500 ' + Math.round(w * 0.028) + 'px ' + FONT_STACK;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('F = ?', lensX, axisY - edgeA - 18);
+  }
+  ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+  return blurCm;
+}
+
+/* ---------- шаг-«наводка»: слайдер двигает экран или линзу ---------- */
+function makeFocusStep(p, opts) {
+  // p: {F, d, f, W}; opts: {mover:'screen'|'lens', showF, kicker, tol}
+  const L = p.d + p.f;   // позиция экрана от свечи при резкости (для mover:'lens' экран прибит на L)
+  return {
+    type: 'action',
+    title: opts.kicker,
+    text: opts.text,
+    render(host, ctx) {
+      const tol = opts.tol;
+      const mover = opts.mover;
+      const W = p.W;
+      const state = {
+        W, F: p.F, showF: opts.showF,
+        lens: mover === 'lens' ? Math.max(6, Math.round(p.F * 0.7)) : p.d,
+        screen: mover === 'screen'
+          ? Math.min(W - 4, Math.round(p.d + p.F + 3 + (p.f - p.F) * 1.6))
+          : L,
+        t: 0,
+      };
+      if (mover === 'screen' && Math.abs((state.screen - state.lens) - p.f) < tol + 1.5) {
+        state.screen = Math.max(state.lens + p.F + 2, state.screen - 8);
+      }
+      const min = mover === 'screen' ? p.d + p.F + 2 : 6;
+      const max = mover === 'screen' ? W - 3 : Math.floor(L / 2 - 1);
+      const start = mover === 'screen' ? state.screen : state.lens;
+
+      host.innerHTML = `
+        <div class="canvas-panel"><canvas class="labCanvas" height="280"></canvas></div>
+        <div class="lab-chips">
+          ${opts.showF ? `<span class="lab-chip">линза: <b>F = ${fmt(p.F)} см</b></span>`
+                       : `<span class="lab-chip">линза: <b>F — неизвестно</b></span>`}
+          ${mover === 'screen'
+            ? `<span class="lab-chip">свеча в <b>d = ${fmt(p.d)} см</b> от линзы</span>`
+            : `<span class="lab-chip">экран прибит в <b>${fmt(L)} см</b> от свечи</span>`}
+        </div>
+        <div class="slider-row">
+          <label>${mover === 'screen' ? 'Экран:' : 'Линза:'}</label>
+          <input type="range" class="labSlider" min="${min}" max="${max}" step="0.5" value="${start}">
+        </div>
+        <div class="sharp-status labStatus">двигай ${mover === 'screen' ? 'экран' : 'линзу'} — смотри на изображение</div>`;
+
+      const canvas = host.querySelector('.labCanvas');
+      const slider = host.querySelector('.labSlider');
+      const status = host.querySelector('.labStatus');
+      let doneOnce = false;
+
+      slider.addEventListener('input', () => {
+        const v = parseFloat(slider.value);
+        if (mover === 'screen') state.screen = v;
+        else { state.lens = v; }
+      });
+
+      function frame(ts) {
+        if (!canvas.isConnected) return;
+        state.t = ts / 1000;
+        const blurCm = drawScene(canvas, state);
+        if (blurCm <= tol) {
+          status.textContent = 'Чётко! Изображение поймано.';
+          status.className = 'sharp-status labStatus ok';
+          if (!doneOnce) {
+            doneOnce = true;
+            ctx.fb(opts.doneFb, 'ok');
+            ctx.done();
+          }
+        } else if (blurCm <= tol * 3) {
+          status.textContent = 'Почти! Ещё чуть-чуть…';
+          status.className = 'sharp-status labStatus warm';
+        } else {
+          status.textContent = 'Размыто. Двигай дальше.';
+          status.className = 'sharp-status labStatus';
+        }
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    },
+  };
+}
+
+/* ---------- статичная сцена для шага-считывания ---------- */
+function staticScene(p, showF) {
+  return host => {
+    host.innerHTML = `<div class="canvas-panel"><canvas class="labCanvas" height="280"></canvas></div>`;
+    const canvas = host.querySelector('.labCanvas');
+    const state = { W: p.W, F: p.F, showF, lens: p.d, screen: p.d + p.f, t: 0 };
+    function frame(ts) {
+      if (!canvas.isConnected) return;
+      state.t = ts / 1000;
+      drawScene(canvas, state);
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  };
+}
+
+/* ---------- сборка уровней ---------- */
+function buildSteps(level, rnd) {
+  const steps = [];
+
+  if (level === 'easy' || level === 'medium') {
+    const pool = level === 'easy' ? EASY_POOL : MED_POOL;
+    const rounds = pickTwo(pool, rnd);
+    rounds.forEach((r, k) => {
+      const p = { ...r, W: r.d + r.f + 14 };
+      const n = k + 1;
+      steps.push(makeFocusStep(p, {
+        mover: level === 'easy' ? 'screen' : 'lens',
+        showF: true,
+        tol: level === 'easy' ? 1.5 : 1.2,
+        kicker: `Наводка ${n} из 2`,
+        text: level === 'easy'
+          ? 'Двигай ползунком ЭКРАН вдоль линейки, пока перевёрнутая свеча на нём не станет чёткой.'
+          : 'Экран прибит к столу! Двигай ЛИНЗУ между свечой и экраном, пока изображение не станет чётким.',
+        doneFb: level === 'easy'
+          ? '✓ Резко! Экран встал точно там, где лучи сходятся: f = d·F/(d−F).'
+          : '✓ Резко! Линза встала так, что изображение попало точно на экран.',
+      }));
+      steps.push({
+        type: 'reading',
+        title: `Сними показания (${n} из 2)`,
+        text: level === 'easy'
+          ? 'Резкость наведена. На каком расстоянии от линзы стоит экран? Прочитай по линейке (0 — у линзы).'
+          : 'Резкость наведена. На каком расстоянии от линзы оказался экран? Прочитай по линейке (0 — у линзы).',
+        render: staticScene(p, true),
+        answer: p.f,
+        tolerance: 2,
+        unit: 'см',
+        hints: [
+          'Линейка начинается у линзы: найди штрих под экраном. Цена деления — 5 см.',
+          `Проверь себя формулой: f = d·F/(d−F) = ${fmt(p.d)}·${fmt(p.F)}/(${fmt(p.d)}−${fmt(p.F)}).`,
+        ],
+        right: `✓ Точно: f = d·F/(d−F) = ${fmt(p.f)} см. Формула тонкой линзы работает!`,
+      });
+    });
+    return steps;
+  }
+
+  /* hard: F неизвестно — две наводки, потом вычисли F */
+  const Fs = [10, 12, 15];
+  const F = Fs[Math.floor(rnd() * Fs.length)];
+  const [r1, r2] = pickTwo(HARD_POOL[F], rnd);
+  const mk = (r, n) => makeFocusStep({ F, d: r.d, f: r.f, W: r.d + r.f + 14 }, {
+    mover: 'screen',
+    showF: false,
+    tol: 1.2,
+    kicker: `Наводка ${n} из 2`,
+    text: n === 1
+      ? 'Линза без маркировки: F неизвестно. Наведи резкость экраном и ЗАПОМНИ по линейке, где он встал.'
+      : 'Свечу переставили. Наведи резкость ещё раз — и снова запомни расстояние до экрана.',
+    doneFb: `✓ Резко! Запиши пару: d = ${fmt(r.d)} см, f = … (прочитай по линейке).`,
+  });
+  steps.push(mk(r1, 1));
+  steps.push(mk(r2, 2));
+  steps.push({
+    type: 'reading',
+    title: 'Вычисли фокусное расстояние',
+    text: `Две наводки сделаны: сначала d = ${fmt(r1.d)} см и экран в ${fmt(r1.f)} см, потом d = ${fmt(r2.d)} см и экран в ${fmt(r2.f)} см. Чему равно F этой линзы?`,
+    render: staticScene({ F, d: r1.d, f: r1.f, W: r1.d + r1.f + 14 }, false),
+    answer: F,
+    tolerance: 1,
+    unit: 'см',
+    hints: [
+      'Формула тонкой линзы: 1/F = 1/d + 1/f. Подставь первую наводку.',
+      `F = d·f/(d+f). Считай: ${fmt(r1.d)}·${fmt(r1.f)}/(${fmt(r1.d)}+${fmt(r1.f)}).`,
+    ],
+    right: `✓ Да! F = d·f/(d+f) = ${fmt(F)} см — и вторая наводка даёт то же самое. Значит, всё честно.`,
+  });
+  steps.push({
+    type: 'choice',
+    title: 'Последний вывод',
+    text: 'Свечу отодвинули ЕЩЁ дальше от линзы. Куда придётся двигать экран, чтобы снова стало чётко?',
+    options: [
+      { text: 'Ближе к линзе: чем дальше предмет, тем ближе изображение к фокусу', correct: true },
+      { text: 'Дальше от линзы: изображение убегает вместе со свечой', correct: false },
+      { text: 'Никуда: резкость не зависит от места свечи', correct: false },
+      { text: 'Экран больше не понадобится: изображение станет мнимым', correct: false },
+    ],
+    right: 'При росте d слагаемое 1/d в формуле 1/F = 1/d + 1/f уменьшается, значит 1/f растёт — f сокращается к F. Ты видел это в обеих наводках.',
+    wrong: 'Посмотри на свои наводки: когда d было больше, f получалось меньше. 1/F = 1/d + 1/f: растёт d — уменьшается f, изображение подтягивается к фокусу.',
+  });
+  return steps;
+}
+
+runPractice({
+  practiceId: 'sharp',
+  storageKey: 'lenses-progress',
+  homeHref: '../demo/',
+  title: 'Наведи резкость',
+  subtitle: 'Настоящая оптическая скамья: свеча, линза и экран. Лови чёткое изображение и снимай расстояния сам — как в лаборатории.',
+  levels: {
+    easy:   { label: 'Лаборант',  desc: 'Двигай экран: поймай резкость и прочитай расстояние.', xp: 40 },
+    medium: { label: 'Оптик',     desc: 'Экран прибит — двигай саму линзу.', xp: 55 },
+    hard:   { label: 'Инженер',   desc: 'F неизвестно: две наводки и обратная задача.', xp: 70 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>От чего зависит трение · Сила трения</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛷</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 560px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; }
+  .canvas-hint{
+    margin: 14px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+  .mini-actions{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  .mini-play-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border: 0; border-radius: var(--radius-md);
+    background: var(--fg-1); color: #fff; cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .mini-play-btn:hover:not(:disabled){ background: #3a3a3f; }
+  .mini-play-btn:active:not(:disabled){ transform: scale(0.96); }
+  .mini-play-btn:disabled{ opacity: .55; cursor: default; }
+  .chip-btn{
+    padding: 12px 18px; border: 1px solid var(--purple-4); border-radius: var(--radius-md);
+    background: var(--white); color: var(--fg-2); cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard), color 120ms var(--ease-standard);
+  }
+  .chip-btn:hover{ background: var(--purple-4); }
+  .chip-btn:active{ transform: scale(0.96); }
+  .chip-btn.on{ background: var(--fg-1); color: #fff; border-color: var(--fg-1); }
+  .ctl-rows{ width: 100%; max-width: 560px; margin: 12px auto 0; display: flex; flex-direction: column; gap: 10px; }
+  .ctl-row{ display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+  .ctl-row .lbl{ font-size: 14px; color: var(--fg-3); min-width: 92px; text-align: right; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ============================================================
+   ТЕМА 2 «От чего зависит трение» (Пёрышкин §15).
+   Интерактив: тянем брусок динамометром равномерно.
+   Честная физика: F = μ·N = μ·m·g, g = 10 Н/кг.
+   ============================================================ */
+
+const G = 10;
+/* canvas не умеет var() в ctx.font — резолвим токен один раз */
+const CANVAS_FONT = ((getComputedStyle(document.body).getPropertyValue('--font-display') || '').trim() || '"Aeonik Pro"') + ', sans-serif';
+
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+function rr(ctx, x, y, w2, h2, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w2, y, x + w2, y + h2, r);
+  ctx.arcTo(x + w2, y + h2, x, y + h2, r);
+  ctx.arcTo(x, y + h2, x, y, r);
+  ctx.arcTo(x, y, x + w2, y, r);
+  ctx.closePath();
+}
+function shade(hex, t) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  r = Math.round(r * (1 - t)); g = Math.round(g * (1 - t)); b = Math.round(b * (1 - t));
+  return `rgb(${r},${g},${b})`;
+}
+
+/* ============================================================
+   ИНТЕРАКТИВ: динамометр + брусок
+   ============================================================ */
+const SURFACES = [
+  { key: 'wood', name: 'дерево', mu: 0.3,  base: '#E8C797', edge: '#C49A62' },
+  { key: 'rubb', name: 'резина', mu: 0.6,  base: '#8A8F9C', edge: '#6B7180' },
+  { key: 'ice',  name: 'лёд',    mu: 0.05, base: '#BFDCF9', edge: '#8FBDEB' },
+];
+const BLOCK_M = 1;           // кг — сам брусок
+const MAX_F = 40;            // Н — шкала динамометра
+
+function startDyno(root, done) {
+  const canvas = root.querySelector('#dynoCanvas');
+  const hint = root.querySelector('#dynoHint');
+  const ctx = canvas.getContext('2d');
+  let surf = SURFACES[0];
+  let weights = 0;                   // грузов по 1 кг сверху (0..4)
+  let pulling = false, pullX = 0;    // смещение бруска при протяжке
+  const tried = new Set();           // какие комбинации попробовал
+
+  const mass = () => BLOCK_M + weights;
+  const force = () => surf.mu * mass() * G;   // Н, честно
+  const fmt = v => (Math.round(v * 10) / 10).toFixed(1).replace('.', ',');
+
+  root.querySelectorAll('[data-surf]').forEach(b => b.addEventListener('click', () => {
+    surf = SURFACES.find(s => s.key === b.dataset.surf);
+    root.querySelectorAll('[data-surf]').forEach(x => x.classList.toggle('on', x === b));
+    pullX = 0;
+  }));
+  root.querySelectorAll('[data-w]').forEach(b => b.addEventListener('click', () => {
+    weights = parseInt(b.dataset.w, 10);
+    root.querySelectorAll('[data-w]').forEach(x => x.classList.toggle('on', x === b));
+    pullX = 0;
+  }));
+  root.querySelector('#dynoPull').addEventListener('click', () => {
+    if (pulling) return;
+    pulling = true; pullX = 0;
+    tried.add(surf.key + ':' + weights);
+    hint.innerHTML = `Тянем равномерно: динамометр показывает силу трения <b>F = μ·N = ${String(surf.mu).replace('.', ',')} · ${mass() * G} Н = ${fmt(force())} Н</b>`;
+    if (tried.size >= 3) done();
+  });
+
+  function loop(tsMs) {
+    if (!canvas.isConnected) return;
+    if (pulling) {
+      pullX += 1.1;
+      if (pullX > 60) { pulling = false; }
+    } else if (pullX > 0) {
+      pullX = Math.max(0, pullX - 2.4);
+    }
+    render(tsMs / 1000);
+    requestAnimationFrame(loop);
+  }
+
+  function render(t) {
+    const { w, h } = fit(canvas, 290);
+    ctx.clearRect(0, 0, w, h);
+    const floorY = h * 0.66;
+
+    // поверхность
+    rr(ctx, w * 0.04, floorY, w * 0.92, h * 0.09, h * 0.045);
+    ctx.fillStyle = surf.base;
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = surf.edge;
+    ctx.stroke();
+    ctx.font = '500 ' + Math.round(w * 0.032) + 'px ' + CANVAS_FONT;
+    ctx.fillStyle = '#6B7180';
+    ctx.textAlign = 'left';
+    ctx.fillText('поверхность: ' + surf.name + '   μ = ' + String(surf.mu).replace('.', ','), w * 0.05, floorY + h * 0.20);
+
+    // брусок
+    const wob = pulling ? Math.sin(t * 30) * 1.2 : 0;
+    const bw = w * 0.20, bh = h * 0.16;
+    const bx = w * 0.12 + pullX * (w / 600), by = floorY - bh + wob * 0;
+    rr(ctx, bx, by, bw, bh, 8);
+    ctx.fillStyle = '#E58B4A';
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#C96A3A';
+    ctx.stroke();
+
+    // грузы сверху
+    for (let i = 0; i < weights; i++) {
+      const gw = bw * 0.62, gh = h * 0.062;
+      const gx = bx + (bw - gw) / 2, gy = by - gh * (i + 1) - 2 * (i + 1);
+      rr(ctx, gx, gy, gw, gh, 6);
+      ctx.fillStyle = '#8A8F9C';
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = shade('#8A8F9C', 0.25);
+      ctx.stroke();
+      ctx.font = '500 ' + Math.round(gh * 0.62) + 'px ' + CANVAS_FONT;
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('1 кг', gx + gw / 2, gy + gh / 2);
+      ctx.textBaseline = 'alphabetic';
+      ctx.textAlign = 'start';
+    }
+
+    // трос
+    const hookX = bx + bw, hookY = by + bh * 0.5;
+    const dynX = hookX + w * 0.05;
+    ctx.beginPath();
+    ctx.moveTo(hookX, hookY);
+    ctx.lineTo(dynX, hookY);
+    ctx.strokeStyle = '#9AA0AA';
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+
+    // динамометр (корпус + шкала-полоска + число)
+    const dw = w * 0.34, dh = h * 0.15;
+    rr(ctx, dynX, hookY - dh / 2, dw, dh, dh / 2);
+    ctx.fillStyle = '#F4F1FF';
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#C9CEDA';
+    ctx.stroke();
+    const f = pulling || pullX > 0 ? force() : 0;
+    const barW = Math.max(0, (dw - dh * 0.7) * Math.min(1, f / MAX_F));
+    if (barW > 1) {
+      rr(ctx, dynX + dh * 0.35, hookY - dh * 0.18, Math.max(dh * 0.36, barW), dh * 0.36, dh * 0.18);
+      ctx.fillStyle = '#6240FF';
+      ctx.fill();
+    }
+    ctx.font = '700 ' + Math.round(w * 0.045) + 'px ' + CANVAS_FONT;
+    ctx.fillStyle = f > 0 ? '#6240FF' : '#9AA0AA';
+    ctx.textAlign = 'center';
+    ctx.fillText((f > 0 ? fmt(f) : '0') + ' Н', dynX + dw / 2, hookY - dh * 0.85);
+    ctx.textAlign = 'start';
+
+    // рука-тяга
+    ctx.beginPath();
+    ctx.moveTo(dynX + dw, hookY);
+    ctx.lineTo(dynX + dw + w * 0.05, hookY);
+    ctx.strokeStyle = '#9AA0AA';
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+    ctx.font = Math.round(w * 0.05) + 'px ' + CANVAS_FONT;
+    ctx.fillText('🖐', dynX + dw + w * 0.05, hookY + w * 0.018);
+
+    // табличка: вес и сила трения
+    ctx.font = '500 ' + Math.round(w * 0.032) + 'px ' + CANVAS_FONT;
+    ctx.fillStyle = '#6B7180';
+    ctx.textAlign = 'left';
+    ctx.fillText('масса: ' + mass() + ' кг   прижим N = ' + (mass() * G) + ' Н', w * 0.05, h * 0.10);
+  }
+
+  requestAnimationFrame(loop);
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'interact', id: 'dyno', visual: 'dyno',
+    title: 'Измерь силу трения сам',
+    text: 'Чтобы измерить трение, брусок тянут динамометром <b>равномерно</b>: тогда сила тяги равна силе трения. Меняй поверхность и грузы — попробуй хотя бы три разных варианта и следи за числом.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'formula', big: true,
+    title: 'Два хозяина трения',
+    text: 'Опыт показывает: сила трения зависит от того, <b>как сильно тело прижато</b> к поверхности (положил грузы — трение выросло во столько же раз), и от того, <b>какие поверхности трутся</b> (лёд против резины — разница в 12 раз). Это записывают формулой <b>F = μ·N</b>, где N — сила прижатия, а μ — коэффициент трения, «паспорт» пары поверхностей.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'brick', big: true,
+    title: 'Сюрприз: площадь не важна!',
+    text: 'Поставь кирпич плашмя, на ребро или на торец — динамометр покажет <b>одно и то же</b>. Кажется странным, но смысл простой: у узкой грани площадь меньше, зато давит она сильнее — и всё уравнивается. В формуле F = μ·N площади просто нет.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'rolling', big: true,
+    title: 'Три вида трения',
+    text: 'Пока ты только пытаешься сдвинуть шкаф — держит <b>трение покоя</b>. Поехал волоком — работает <b>трение скольжения</b>. А если подложить катки или колёса — останется лишь <b>трение качения</b>, оно в десятки раз меньше. Именно поэтому человечество придумало колесо!',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Два вопроса — и тема твоя.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 1',
+    text: 'На брусок поставили груз, и брусок стал давить на стол в 2 раза сильнее. Что станет с силой трения?',
+    options: [
+      { id: 'a', text: 'Не изменится — трение зависит только от поверхности', correct: false },
+      { id: 'b', text: 'Вырастет в 2 раза: F = μ·N, а N удвоилась', correct: true },
+      { id: 'c', text: 'Вырастет в 4 раза', correct: false },
+    ],
+    right: 'F = μ·N: прижатие удвоилось — и трение удвоилось. Ты видел это в опыте с грузами.',
+    wrong: 'Вспомни опыт: каждый груз увеличивал показание динамометра. F = μ·N — трение растёт во столько же раз, во сколько прижатие.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 2',
+    text: 'Кирпич перевернули с широкой грани на узкую. Как изменилась сила трения при протяжке?',
+    options: [
+      { id: 'a', text: 'Выросла — узкая грань сильнее давит на каждый сантиметр', correct: false },
+      { id: 'b', text: 'Уменьшилась — площадь контакта стала меньше', correct: false },
+      { id: 'c', text: 'Не изменилась: прижатие N то же, а площадь в F = μ·N не входит', correct: true },
+    ],
+    right: 'Кирпич весит столько же, μ тот же — значит, и трение то же. Площадь ни при чём.',
+    wrong: 'Ловушка с площадью! Вес кирпича не изменился, пара поверхностей та же. F = μ·N — то же самое число.',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  dyno: () => `
+    <div class="canvas-panel"><canvas id="dynoCanvas" height="290"></canvas></div>
+    <div class="ctl-rows">
+      <div class="ctl-row"><span class="lbl">поверхность:</span>
+        <button class="chip-btn on" data-surf="wood">дерево</button>
+        <button class="chip-btn" data-surf="rubb">резина</button>
+        <button class="chip-btn" data-surf="ice">лёд</button>
+      </div>
+      <div class="ctl-row"><span class="lbl">грузы сверху:</span>
+        <button class="chip-btn on" data-w="0">нет</button>
+        <button class="chip-btn" data-w="1">+1 кг</button>
+        <button class="chip-btn" data-w="2">+2 кг</button>
+        <button class="chip-btn" data-w="4">+4 кг</button>
+      </div>
+    </div>
+    <div class="mini-actions">
+      <button class="mini-play-btn" id="dynoPull">🖐 Тянуть равномерно</button>
+    </div>
+    <p class="canvas-hint" id="dynoHint">Брусок 1 кг. Выбери поверхность и грузы, потом <b>тяни</b>.</p>`,
+  formula: () => `
+    <svg viewBox="0 0 260 150" xmlns="http://www.w3.org/2000/svg">
+      <g font-family="var(--font-display), sans-serif" font-weight="500">
+        <text x="130" y="66" text-anchor="middle" font-size="44" fill="#6240FF">F = μ · N</text>
+        <text x="176" y="112" text-anchor="middle" font-size="15" fill="#6B7180">сила прижатия</text>
+        <text x="96" y="112" text-anchor="middle" font-size="15" fill="#6B7180">какие поверхности</text>
+        <path d="M100 78 L104 92" stroke="#9AA0AA" stroke-width="2" fill="none"/>
+        <path d="M170 78 L172 92" stroke="#9AA0AA" stroke-width="2" fill="none"/>
+      </g>
+      <g fill="#30A46C" opacity=".9">
+        <circle cx="30" cy="34" r="4"><animate attributeName="r" values="3;5;3" dur="2s" repeatCount="indefinite"/></circle>
+        <circle cx="232" cy="30" r="3.5"><animate attributeName="r" values="3;5;3" dur="2.4s" repeatCount="indefinite"/></circle>
+      </g>
+    </svg>`,
+  brick: () => `
+    <svg viewBox="0 0 260 160" xmlns="http://www.w3.org/2000/svg">
+      <rect x="12" y="118" width="236" height="12" rx="6" fill="#E8C797" stroke="#C49A62" stroke-width="2"/>
+      <!-- плашмя -->
+      <g>
+        <rect x="26" y="86" width="84" height="32" rx="5" fill="#C96A54" stroke="#9C5546" stroke-width="2.5"/>
+        <text x="68" y="76" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="14" fill="#6B7180">плашмя</text>
+      </g>
+      <!-- на ребре -->
+      <g>
+        <rect x="158" y="54" width="34" height="64" rx="5" fill="#C96A54" stroke="#9C5546" stroke-width="2.5"/>
+        <text x="175" y="44" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="14" fill="#6B7180">на ребре</text>
+      </g>
+      <g font-family="var(--font-display), sans-serif" font-weight="500" font-size="17" fill="#6240FF">
+        <text x="68" y="148" text-anchor="middle">F = 14 Н
+          <animate attributeName="opacity" values="1;.45;1" dur="2.2s" repeatCount="indefinite"/>
+        </text>
+        <text x="175" y="148" text-anchor="middle">F = 14 Н
+          <animate attributeName="opacity" values="1;.45;1" dur="2.2s" repeatCount="indefinite" begin="1.1s"/>
+        </text>
+      </g>
+      <text x="228" y="96" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="26" fill="#30A46C">=
+        <animate attributeName="opacity" values=".4;1;.4" dur="2.2s" repeatCount="indefinite"/>
+      </text>
+    </svg>`,
+  rolling: () => `
+    <svg viewBox="0 0 260 160" xmlns="http://www.w3.org/2000/svg">
+      <rect x="10" y="120" width="240" height="10" rx="5" fill="#C9CEDA"/>
+      <!-- волоком -->
+      <g>
+        <rect x="28" y="86" width="70" height="34" rx="6" fill="#E58B4A" stroke="#C96A3A" stroke-width="2.5"/>
+        <text x="63" y="76" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="14" fill="#6B7180">волоком</text>
+        <g fill="#E5484D">
+          <rect x="34" y="140" width="44" height="6" rx="3"/>
+          <path d="M34 135 L18 143 L34 151 Z"/>
+        </g>
+      </g>
+      <!-- на колёсах -->
+      <g>
+        <rect x="158" y="76" width="70" height="30" rx="6" fill="#E58B4A" stroke="#C96A3A" stroke-width="2.5"/>
+        <text x="193" y="66" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="14" fill="#6B7180">на катках</text>
+        <g fill="#6B7180" stroke="#4C505A" stroke-width="2">
+          <circle cx="172" cy="113" r="8">
+            <animateTransform attributeName="transform" type="rotate" from="0 172 113" to="360 172 113" dur="1.6s" repeatCount="indefinite"/>
+          </circle>
+          <circle cx="214" cy="113" r="8">
+            <animateTransform attributeName="transform" type="rotate" from="0 214 113" to="360 214 113" dur="1.6s" repeatCount="indefinite"/>
+          </circle>
+        </g>
+        <g fill="#E5484D">
+          <rect x="178" y="140" width="12" height="6" rx="3"/>
+          <path d="M178 135 L162 143 L178 151 Z"/>
+        </g>
+      </g>
+      <text x="63" y="36" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="15" fill="#E5484D">трение большое</text>
+      <text x="193" y="36" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="15" fill="#30A46C">в десятки раз меньше</text>
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'dyno') startDyno(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'depends',
+  storageKey: 'friction-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-good-bad/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

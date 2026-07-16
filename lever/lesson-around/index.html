@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Рычаги вокруг нас · Рычаг</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 560px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; }
+  .canvas-hint{
+    margin: 14px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+  .slider-row{
+    display: flex; align-items: center; gap: 14px;
+    max-width: 480px; margin: 16px auto 0; width: 100%;
+  }
+  .slider-row label{ font-size: 15px; font-weight: 500; color: var(--fg-2); flex: none; }
+  .slider-row input[type="range"]{
+    flex: 1; accent-color: var(--purple-1); height: 28px; cursor: pointer;
+  }
+  .live-nums{
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
+    margin: 14px auto 0; max-width: 560px;
+  }
+  .live-num{
+    background: var(--white); border-radius: var(--radius-md);
+    box-shadow: 0 2px 10px rgba(24,12,34,.07);
+    padding: 10px 16px; font-size: 15px; color: var(--fg-3);
+  }
+  .live-num b{
+    display: block; font-family: var(--font-display); font-weight: 500;
+    font-size: 22px; color: var(--fg-1); font-variant-numeric: tabular-nums;
+  }
+  .live-num.biceps b{ color: var(--danger); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ============================================================
+   ТЕМА 3 «Рычаги вокруг нас».
+   Ножницы, тачка, весло, лом — и рычаг в собственной руке.
+   ============================================================ */
+
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+function shade(hex, t) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  r = Math.round(r * (1 - t)); g = Math.round(g * (1 - t)); b = Math.round(b * (1 - t));
+  return `rgb(${r},${g},${b})`;
+}
+function rr(ctx, x, y, w2, h2, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w2, y, x + w2, y + h2, r);
+  ctx.arcTo(x + w2, y + h2, x, y + h2, r);
+  ctx.arcTo(x, y + h2, x, y, r);
+  ctx.arcTo(x, y, x + w2, y, r);
+  ctx.closePath();
+}
+
+const RED = '#E5484D', BLUE = '#2F80ED', SKIN = '#F3C89E';
+/* canvas не понимает var() в ctx.font — берём уже вычисленный шрифт body */
+const FONT = getComputedStyle(document.body).fontFamily || "'Aeonik Pro', 'Inter', sans-serif";
+
+/* ============================================================
+   ИНТЕРАКТИВ: предплечье — рычаг в теле
+   Локоть — опора. Бицепс крепится в 5 см от локтя,
+   гантель лежит в ладони в 35 см. F·5 = вес·35 → F = 7·вес.
+   ============================================================ */
+function startArm(root, done) {
+  const canvas = root.querySelector('#armCanvas');
+  const slider = root.querySelector('#armSlider');
+  const elW = root.querySelector('#numWeight');
+  const elF = root.querySelector('#numBiceps');
+  const hint = root.querySelector('#armHint');
+  const ctx = canvas.getContext('2d');
+
+  let mass = parseFloat(slider.value);
+  let moved = false;
+  slider.addEventListener('input', () => {
+    mass = parseFloat(slider.value);
+    if (!moved) {
+      moved = true;
+      hint.innerHTML = 'Плечо гантели в <b>7 раз</b> больше плеча бицепса — вот бицепс и тянет в 7 раз сильнее её веса.';
+      done();
+    }
+  });
+
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 300);
+    ctx.clearRect(0, 0, w, h);
+
+    const weight = mass * 10;          // вес гантели, Н (g ≈ 10 Н/кг)
+    const force = weight * 35 / 5;     // честный момент: F·5см = вес·35см
+    elW.textContent = Math.round(weight) + ' Н';
+    elF.textContent = Math.round(force) + ' Н';
+
+    const ex = w * 0.20, ey = h * 0.62;      // локоть (опора)
+    const scale = w * 0.60 / 35;             // пикселей в сантиметре
+    const bx = ex + 5 * scale;               // точка крепления бицепса
+    const hx = ex + 35 * scale;              // ладонь с гантелью
+    const wob = Math.sin(t * 1.4) * 3;
+
+    // плечо (вертикальная часть руки)
+    rr(ctx, ex - 24, h * 0.06, 48, ey - h * 0.06, 22);
+    ctx.fillStyle = SKIN; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = '#D9A876'; ctx.stroke();
+
+    // бицепс (утолщается с нагрузкой)
+    const bulge = 10 + mass * 2.2;
+    ctx.beginPath();
+    ctx.ellipse(ex + 14, h * 0.30, bulge, h * 0.13, -0.35, 0, Math.PI * 2);
+    ctx.fillStyle = RED; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = shade(RED, 0.22); ctx.stroke();
+
+    // сухожилие к предплечью
+    ctx.strokeStyle = shade(RED, 0.1);
+    ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(ex + 20, h * 0.38);
+    ctx.lineTo(bx, ey - 10 + wob * 0.3);
+    ctx.stroke();
+
+    // предплечье (горизонтальный рычаг)
+    rr(ctx, ex - 10, ey - 13 + wob * 0.3, hx - ex + 34, 26, 13);
+    ctx.fillStyle = SKIN; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = '#D9A876'; ctx.stroke();
+
+    // локоть — точка опоры
+    ctx.beginPath();
+    ctx.arc(ex, ey, 8, 0, Math.PI * 2);
+    ctx.fillStyle = '#6240FF'; ctx.fill();
+
+    // гантель в ладони
+    const gy = ey + wob * 0.3;
+    ctx.fillStyle = '#5A5F6E';
+    rr(ctx, hx - 5, gy - 26, 10, 20, 4); ctx.fill();
+    [gy - 34, gy - 12].forEach(y => {
+      rr(ctx, hx - 20, y, 40, 8, 4);
+      ctx.fillStyle = '#3E434C'; ctx.fill();
+    });
+
+    // стрелка силы бицепса (вверх, у локтя)
+    ctx.strokeStyle = RED; ctx.fillStyle = RED;
+    ctx.lineWidth = 6; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(bx, ey + 30);
+    ctx.lineTo(bx, ey + 64);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(bx, ey + 24);
+    ctx.lineTo(bx - 11, ey + 40);
+    ctx.lineTo(bx + 11, ey + 40);
+    ctx.closePath();
+    ctx.fill();
+
+    // стрелка веса гантели (вниз)
+    ctx.strokeStyle = BLUE; ctx.fillStyle = BLUE;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(hx, gy + 22);
+    ctx.lineTo(hx, gy + 48);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(hx, gy + 56);
+    ctx.lineTo(hx - 9, gy + 43);
+    ctx.lineTo(hx + 9, gy + 43);
+    ctx.closePath();
+    ctx.fill();
+
+    // подписи и плечи
+    const fs = Math.round(w * 0.034);
+    ctx.font = '700 ' + fs + 'px ' + FONT;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = RED;
+    ctx.fillText('бицепс', bx, ey + 88);
+    ctx.fillStyle = BLUE;
+    ctx.fillText('вес гантели', hx, gy + 82);
+    ctx.fillStyle = '#6B7180';
+    ctx.textAlign = 'right';
+    ctx.fillText('локоть — опора', ex - 36, ey - 26);
+    ctx.textAlign = 'center';
+    ctx.strokeStyle = '#6240FF';
+    ctx.lineWidth = 2; ctx.setLineDash([2, 8]); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(ex, h * 0.90); ctx.lineTo(bx, h * 0.90); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx + 14, h * 0.90); ctx.lineTo(hx, h * 0.90); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#6240FF';
+    ctx.fillText('5 см', ex + 2.5 * scale, h * 0.98);
+    ctx.fillText('35 см — плечо гантели', (bx + hx) / 2, h * 0.98);
+    ctx.textAlign = 'start';
+
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'info', visual: 'scissors', big: true,
+    title: 'Опора посередине: ножницы, лом, качели',
+    text: 'Присмотрись к ножницам: винт — <b>точка опоры</b>, руки давят на кольца, бумага сопротивляется у лезвий. Опора стоит <b>между</b> двумя силами — такой рычаг называют <b>рычагом первого рода</b>. Так же устроены лом, качели и весы.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'barrow', big: true,
+    title: 'Опора с краю: тачка и весло',
+    text: 'У тачки опора — <b>колесо</b>, груз лежит в середине, а руки поднимают ручки на дальнем конце. Обе силы оказались <b>по одну сторону</b> от опоры — это <b>рычаг второго рода</b>. Плечо рук вдвое-втрое больше плеча груза, поэтому тачка «съедает» большую часть веса. Весло работает так же: опора — вода у лопасти.',
+  },
+  {
+    phase: 'theory', type: 'interact', id: 'arm', visual: 'arm',
+    title: 'Рычаг спрятан в твоей руке',
+    text: 'Предплечье — рычаг: опора — <b>локтевой сустав</b>, бицепс крепится всего в 5 см от него, а гантель лежит в ладони в 35 см. Подвигай слайдер массы и посмотри, с какой силой приходится тянуть бицепсу.',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Два вопроса — и рычаги вокруг тебя раскрыты.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 1',
+    text: 'Качели во дворе — рычаг какого рода?',
+    options: [
+      { id: 'a', text: 'Первого: опора между двумя силами', correct: true },
+      { id: 'b', text: 'Второго: обе силы по одну сторону от опоры', correct: false },
+      { id: 'c', text: 'Качели — не рычаг, у них нет плеч', correct: false },
+    ],
+    right: 'Верно: ось качелей стоит между седоками — как винт у ножниц.',
+    wrong: 'Ось качелей — посередине, седоки давят с двух сторон от неё. Опора между силами — первый род, как у ножниц и лома.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 2',
+    text: 'Почему дверную ручку ставят как можно дальше от петель?',
+    options: [
+      { id: 'a', text: 'Чтобы было красивее и удобнее искать', correct: false },
+      { id: 'b', text: 'Чем дальше от оси вращения, тем больше плечо — и тем меньше нужна сила', correct: true },
+      { id: 'c', text: 'Чтобы дверь закрывалась быстрее', correct: false },
+    ],
+    right: 'Именно! Дверь — тоже рычаг с осью на петлях. Большое плечо — маленькая сила.',
+    wrong: 'Дверь вращается вокруг петель — это рычаг. Ручка дальше от оси — плечо больше, сила меньше. Попробуй открыть дверь, толкая её у самых петель!',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  scissors: () => `
+    <svg viewBox="0 0 260 170" xmlns="http://www.w3.org/2000/svg">
+      <g stroke-linecap="round">
+        <g>
+          <animateTransform attributeName="transform" type="rotate" values="-7 118 86; 6 118 86; -7 118 86" dur="2.4s" repeatCount="indefinite"/>
+          <path d="M36 44 L204 122" stroke="#8A8F9C" stroke-width="10"/>
+          <circle cx="222" cy="130" r="15" fill="none" stroke="#E5484D" stroke-width="8"/>
+        </g>
+        <g>
+          <animateTransform attributeName="transform" type="rotate" values="7 118 86; -6 118 86; 7 118 86" dur="2.4s" repeatCount="indefinite"/>
+          <path d="M36 128 L204 50" stroke="#9AA0AA" stroke-width="10"/>
+          <circle cx="222" cy="42" r="15" fill="none" stroke="#E5484D" stroke-width="8"/>
+        </g>
+      </g>
+      <circle cx="118" cy="86" r="8" fill="#6240FF"/>
+      <text x="118" y="64" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="15" fill="#6240FF">опора — винт</text>
+      <text x="40" y="90" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="14" fill="#6B7180">бумага</text>
+      <text x="222" y="90" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="14" fill="#6B7180">руки</text>
+    </svg>`,
+  barrow: () => `
+    <svg viewBox="0 0 260 170" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="140" width="260" height="7" rx="3.5" fill="#E3E6F2"/>
+      <g>
+        <animateTransform attributeName="transform" type="rotate" values="0 42 122; -4 42 122; 0 42 122" dur="2.6s" repeatCount="indefinite"/>
+        <!-- кузов с грузом -->
+        <path d="M52 66 L138 66 L126 104 L64 104 Z" fill="#2F80ED" stroke="#2361B6" stroke-width="3" stroke-linejoin="round"/>
+        <circle cx="82" cy="60" r="11" fill="#B6BCC9" stroke="#8F96A6" stroke-width="2.5"/>
+        <circle cx="106" cy="58" r="9" fill="#C9CEDA" stroke="#9AA0AA" stroke-width="2.5"/>
+        <!-- рама к ручкам -->
+        <path d="M42 122 L214 96" stroke="#8A8F9C" stroke-width="8" stroke-linecap="round"/>
+        <path d="M64 104 L42 122 M126 104 L152 105" stroke="#8A8F9C" stroke-width="6" stroke-linecap="round"/>
+        <!-- сила рук -->
+        <g stroke="#E5484D" stroke-width="4" stroke-linecap="round" fill="#E5484D">
+          <line x1="214" y1="66" x2="214" y2="86"/>
+          <path d="M214 58 l-7 11 h14 z"/>
+        </g>
+      </g>
+      <!-- колесо-опора -->
+      <circle cx="42" cy="126" r="16" fill="#5A5F6E"/>
+      <circle cx="42" cy="126" r="6" fill="#EEF0FF"/>
+      <text x="42" y="164" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="14" fill="#6240FF">опора — колесо</text>
+      <text x="95" y="34" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="14" fill="#6B7180">груз в середине</text>
+      <text x="214" y="40" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="14" fill="#E5484D">руки</text>
+    </svg>`,
+  arm: () => `
+    <div class="canvas-panel"><canvas id="armCanvas" height="300"></canvas></div>
+    <div class="slider-row">
+      <label for="armSlider">Масса гантели: <span id="massLbl">3</span> кг</label>
+      <input type="range" id="armSlider" min="1" max="8" step="1" value="3">
+    </div>
+    <div class="live-nums">
+      <div class="live-num">вес гантели<b id="numWeight">30 Н</b></div>
+      <div class="live-num biceps">сила бицепса<b id="numBiceps">210 Н</b></div>
+    </div>
+    <p class="canvas-hint" id="armHint">Подвигай слайдер и сравни вес гантели с силой бицепса</p>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'arm') {
+    const slider = ctx.root.querySelector('#armSlider');
+    const lbl = ctx.root.querySelector('#massLbl');
+    slider.addEventListener('input', () => { lbl.textContent = slider.value; });
+    startArm(ctx.root, ctx.done);
+  }
+}
+
+runLesson({
+  lessonId: 'around',
+  storageKey: 'lever-progress',
+  homeHref: '../demo/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

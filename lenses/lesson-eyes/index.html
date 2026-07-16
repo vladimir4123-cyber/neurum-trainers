@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Линзы вокруг: глаз и очки · Линзы</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👓</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .svg-panel{
+    width: 100%; max-width: 620px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 14px 10px;
+  }
+  .svg-panel svg{ width: 100%; height: auto; display: block; }
+  .canvas-hint{
+    margin: 14px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty; min-height: 24px;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+  .mini-actions{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  .mini-play-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border: 0; border-radius: var(--radius-md);
+    background: var(--fg-1); color: #fff; cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .mini-play-btn:hover{ background: #3a3a3f; }
+  .mini-play-btn:active{ transform: scale(0.96); }
+  .chip-btn{
+    padding: 12px 18px; border: 1px solid var(--purple-4); border-radius: var(--radius-md);
+    background: var(--white); color: var(--fg-2); cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .chip-btn:hover{ background: var(--purple-4); }
+  .chip-btn:active{ transform: scale(0.96); }
+  .chip-btn.is-on{ background: var(--fg-1); color: #fff; border-color: var(--fg-1); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ============================================================
+   ТЕМА 3 «Линзы вокруг: глаз и очки» (Пёрышкин §50).
+   Глаз = линза (хрусталик) + экран (сетчатка). Интерактив:
+   выбери дефект зрения и «надень очки» — фокус возвращается
+   на сетчатку, картинка становится чёткой.
+   ============================================================ */
+
+/* ---------- ИНТЕРАКТИВ «глаз и очки» ---------- */
+function startVision(root, done) {
+  const panel = root.querySelector('#visionPanel');
+  const hint = root.querySelector('#visionHint');
+  const glassesBtn = root.querySelector('#glassesBtn');
+  const chips = [...root.querySelectorAll('[data-defect]')];
+
+  let defect = 'myopia';        // norm | myopia | hyper
+  let glasses = false;
+  let fixedOnce = false;
+
+  const AX = 150;               // ось (y)
+  const LENS_X = 300, RETINA_X = 487, GL_X = 244;
+
+  /* фокус на оси в зависимости от состояния */
+  function focusX() {
+    if (defect === 'norm')  return glasses ? 527 : RETINA_X;   // лишние очки портят
+    if (defect === 'myopia') return glasses ? RETINA_X : 442;  // фокус был ПЕРЕД сетчаткой
+    return glasses ? RETINA_X : 534;                            // дальнозоркость: ЗА сетчаткой
+  }
+
+  function rayPath(y0) {
+    const fx = focusX();
+    // до очков / до хрусталика
+    let y1 = y0;
+    let seg = `M20 ${y0} `;
+    if (glasses) {
+      // рассеивающие разводят пучок, собирающие сводят
+      const k = defect === 'hyper' ? 0.86 : 1.16;   // myopia и norm — рассеивающие
+      y1 = AX + (y0 - AX) * k;
+      seg += `L${GL_X} ${y0} L${LENS_X} ${y1} `;
+    } else {
+      seg += `L${LENS_X} ${y1} `;
+    }
+    // после хрусталика: прямая через (fx, AX), до плоскости сетчатки
+    const yr = y1 + (AX - y1) * (RETINA_X - LENS_X) / (fx - LENS_X);
+    seg += `L${RETINA_X} ${yr}`;
+    return { seg, yr, fx };
+  }
+
+  function render() {
+    const fx = focusX();
+    const blur = Math.min(6, Math.abs(fx - RETINA_X) / 9);
+    const sharp = blur < 0.5;
+    const rays = [104, 150, 196].map(y => rayPath(y));
+    const glassesKind = defect === 'hyper' ? 'собирающие' : 'рассеивающие';
+
+    panel.innerHTML = `
+    <svg viewBox="0 0 560 300" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="visBlur" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="${blur.toFixed(2)}"/>
+        </filter>
+      </defs>
+      <!-- далёкая ёлка -->
+      <g>
+        <path d="M46 96 L28 132 L40 132 L22 168 L46 168 L46 96 Z M46 96 L64 132 L52 132 L70 168 L46 168 Z" fill="#30A46C"/>
+        <rect x="41" y="168" width="10" height="14" rx="2" fill="#8a5a30"/>
+        <text x="46" y="206" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="13" font-weight="500" fill="#6B7180">далёкий предмет</text>
+      </g>
+      <!-- глазное яблоко -->
+      <circle cx="390" cy="150" r="103" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="3"/>
+      <!-- сетчатка -->
+      <path d="M470 82 A 103 103 0 0 1 470 218" fill="none" stroke="#E5484D" stroke-width="5" stroke-linecap="round"/>
+      <text x="500" y="248" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="13" font-weight="500" fill="#E5484D">сетчатка</text>
+      <!-- лучи -->
+      <g stroke="#F0B23C" stroke-width="3" fill="none" stroke-linecap="round">
+        ${rays.map(r => `<path d="${r.seg}"/>`).join('')}
+      </g>
+      ${fx > RETINA_X + 4 ? `
+      <g stroke="#B4BAC8" stroke-width="2" stroke-dasharray="4 6" fill="none">
+        ${rays.map(r => `<line x1="${RETINA_X}" y1="${r.yr.toFixed(1)}" x2="${fx}" y2="150"/>`).join('')}
+      </g>
+      <circle cx="${fx}" cy="150" r="4.5" fill="none" stroke="#B4BAC8" stroke-width="2"/>` : ''}
+      ${fx < RETINA_X - 4 ? `<circle cx="${fx}" cy="150" r="4.5" fill="#F0B23C"/>` : ''}
+      <!-- хрусталик -->
+      <path d="M${LENS_X} 88 C ${LENS_X + 20} 118, ${LENS_X + 20} 182, ${LENS_X} 212 C ${LENS_X - 20} 182, ${LENS_X - 20} 118, ${LENS_X} 88 Z"
+            fill="#BFDCF9" stroke="#8FB4E8" stroke-width="3" stroke-linejoin="round"/>
+      <text x="${LENS_X}" y="76" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="13" font-weight="500" fill="#5D89C4">хрусталик</text>
+      <!-- очки -->
+      ${glasses ? `
+      <g>
+        ${defect === 'hyper'
+          ? `<path d="M${GL_X} 92 C ${GL_X + 14} 118, ${GL_X + 14} 182, ${GL_X} 208 C ${GL_X - 14} 182, ${GL_X - 14} 118, ${GL_X} 92 Z"
+                   fill="#EADFF8" stroke="#B69AE0" stroke-width="3" stroke-linejoin="round"/>`
+          : `<path d="M${GL_X} 92 C ${GL_X - 8} 118, ${GL_X - 8} 182, ${GL_X} 208 C ${GL_X + 5} 182, ${GL_X + 5} 118, ${GL_X} 92 Z
+                      M${GL_X} 92 C ${GL_X + 8} 102, ${GL_X + 11} 124, ${GL_X + 11} 150 C ${GL_X + 11} 176, ${GL_X + 8} 198, ${GL_X} 208
+                      M${GL_X} 92 C ${GL_X - 16} 102, ${GL_X - 19} 124, ${GL_X - 19} 150 C ${GL_X - 19} 176, ${GL_X - 16} 198, ${GL_X} 208"
+                   fill="#EADFF8" stroke="#B69AE0" stroke-width="3" stroke-linejoin="round"/>`}
+        <line x1="${GL_X - 6}" y1="94" x2="${GL_X - 34}" y2="86" stroke="#B69AE0" stroke-width="3" stroke-linecap="round"/>
+        <text x="${GL_X - 4}" y="232" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="13" font-weight="500" fill="#8F6BC9">${glassesKind}</text>
+      </g>` : ''}
+      <!-- картинка на сетчатке: перевёрнутая ёлочка -->
+      <g transform="translate(474,150) scale(1,-1)" filter="url(#visBlur)">
+        <path d="M0 -22 L-8 -6 L-4 -6 L-12 12 L12 12 L4 -6 L8 -6 Z" fill="#30A46C"/>
+        <rect x="-3" y="12" width="6" height="7" rx="1.5" fill="#8a5a30"/>
+      </g>
+      ${sharp ? `<text x="440" y="34" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="15" font-weight="500" fill="#07BE7E">чётко!</text>`
+              : `<text x="440" y="34" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="15" font-weight="500" fill="#B91C1B">размыто</text>`}
+    </svg>`;
+
+    const msgs = {
+      norm:   glasses ? 'Здоровому глазу очки только мешают: фокус уехал с сетчатки.' :
+                        'Здоровый глаз: хрусталик собирает лучи <b>точно на сетчатке</b>.',
+      myopia: glasses ? '<b>Рассеивающие</b> очки чуть развели лучи — фокус вернулся на сетчатку!' :
+                        'Близорукость: хрусталик слишком сильный, фокус <b>перед сетчаткой</b>. Вдаль видно размыто.',
+      hyper:  glasses ? '<b>Собирающие</b> очки помогли хрусталику — фокус на сетчатке!' :
+                        'Дальнозоркость: хрусталик слабоват, фокус <b>за сетчаткой</b>.',
+    };
+    hint.innerHTML = msgs[defect];
+    glassesBtn.textContent = glasses ? 'Снять очки' : '👓 Надеть очки';
+    chips.forEach(c => c.classList.toggle('is-on', c.dataset.defect === defect));
+
+    if (glasses && defect !== 'norm' && !fixedOnce) {
+      fixedOnce = true;
+      done();
+    }
+  }
+
+  chips.forEach(c => c.addEventListener('click', () => { defect = c.dataset.defect; render(); }));
+  glassesBtn.addEventListener('click', () => { glasses = !glasses; render(); });
+  render();
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'info', visual: 'eye', big: true,
+    title: 'Глаз — это линза с экраном',
+    text: 'Внутри глаза стоит живая собирающая линза — <b>хрусталик</b>. Он строит на задней стенке глаза — <b>сетчатке</b> — действительное, уменьшенное и <b>перевёрнутое</b> изображение мира. Да, картинка на сетчатке вверх ногами: переворачивает её обратно уже мозг.',
+  },
+  {
+    phase: 'theory', type: 'interact', id: 'vision', visual: 'vision',
+    title: 'Почини зрение очками',
+    text: 'У близорукого глаза фокус не дотягивает до сетчатки, у дальнозоркого — проскакивает за неё. Выбери дефект и подбери очки: какая линза вернёт фокус на место?',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'family', big: true,
+    title: 'Одно семейство приборов',
+    text: 'Фотоаппарат — та же схема: линза строит перевёрнутую картинку на матрице-«сетчатке». <b>Микроскоп</b> — линзы, придвинутые к мелкому предмету (как лупа, только в два этажа). <b>Телескоп</b> — линзы, собирающие свет далёких планет. Всюду работает одна и та же формула тонкой линзы.',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Два вопроса — и тема твоя.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 1',
+    text: 'У близорукого глаза лучи сходятся ПЕРЕД сетчаткой. Какие очки исправят зрение?',
+    options: [
+      { id: 'a', text: 'Собирающие — добавят линзе силы', correct: false },
+      { id: 'b', text: 'Рассеивающие — слегка разведут лучи, и фокус отъедет назад на сетчатку', correct: true },
+      { id: 'c', text: 'Любые: важно не стекло, а оправа', correct: false },
+    ],
+    right: 'Верно! Хрусталик близорукого и так слишком сильный — собирающие очки сделали бы только хуже. Нужны рассеивающие.',
+    wrong: 'Фокус и так слишком близко — собирать лучи ещё сильнее нельзя. Нужно чуть развести их рассеивающей линзой, чтобы фокус отъехал назад.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 2',
+    text: 'Что в глазу играет роль экрана, на котором получается изображение?',
+    options: [
+      { id: 'a', text: 'Зрачок', correct: false },
+      { id: 'b', text: 'Хрусталик', correct: false },
+      { id: 'c', text: 'Сетчатка', correct: true },
+    ],
+    right: 'Да! Хрусталик — линза, сетчатка — экран. Пара «линза + экран» повторяется и в фотоаппарате: объектив + матрица.',
+    wrong: 'Зрачок — «диафрагма», хрусталик — линза. А экран, куда падает изображение, — сетчатка на задней стенке глаза.',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  vision: () => `
+    <div class="svg-panel" id="visionPanel"></div>
+    <div class="mini-actions">
+      <button class="chip-btn" data-defect="norm">Нормальный глаз</button>
+      <button class="chip-btn is-on" data-defect="myopia">Близорукий</button>
+      <button class="chip-btn" data-defect="hyper">Дальнозоркий</button>
+      <button class="mini-play-btn" id="glassesBtn">👓 Надеть очки</button>
+    </div>
+    <p class="canvas-hint" id="visionHint"></p>`,
+  eye: () => `
+    <svg viewBox="0 0 460 240" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="300" cy="120" r="92" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="3"/>
+      <path d="M372 56 A 92 92 0 0 1 372 184" fill="none" stroke="#E5484D" stroke-width="5" stroke-linecap="round"/>
+      <path d="M222 66 C 240 92, 240 148, 222 174 C 204 148, 204 92, 222 66 Z"
+            fill="#BFDCF9" stroke="#8FB4E8" stroke-width="3" stroke-linejoin="round"/>
+      <!-- предмет: стрелка слева -->
+      <line x1="60" y1="120" x2="60" y2="70" stroke="#3E434C" stroke-width="4" stroke-linecap="round"/>
+      <path d="M60 62 L52 78 L68 78 Z" fill="#3E434C"/>
+      <!-- лучи: от вершины стрелки в хрусталик и на сетчатку (низ), от основания — по оси -->
+      <g stroke="#F0B23C" stroke-width="3" fill="none" stroke-linecap="round">
+        <path d="M60 66 L222 66 L378 141">
+          <animate attributeName="opacity" values=".45;1;.45" dur="2.6s" repeatCount="indefinite"/>
+        </path>
+        <path d="M60 66 L222 120 L378 141">
+          <animate attributeName="opacity" values=".45;1;.45" dur="2.6s" repeatCount="indefinite" begin=".6s"/>
+        </path>
+      </g>
+      <!-- перевёрнутая стрелочка на сетчатке -->
+      <g transform="translate(378,120)">
+        <line x1="0" y1="0" x2="0" y2="15" stroke="#3E434C" stroke-width="3.5" stroke-linecap="round"/>
+        <path d="M0 21 L-6 9 L6 9 Z" fill="#3E434C"/>
+      </g>
+      <g font-family="var(--font-display), sans-serif" font-size="14" font-weight="500">
+        <text x="222" y="196" text-anchor="middle" fill="#5D89C4">хрусталик — линза</text>
+        <text x="392" y="216" text-anchor="middle" fill="#E5484D">сетчатка — экран</text>
+        <text x="60" y="146" text-anchor="middle" fill="#6B7180">предмет</text>
+      </g>
+    </svg>`,
+  family: () => `
+    <svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg">
+      <!-- фотоаппарат -->
+      <g transform="translate(20,30)">
+        <rect x="20" y="30" width="150" height="96" rx="14" fill="#4B5060"/>
+        <rect x="20" y="30" width="150" height="20" rx="10" fill="#3A3F4D"/>
+        <circle cx="66" cy="80" r="30" fill="#2A2E38"/>
+        <circle cx="66" cy="80" r="21" fill="#BFDCF9" stroke="#8FB4E8" stroke-width="3"/>
+        <circle cx="60" cy="73" r="6" fill="#F4F8FE"/>
+        <g transform="translate(130,80)">
+          <line x1="0" y1="0" x2="0" y2="18" stroke="#F0B23C" stroke-width="3" stroke-linecap="round">
+            <animate attributeName="y2" values="18;14;18" dur="2s" repeatCount="indefinite"/>
+          </line>
+          <path d="M0 24 L-5 14 L5 14 Z" fill="#F0B23C"/>
+        </g>
+        <text x="95" y="152" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="15" font-weight="500" fill="#3E434C">фотоаппарат</text>
+      </g>
+      <!-- микроскоп -->
+      <g transform="translate(240,22)">
+        <rect x="40" y="118" width="90" height="12" rx="6" fill="#C9CEDA"/>
+        <rect x="76" y="96" width="46" height="10" rx="4" fill="#D9DDE7"/>
+        <rect x="86" y="24" width="22" height="72" rx="8" fill="#8B90A0" transform="rotate(18 97 60)"/>
+        <circle cx="112" cy="101" r="9" fill="#BFDCF9" stroke="#8FB4E8" stroke-width="2.5"/>
+        <circle cx="82" cy="12" r="10" fill="#BFDCF9" stroke="#8FB4E8" stroke-width="2.5"/>
+        <circle cx="112" cy="112" r="3" fill="#30A46C"/>
+        <circle cx="30" cy="40" r="17" fill="none" stroke="#30A46C" stroke-width="3">
+          <animate attributeName="r" values="14;18;14" dur="2.4s" repeatCount="indefinite"/>
+        </circle>
+        <text x="85" y="160" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="15" font-weight="500" fill="#3E434C">микроскоп</text>
+      </g>
+      <!-- телескоп -->
+      <g transform="translate(450,22)">
+        <rect x="20" y="52" width="120" height="30" rx="10" fill="#8B90A0" transform="rotate(-16 80 67)"/>
+        <rect x="128" y="16" width="18" height="26" rx="6" fill="#6B7180" transform="rotate(-16 137 29)"/>
+        <line x1="70" y1="84" x2="46" y2="140" stroke="#C9CEDA" stroke-width="6" stroke-linecap="round"/>
+        <line x1="70" y1="84" x2="96" y2="140" stroke="#C9CEDA" stroke-width="6" stroke-linecap="round"/>
+        <circle cx="160" cy="14" r="10" fill="#FFD769">
+          <animate attributeName="opacity" values="1;.55;1" dur="2s" repeatCount="indefinite"/>
+        </circle>
+        <text x="85" y="160" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="15" font-weight="500" fill="#3E434C">телескоп</text>
+      </g>
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'vision') startVision(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'eyes',
+  storageKey: 'lenses-progress',
+  homeHref: '../demo/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

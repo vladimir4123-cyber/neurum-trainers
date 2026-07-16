@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Масса тела · Рычажные весы</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 640px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel svg{ width: 100%; height: auto; display: block; }
+  .canvas-hint{ margin: 14px 0 0; text-align: center; font-size: 17px; color: var(--fg-2); text-wrap: pretty; }
+  .lab-btns{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 14px; }
+  .lab-btn{
+    font-family: var(--font-sans); font-size: 16px; font-weight: 500;
+    color: #fff; background: var(--fg-1); border: 0; border-radius: 12px;
+    padding: 12px 22px; cursor: pointer;
+    transition: transform 120ms var(--ease-standard), opacity 150ms var(--ease-standard);
+  }
+  .lab-btn:hover{ opacity: .88; }
+  .lab-btn:active{ transform: scale(0.96); }
+  .lab-btn:disabled{ opacity: .4; cursor: default; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* Плоский стиль: сплошные заливки, тонкие тёмные края (shade), без глоу */
+const shade = (hex, t) => {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.round((n >> 16) * (1 - t)),
+        g = Math.round(((n >> 8) & 255) * (1 - t)),
+        b = Math.round((n & 255) * (1 - t));
+  return `rgb(${r},${g},${b})`;
+};
+
+/* =================== ШАГИ ТЕМЫ =================== */
+const STEPS = [
+  {
+    phase: 'theory', type: 'info', visual: 'objects', big: true,
+    title: 'У каждого тела есть масса',
+    text: 'Арбуз, яблоко, монетка — у любого тела есть <b>масса</b>. Она показывает, сколько вещества в теле: в арбузе его в двадцать раз больше, чем в яблоке. Массу обозначают буквой <b>m</b>.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'inertia',
+    title: 'Масса — мера инертности',
+    text: 'Тела «не любят» менять скорость — это свойство называют <b>инертностью</b>. Чем больше масса, тем труднее тело разогнать или остановить. Поэтому говорят: <b>масса — мера инертности тела</b>.',
+  },
+  {
+    phase: 'theory', type: 'interact', id: 'carts', visual: 'carts',
+    title: 'Толкни тележки одинаково',
+    text: 'Обе тележки получат <b>одинаковый толчок</b>. Нажми кнопку и посмотри, какая разгонится сильнее — лёгкая или гружёная.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'units', big: true,
+    title: 'Граммы, килограммы, тонны',
+    text: 'Основная единица массы — <b>килограмм (кг)</b>. Мелкое измеряют в <b>граммах</b>: 1 кг = 1000 г. Тяжёлое — в <b>тоннах</b>: 1 т = 1000 кг. Скрепка — около 1 г, пакет сока — около 1 кг, автомобиль — около 1 т.',
+  },
+
+  { phase: 'check', type: 'splash', title: 'Проверь себя', text: 'Тему разобрали — закрепим. Три вопроса, и масса у тебя в кармане.' },
+
+  {
+    phase: 'check', type: 'question',
+    title: 'Масса — это мера…',
+    text: 'Каждая физическая величина что-то «измеряет». Что именно показывает масса тела?',
+    options: [
+      { id: 'a', text: 'Инертности тела',  correct: true  },
+      { id: 'b', text: 'Скорости тела',    correct: false },
+      { id: 'c', text: 'Размера тела',     correct: false },
+      { id: 'd', text: 'Температуры тела', correct: false },
+    ],
+    right: 'Именно! Чем больше масса, тем труднее изменить скорость тела — масса измеряет его инертность.',
+    wrong: 'Не совсем. Масса — мера инертности: чем она больше, тем труднее разогнать или остановить тело.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Кто разгонится сильнее?',
+    text: 'Пустую и гружёную тележки толкнули совершенно одинаково. Что произойдёт?',
+    options: [
+      { id: 'a', text: 'Сильнее разгонится пустая — её масса меньше',   correct: true  },
+      { id: 'b', text: 'Сильнее разгонится гружёная — она тяжелее',     correct: false },
+      { id: 'c', text: 'Обе разгонятся одинаково',                      correct: false },
+      { id: 'd', text: 'Гружёная поедет назад',                         correct: false },
+    ],
+    right: 'Верно! Толчок одинаковый, а масса разная: лёгкая тележка менее инертна и меняет скорость сильнее.',
+    wrong: 'Вспомни опыт с тележками: при одинаковом толчке сильнее разгоняется та, у которой масса меньше.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Переведи в килограммы',
+    text: 'Грузовик везёт 3 т картофеля. Сколько это килограммов?',
+    options: [
+      { id: 'a', text: '30 кг',      correct: false },
+      { id: 'b', text: '300 кг',     correct: false },
+      { id: 'c', text: '3000 кг',    correct: true  },
+      { id: 'd', text: '30 000 кг',  correct: false },
+    ],
+    right: 'Точно: 1 т = 1000 кг, значит 3 т = 3000 кг.',
+    wrong: 'В одной тонне 1000 кг. Значит 3 т = 3 × 1000 = 3000 кг.',
+  },
+];
+
+/* =================== ВИЗУАЛЫ =================== */
+const visuals = {
+  /* Арбуз и яблоко на платформах, подписи масс */
+  objects() {
+    return `
+      <svg viewBox="0 0 620 320" xmlns="http://www.w3.org/2000/svg">
+        <rect x="60" y="238" width="220" height="16" rx="8" fill="#C9CEDA"/>
+        <rect x="360" y="238" width="200" height="16" rx="8" fill="#C9CEDA"/>
+        <!-- арбуз -->
+        <g transform="translate(170 238)">
+          <circle cx="0" cy="-74" r="74" fill="#3A9D5D" stroke="${shade('#3A9D5D', .22)}" stroke-width="3"/>
+          <g stroke="${shade('#3A9D5D', .3)}" stroke-width="9" fill="none" opacity=".75">
+            <path d="M-46 -132 q10 58 0 116"/>
+            <path d="M0 -148 q6 74 0 148"/>
+            <path d="M46 -132 q-10 58 0 116"/>
+          </g>
+          <path d="M0 -148 q10 -14 22 -12" stroke="#7A5B3A" stroke-width="5" fill="none" stroke-linecap="round"/>
+          <animateTransform attributeName="transform" type="translate" values="170 238; 170 233; 170 238" dur="3.4s" repeatCount="indefinite"/>
+        </g>
+        <text x="170" y="292" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="26" fill="#6240FF">m = 5 кг</text>
+        <!-- яблоко -->
+        <g transform="translate(460 238)">
+          <circle cx="0" cy="-34" r="34" fill="#E5484D" stroke="${shade('#E5484D', .2)}" stroke-width="2.5"/>
+          <ellipse cx="-11" cy="-43" rx="7" ry="11" fill="#F08A8E"/>
+          <path d="M0 -66 q4 -12 2 -18" stroke="#7A5B3A" stroke-width="4" fill="none" stroke-linecap="round"/>
+          <path d="M2 -80 q16 -5 21 7 q-15 6 -21 -7 z" fill="#3A9D5D"/>
+          <animateTransform attributeName="transform" type="translate" values="460 238; 460 234; 460 238" dur="3.4s" begin=".9s" repeatCount="indefinite"/>
+        </g>
+        <text x="460" y="292" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="26" fill="#6240FF">m = 250 г</text>
+      </svg>`;
+  },
+
+  /* Инертность: одинаковая сила — разное изменение скорости */
+  inertia() {
+    const cart = (bw, bh, boxes) => `
+      <g>
+        ${boxes}
+        <rect x="${-bw/2}" y="${-18}" width="${bw}" height="18" rx="5" fill="#6240FF" stroke="#4A2FD9" stroke-width="2"/>
+        <circle cx="${-bw/2 + 13}" cy="6" r="9" fill="#2B2B33"/><circle cx="${-bw/2 + 13}" cy="6" r="3.5" fill="#C9CEDA"/>
+        <circle cx="${bw/2 - 13}" cy="6" r="9" fill="#2B2B33"/><circle cx="${bw/2 - 13}" cy="6" r="3.5" fill="#C9CEDA"/>
+      </g>`;
+    const arrow = (x, y, len, color, label) => `
+      <g>
+        <line x1="${x}" y1="${y}" x2="${x + len}" y2="${y}" stroke="${color}" stroke-width="6" stroke-linecap="round">
+          <animate attributeName="opacity" values="1;.45;1" dur="1.8s" repeatCount="indefinite"/>
+        </line>
+        <path d="M${x + len} ${y - 9} L${x + len + 16} ${y} L${x + len} ${y + 9} Z" fill="${color}">
+          <animate attributeName="opacity" values="1;.45;1" dur="1.8s" repeatCount="indefinite"/>
+        </path>
+        <text x="${x + len / 2 + 4}" y="${y - 16}" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="22" fill="${color}">${label}</text>
+      </g>`;
+    return `
+      <svg viewBox="0 0 620 330" xmlns="http://www.w3.org/2000/svg">
+        <line x1="30" y1="132" x2="590" y2="132" stroke="#C9CEDA" stroke-width="4" stroke-linecap="round"/>
+        <line x1="30" y1="290" x2="590" y2="290" stroke="#C9CEDA" stroke-width="4" stroke-linecap="round"/>
+        <g transform="translate(150 116)">${cart(96, 18, '')}</g>
+        ${arrow(60, 96, 44, '#E5484D', 'толчок')}
+        ${arrow(230, 96, 130, '#07BE7E', 'скорость большая')}
+        <g transform="translate(150 274)">${cart(120, 18, `
+          <rect x="-52" y="-66" width="104" height="48" rx="5" fill="#8A8F9C" stroke="${shade('#8A8F9C', .25)}" stroke-width="2"/>
+          <line x1="-52" y1="-42" x2="52" y2="-42" stroke="${shade('#8A8F9C', .2)}" stroke-width="2"/>
+        `)}</g>
+        ${arrow(48, 254, 44, '#E5484D', 'толчок')}
+        ${arrow(242, 254, 46, '#F5A623', 'скорость маленькая')}
+      </svg>`;
+  },
+
+  /* Интерактив: две тележки, одинаковый толчок */
+  carts() {
+    const cart = (id, label, boxes, bw) => `
+      <g id="${id}">
+        ${boxes}
+        <rect x="${-bw/2}" y="-20" width="${bw}" height="20" rx="5" fill="#6240FF" stroke="#4A2FD9" stroke-width="2"/>
+        <circle cx="${-bw/2 + 14}" cy="7" r="10" fill="#2B2B33"/><circle cx="${-bw/2 + 14}" cy="7" r="4" fill="#C9CEDA"/>
+        <circle cx="${bw/2 - 14}" cy="7" r="10" fill="#2B2B33"/><circle cx="${bw/2 - 14}" cy="7" r="4" fill="#C9CEDA"/>
+        <text x="0" y="34" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="20" fill="#6B7180">${label}</text>
+      </g>`;
+    return `
+      <div class="canvas-panel">
+        <svg viewBox="0 0 640 320" xmlns="http://www.w3.org/2000/svg" id="cartsSvg">
+          <line x1="20" y1="120" x2="620" y2="120" stroke="#C9CEDA" stroke-width="4" stroke-linecap="round"/>
+          <line x1="20" y1="270" x2="620" y2="270" stroke="#C9CEDA" stroke-width="4" stroke-linecap="round"/>
+          <g stroke="#DFE3EC" stroke-width="2">
+            ${[160, 280, 400, 520].map(x => `<line x1="${x}" y1="112" x2="${x}" y2="128"/><line x1="${x}" y1="262" x2="${x}" y2="278"/>`).join('')}
+          </g>
+          <g transform="translate(90 104)">${cart('lightCart', '1 кг', '', 88)}</g>
+          <g transform="translate(90 254)">${cart('heavyCart', '10 кг', `
+            <rect x="-50" y="-70" width="100" height="50" rx="5" fill="#8A8F9C" stroke="${shade('#8A8F9C', .25)}" stroke-width="2"/>
+            <line x1="-50" y1="-45" x2="50" y2="-45" stroke="${shade('#8A8F9C', .2)}" stroke-width="2"/>
+          `, 112)}</g>
+        </svg>
+      </div>
+      <div class="lab-btns"><button class="lab-btn" id="pushBtn">Толкнуть обе одинаково</button></div>
+      <p class="canvas-hint" id="cartsHint">Толчок один и тот же — а массы разные в 10 раз.</p>`;
+  },
+
+  /* Единицы: скрепка, пакет сока, автомобиль */
+  units() {
+    return `
+      <svg viewBox="0 0 620 320" xmlns="http://www.w3.org/2000/svg">
+        ${[110, 310, 510].map((x, i) => `
+          <rect x="${x - 88}" y="30" width="176" height="230" rx="18" fill="#fff" stroke="#DFE3EC" stroke-width="2"/>
+        `).join('')}
+        <!-- скрепка -->
+        <g transform="translate(110 130)">
+          <path d="M-14 -34 v52 a14 14 0 0 0 28 0 v-62 a22 22 0 0 0 -44 0 v66"
+                fill="none" stroke="#8A8F9C" stroke-width="6" stroke-linecap="round"/>
+          <animateTransform attributeName="transform" type="translate" values="110 130; 110 126; 110 130" dur="3s" repeatCount="indefinite"/>
+        </g>
+        <!-- пакет сока -->
+        <g transform="translate(310 128)">
+          <path d="M-34 -30 L-24 -52 L36 -52 L26 -30 Z" fill="#F5B93B" stroke="#C9941B" stroke-width="2.5"/>
+          <rect x="-34" y="-30" width="60" height="82" rx="4" fill="#F5B93B" stroke="#C9941B" stroke-width="2.5"/>
+          <circle cx="0" cy="8" r="17" fill="#E5484D"/>
+          <ellipse cx="-5" cy="2" rx="4.5" ry="6.5" fill="#F08A8E"/>
+          <animateTransform attributeName="transform" type="translate" values="310 128; 310 124; 310 128" dur="3s" begin=".6s" repeatCount="indefinite"/>
+        </g>
+        <!-- автомобиль -->
+        <g transform="translate(510 142)">
+          <path d="M-64 6 q0 -22 22 -22 l10 -18 q4 -8 14 -8 h22 q10 0 16 8 l14 18 q26 0 26 22 l0 8 h-124 z"
+                fill="#2F80ED" stroke="${shade('#2F80ED', .22)}" stroke-width="2.5"/>
+          <path d="M-26 -34 l-7 14 h20 v-14 z M-3 -34 v14 h26 l-11 -14 z" fill="#CFE6FF"/>
+          <circle cx="-36" cy="16" r="12" fill="#2B2B33"/><circle cx="-36" cy="16" r="5" fill="#C9CEDA"/>
+          <circle cx="38" cy="16" r="12" fill="#2B2B33"/><circle cx="38" cy="16" r="5" fill="#C9CEDA"/>
+          <animateTransform attributeName="transform" type="translate" values="510 142; 510 138; 510 142" dur="3s" begin="1.2s" repeatCount="indefinite"/>
+        </g>
+        ${[['1 г', 'скрепка', 110], ['1 кг', 'пакет сока', 310], ['1 т', 'автомобиль', 510]].map(d => `
+          <text x="${d[2]}" y="216" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="34" fill="#6240FF">${d[0]}</text>
+          <text x="${d[2]}" y="244" text-anchor="middle" font-family="var(--font-sans), sans-serif" font-weight="500" font-size="16" fill="#6B7180">${d[1]}</text>
+        `).join('')}
+        <text x="210" y="300" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="20" fill="#232323">× 1000</text>
+        <text x="410" y="300" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="20" fill="#232323">× 1000</text>
+      </svg>`;
+  },
+};
+
+/* =================== ЗАПУСК =================== */
+runLesson({
+  lessonId: 'mass',
+  storageKey: 'scales-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-device/',
+  steps: STEPS,
+  visuals,
+  onInteract(step, ctx) {
+    if (step.id !== 'carts') return;
+    const svg = document.getElementById('cartsSvg');
+    const light = svg.querySelector('#lightCart').parentNode;
+    const heavy = svg.querySelector('#heavyCart').parentNode;
+    const btn = document.getElementById('pushBtn');
+    const hint = document.getElementById('cartsHint');
+    let pushed = false, running = false;
+
+    btn.addEventListener('click', () => {
+      if (running) return;
+      running = true;
+      btn.disabled = true;
+      /* Честная физика: одинаковый импульс J, скорость v = J/m.
+         m: 1 кг и 10 кг → скорости отличаются в 10 раз, пробег — тоже. */
+      const J = 5;                       // условный импульс
+      let vL = J / 1, vH = J / 10;       // «м/с» в условных единицах
+      let xL = 0, xH = 0;
+      const PX = 96;                     // пикселей на условный метр пробега
+      let last = null;
+      function frame(ts) {
+        if (!svg.isConnected) return;
+        if (last === null) last = ts;
+        const dt = Math.min(0.05, (ts - last) / 1000);
+        last = ts;
+        xL += vL * dt; xH += vH * dt;
+        vL *= Math.exp(-1.1 * dt); vH *= Math.exp(-1.1 * dt);
+        light.setAttribute('transform', `translate(${90 + Math.min(470, xL * PX)} 104)`);
+        heavy.setAttribute('transform', `translate(${90 + Math.min(470, xH * PX)} 254)`);
+        if (vL > 0.02 || vH > 0.02) { requestAnimationFrame(frame); return; }
+        running = false;
+        btn.disabled = false;
+        btn.textContent = 'Ещё раз';
+        hint.textContent = 'Лёгкая укатилась в 10 раз дальше: масса меньше — инертность меньше.';
+        if (!pushed) { pushed = true; ctx.done(); }
+      }
+      // сброс на старт и поехали
+      light.setAttribute('transform', 'translate(90 104)');
+      heavy.setAttribute('transform', 'translate(90 254)');
+      requestAnimationFrame(frame);
+    });
+  },
+});
+</script>
+
+</body>
+</html>

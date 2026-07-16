@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Кто продавит? · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  /* дуэль двух сценок */
+  .duel{
+    display: flex; align-items: stretch; justify-content: center; gap: 12px;
+    width: 100%; max-width: 560px; margin: 0 auto;
+  }
+  .duel-card{
+    flex: 1; min-width: 0;
+    background: #fff; border-radius: var(--radius-xl);
+    box-shadow: 0 6px 20px rgba(24,12,34,.08);
+    padding: 16px 12px 14px; text-align: center;
+  }
+  .duel-emoji{ font-size: 44px; line-height: 1; }
+  .duel-kicker{
+    margin-top: 8px; font-size: 12px; font-weight: 500; color: var(--purple-1);
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .duel-name{
+    font-family: var(--font-display); font-weight: 500; font-size: 19px;
+    color: var(--fg-1); margin-top: 2px; text-wrap: balance;
+  }
+  .duel-data{
+    margin-top: 10px; font-size: 16.5px; line-height: 1.5; color: var(--fg-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .duel-data b{ color: var(--fg-1); font-weight: 500; }
+  .duel-data .unk{ color: var(--danger); font-weight: 500; }
+  .duel-vs{
+    align-self: center; flex: none;
+    font-family: var(--font-display); font-weight: 500; font-size: 15px;
+    color: var(--fg-3);
+  }
+  @media (max-width: 480px){
+    .duel{ flex-direction: column; }
+    .duel-vs{ align-self: center; }
+  }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Кто продавит?» — раунды-предсказания.
+   Две сценки (объект + опора, значения F и S) → у кого давление
+   больше? Всегда 4 варианта: первый / второй / одинаково /
+   не хватает данных. Иногда правильное — «не хватает данных»!
+   easy — сравнение на глаз (одинаковые F или S, круглые числа);
+   medium — честный расчёт p = F/S;
+   hard — обратные задачи (дано p) и ловушки единиц (см² vs м²).
+   ============================================================ */
+
+/* ===GEN=== чистый генератор (без DOM) — проверяется node-скриптом */
+const OBJ_LIGHT = [
+  { n: 'Ящик с книгами', e: '📦' },
+  { n: 'Бочка с водой', e: '🛢️' },
+  { n: 'Ледяная глыба', e: '🧊' },
+  { n: 'Валун', e: '🪨' },
+  { n: 'Тумбочка', e: '🗃️' },
+  { n: 'Цветочный горшок', e: '🪴' },
+];
+const OBJ_HEAVY = [
+  { n: 'Трактор', e: '🚜' },
+  { n: 'Автомобиль', e: '🚗' },
+  { n: 'Пианино', e: '🎹' },
+  { n: 'Станок', e: '⚙️' },
+  { n: 'Контейнер', e: '📦' },
+  { n: 'Сейф', e: '🧰' },
+];
+const S_LIGHT = [0.1, 0.2, 0.25, 0.5];
+const S_HEAVY = [0.5, 1, 2];
+const F_LIGHT = [100, 200, 300, 400, 500, 600, 800];
+const F_HEAVY = [1000, 2000, 3000, 4000, 5000, 8000];
+
+const pick = (arr, rnd) => arr[Math.floor(rnd() * arr.length)];
+const pick2 = (arr, rnd) => {         // два разных элемента
+  const i = Math.floor(rnd() * arr.length);
+  let j = Math.floor(rnd() * (arr.length - 1));
+  if (j >= i) j++;
+  return [arr[i], arr[j]];
+};
+const fmtS = s => String(s).replace('.', ',');
+const fmtP = p => Math.round(p).toLocaleString('ru-RU');
+const cmp = (p1, p2) => (Math.abs(p1 - p2) < 1e-9 ? 'eq' : p1 > p2 ? 'a' : 'b');
+
+/* раунд easy: на глаз — одинаковая сила или одинаковая площадь */
+function roundEasy(rnd) {
+  const light = rnd() < 0.6;
+  const objs = pick2(light ? OBJ_LIGHT : OBJ_HEAVY, rnd);
+  const Ss = light ? S_LIGHT : S_HEAVY;
+  const Fs = light ? F_LIGHT : F_HEAVY;
+  const kind = rnd();
+  if (kind < 0.4) {
+    /* одинаковая сила, разные площади */
+    const F = pick(Fs, rnd);
+    const [S1, S2] = pick2(Ss, rnd);
+    const p1 = F / S1, p2 = F / S2;
+    return {
+      a: { obj: objs[0], F, S: S1 }, b: { obj: objs[1], F, S: S2 },
+      correct: cmp(p1, p2),
+      explain: `Сила одинаковая (${F} Н), а площадь меньше у ${p1 > p2 ? 'первого' : 'второго'} (${fmtS(Math.min(S1, S2))} м² против ${fmtS(Math.max(S1, S2))} м²). Меньше площадь — больше давление: ${fmtP(Math.max(p1, p2))} Па против ${fmtP(Math.min(p1, p2))} Па.`,
+    };
+  }
+  if (kind < 0.75) {
+    /* одинаковая площадь, разные силы */
+    const S = pick(Ss, rnd);
+    const [F1, F2] = pick2(Fs, rnd);
+    const p1 = F1 / S, p2 = F2 / S;
+    return {
+      a: { obj: objs[0], F: F1, S }, b: { obj: objs[1], F: F2, S },
+      correct: cmp(p1, p2),
+      explain: `Площадь одинаковая (${fmtS(S)} м²), а сила больше у ${p1 > p2 ? 'первого' : 'второго'} (${Math.max(F1, F2)} Н против ${Math.min(F1, F2)} Н). Больше сила — больше давление: ${fmtP(Math.max(p1, p2))} Па против ${fmtP(Math.min(p1, p2))} Па.`,
+    };
+  }
+  /* одинаковое давление: F и S больше в одно и то же число раз */
+  const F1 = pick([100, 200, 300, 400], rnd);
+  const S1 = pick([0.1, 0.2, 0.5], rnd);
+  const k = pick([2, 5, 10], rnd);
+  const F2 = F1 * k, S2 = S1 * k;
+  const p = F1 / S1;
+  return {
+    a: { obj: objs[0], F: F1, S: S1 }, b: { obj: objs[1], F: F2, S: S2 },
+    correct: 'eq',
+    explain: `Ловушка на глазомер: у второго и сила, и площадь больше в ${k} раз. ${F1}/${fmtS(S1)} = ${fmtP(p)} Па и ${F2}/${fmtS(S2)} = ${fmtP(F2 / S2)} Па — давление одинаковое.`,
+  };
+}
+
+/* раунд medium: посчитать p = F/S */
+function roundMedium(rnd) {
+  const light = rnd() < 0.5;
+  const objs = pick2(light ? OBJ_LIGHT : OBJ_HEAVY, rnd);
+  const Ss = light ? S_LIGHT : S_HEAVY;
+  const Fs = light ? F_LIGHT : F_HEAVY;
+  const S1 = pick(Ss, rnd), S2 = pick(Ss, rnd);
+  let F1 = pick(Fs, rnd), F2 = pick(Fs, rnd);
+  /* изредка подстроим равенство давлений */
+  if (rnd() < 0.2) F2 = (F1 / S1) * S2;
+  const p1 = F1 / S1, p2 = F2 / S2;
+  const c = cmp(p1, p2);
+  const verdict = c === 'eq'
+    ? 'давление одинаковое!'
+    : `больше у ${c === 'a' ? 'первого' : 'второго'}.`;
+  return {
+    a: { obj: objs[0], F: F1, S: S1 }, b: { obj: objs[1], F: F2, S: S2 },
+    correct: c,
+    explain: `Считаем: p₁ = ${F1}/${fmtS(S1)} = ${fmtP(p1)} Па, p₂ = ${F2}/${fmtS(S2)} = ${fmtP(p2)} Па — ${verdict}`,
+  };
+}
+
+/* раунд-ловушка: площадь одного объекта неизвестна */
+function roundNoData(rnd) {
+  const objs = pick2(OBJ_LIGHT, rnd);
+  const F1 = pick(F_LIGHT, rnd), S1 = pick(S_LIGHT, rnd);
+  const F2 = pick(F_LIGHT, rnd);
+  return {
+    a: { obj: objs[0], F: F1, S: S1 }, b: { obj: objs[1], F: F2, S: null },
+    correct: 'na',
+    explain: `У второго известна только сила. Без площади давление не посчитать: даже огромная сила на большой площади может давать маленькое давление. Данных не хватает.`,
+  };
+}
+
+/* раунд hard: ловушка единиц — площадь второго в см² */
+function roundUnits(rnd) {
+  const objs = pick2(OBJ_LIGHT, rnd);
+  const F1 = pick(F_LIGHT, rnd), S1 = pick(S_LIGHT, rnd);
+  const F2 = pick(F_LIGHT, rnd);
+  const S2m = pick([0.02, 0.05, 0.1, 0.2], rnd);   // м²
+  const S2cm = Math.round(S2m * 10000);             // см²
+  const p1 = F1 / S1, p2 = F2 / S2m;
+  const c = cmp(p1, p2);
+  return {
+    a: { obj: objs[0], F: F1, S: S1 },
+    b: { obj: objs[1], F: F2, S: S2m, sLabel: `${S2cm.toLocaleString('ru-RU')} см²` },
+    correct: c,
+    explain: `Сначала единицы: ${S2cm.toLocaleString('ru-RU')} см² = ${fmtS(S2m)} м² (в 1 м² — 10 000 см²). Теперь честно: p₁ = ${F1}/${fmtS(S1)} = ${fmtP(p1)} Па, p₂ = ${F2}/${fmtS(S2m)} = ${fmtP(p2)} Па — ${c === 'eq' ? 'одинаково!' : `больше у ${c === 'a' ? 'первого' : 'второго'}.`}`,
+  };
+}
+
+/* раунд hard: обратная задача — у первого дано сразу давление */
+function roundInverse(rnd) {
+  const objs = pick2(OBJ_HEAVY, rnd);
+  const pKpa = pick([2, 5, 10, 20, 40], rnd);       // кПа
+  const p1 = pKpa * 1000;
+  const S2 = pick(S_HEAVY, rnd);
+  const F2 = pick(F_HEAVY, rnd);
+  const p2 = F2 / S2;
+  const c = cmp(p1, p2);
+  return {
+    a: { obj: objs[0], pLabel: `${pKpa} кПа` },
+    b: { obj: objs[1], F: F2, S: S2 },
+    correct: c,
+    explain: `У первого давление дано сразу: ${pKpa} кПа = ${fmtP(p1)} Па. У второго считаем: p₂ = ${F2}/${fmtS(S2)} = ${fmtP(p2)} Па. ${c === 'eq' ? 'Одинаково!' : `Больше у ${c === 'a' ? 'первого' : 'второго'}.`}`,
+  };
+}
+
+/* сборка раундов уровня */
+function makeRounds(level, rnd) {
+  const rounds = [];
+  if (level === 'easy') {
+    for (let i = 0; i < 4; i++) rounds.push(roundEasy(rnd));
+  } else if (level === 'medium') {
+    for (let i = 0; i < 4; i++) rounds.push(roundMedium(rnd));
+    rounds.push(roundNoData(rnd));
+  } else {
+    rounds.push(roundUnits(rnd));
+    rounds.push(roundUnits(rnd));
+    rounds.push(roundInverse(rnd));
+    rounds.push(roundInverse(rnd));
+    rounds.push(roundNoData(rnd));
+  }
+  /* перемешать */
+  for (let i = rounds.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [rounds[i], rounds[j]] = [rounds[j], rounds[i]];
+  }
+  return rounds;
+}
+/* ===ENDGEN=== */
+
+/* ---------- сцена раунда ---------- */
+function cardHTML(side, who, label) {
+  const rows = [];
+  if (who.pLabel) rows.push(`давление <b>p = ${who.pLabel}</b>`);
+  if (typeof who.F === 'number') rows.push(`сила <b>F = ${who.F.toLocaleString('ru-RU')} Н</b>`);
+  if (who.sLabel) rows.push(`опора <b>S = ${who.sLabel}</b>`);
+  else if (typeof who.S === 'number' && who.S !== null) rows.push(`опора <b>S = ${fmtS(who.S)} м²</b>`);
+  else if (!who.pLabel) rows.push(`опора <span class="unk">S — неизвестна</span>`);
+  return `
+    <div class="duel-card">
+      <div class="duel-emoji">${who.obj.e}</div>
+      <div class="duel-kicker">${label}</div>
+      <div class="duel-name">${who.obj.n}</div>
+      <div class="duel-data">${rows.join('<br>')}</div>
+    </div>`;
+}
+function renderDuel(host, round) {
+  host.innerHTML = `
+    <div class="duel">
+      ${cardHTML('a', round.a, 'Первый')}
+      <span class="duel-vs">против</span>
+      ${cardHTML('b', round.b, 'Второй')}
+    </div>`;
+}
+
+/* ---------- сборка шагов ---------- */
+function buildSteps(level, rnd) {
+  const rounds = makeRounds(level, rnd);
+  return rounds.map((round, i) => ({
+    type: 'choice',
+    title: `Раунд ${i + 1} из ${rounds.length}`,
+    text: 'Кто создаёт большее давление на опору?',
+    render: host => renderDuel(host, round),
+    options: [
+      { text: `Первый — ${round.a.obj.n.toLowerCase()}`, correct: round.correct === 'a' },
+      { text: `Второй — ${round.b.obj.n.toLowerCase()}`, correct: round.correct === 'b' },
+      { text: 'Давление одинаковое', correct: round.correct === 'eq' },
+      { text: '🤷 Не хватает данных', correct: round.correct === 'na' },
+    ],
+    right: '✓ ' + round.explain,
+    wrong: round.explain,
+  }));
+}
+
+runPractice({
+  practiceId: 'compare',
+  storageKey: 'pressure-progress',
+  homeHref: '../demo/',
+  title: 'Кто продавит?',
+  subtitle: 'Две сценки — у каждой своя сила и своя опора. Предскажи, где давление больше. Иногда честный ответ — «не хватает данных»!',
+  levels: {
+    easy:   { label: 'Новичок',  desc: 'Четыре раунда на глазомер: круглые числа, одинаковые силы или площади.', xp: 40 },
+    medium: { label: 'Практик',  desc: 'Пять раундов с расчётом p = F/S. И один раунд — обманка.', xp: 50 },
+    hard:   { label: 'Эксперт',  desc: 'Обратные задачи и ловушки единиц: см² маскируются под м².', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

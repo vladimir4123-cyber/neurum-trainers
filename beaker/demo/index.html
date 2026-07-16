@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Мензурка · Урок для класса</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧪</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@48,500,1&display=block">
+<style>
+  *{ box-sizing: border-box; }
+  body{
+    margin: 0; font-family: var(--font-sans);
+    background: var(--white); color: var(--fg-1);
+    min-height: 100vh; -webkit-font-smoothing: antialiased;
+  }
+  .ms{ font-family: 'Material Symbols Rounded'; font-variation-settings: 'FILL' 1, 'wght' 500; line-height: 1; }
+
+  /* ============ TOP BAR (sticky) ============ */
+  .topbar{
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    max-width: 1120px; margin: 0 auto; padding: 18px 24px;
+    background: var(--white);
+  }
+  .home-link{
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 16px; border-radius: 9999px;
+    background: var(--white); color: var(--fg-1);
+    text-decoration: none; font-weight: 500; font-size: 14px;
+    box-shadow: 0 1px 2px rgba(35,35,35,.05), 0 4px 12px rgba(35,35,35,.06), inset 0 0 0 1px rgba(35,35,35,.05);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .home-link:hover{ background: var(--purple-3); }
+  .home-link:active{ transform: scale(0.96); }
+
+  /* Поделиться */
+  .share-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: 9999px;
+    background: var(--purple-1); color: #fff;
+    border: 0; cursor: pointer;
+    font-family: var(--font-sans); font-weight: 500; font-size: 14px;
+    box-shadow: 0 4px 12px rgba(101,31,255,.28);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .share-btn .ms{ font-size: 18px; }
+  .share-btn:hover{ background: var(--purple-2); }
+  .share-btn:active{ transform: scale(0.96); }
+  .share-toast{
+    position: fixed; left: 50%; bottom: 24px;
+    transform: translateX(-50%) translateY(20px);
+    padding: 12px 20px; border-radius: 12px;
+    background: var(--fg-1); color: #fff;
+    font-family: var(--font-sans); font-weight: 500; font-size: 15px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.2);
+    opacity: 0; pointer-events: none; z-index: 100;
+    transition: opacity 200ms var(--ease-standard), transform 200ms var(--ease-standard);
+  }
+  .share-toast.is-open{ opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  main.kit{ max-width: 1120px; margin: 0 auto; padding: 0 24px 120px; }
+
+  /* ============ HERO (шапка на всю ширину) ============ */
+  .hero{
+    width: 100%;
+    background: var(--white);
+    box-shadow: 0 4px 16px rgba(0,0,0,.06);
+  }
+  .hero-inner{
+    max-width: 1120px; margin: 0 auto;
+    padding: 32px 24px;
+    display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 32px; align-items: stretch;
+  }
+  @media (max-width: 860px){ .hero-inner{ grid-template-columns: 1fr; gap: 22px; padding: 24px; } }
+  .hero-preview{
+    width: 100%; aspect-ratio: 4 / 3;
+    border-radius: var(--radius-2xl); overflow: hidden;
+    background: linear-gradient(180deg, #EEF0FF, #FBF8FF);
+    display: grid; place-items: center; padding: 28px;
+  }
+  .hero-preview img{ max-width: 100%; max-height: 100%; object-fit: contain; }
+  .hero-body{ display: flex; flex-direction: column; padding: 12px 0; }
+  .hero h1{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(28px, 3.4vw, 40px); line-height: 1.05;
+    letter-spacing: -0.02em; margin: 0 0 12px; text-wrap: balance;
+  }
+  .hero-value{
+    font-size: var(--t-base); line-height: var(--lh-base); color: var(--fg-2);
+    margin: 0 0 18px; text-wrap: pretty;
+  }
+  .hero-meta{
+    display: flex; flex-wrap: wrap; gap: 18px; margin: 0 0 22px;
+  }
+  .hero-meta .meta-item{ display: inline-flex; align-items: center; gap: 7px; color: var(--fg-2); font-size: 14px; font-weight: 500; }
+  .hero-meta .meta-item .ms{ font-size: 19px; color: var(--purple-1); }
+  .hero-cta{ display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: auto; }
+  .btn-primary{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 14px 32px;
+    border-radius: var(--radius-md);
+    background: var(--purple-1);
+    color: var(--white); text-decoration: none;
+    font-family: var(--font-sans); font-weight: 500; font-size: 16px;
+    box-shadow: var(--shadow-purple);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .btn-primary .ms{ font-size: 20px; }
+  .btn-primary:hover{ background: var(--purple-2); }
+  .btn-primary:active{ transform: scale(0.96); }
+
+  /* ============ SECTIONS ============ */
+  .sec{ margin-top: 52px; }
+  .sec-head{ margin-bottom: 20px; }
+  .sec-head h2{
+    margin: 0;
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(24px, 3.4vw, 32px); letter-spacing: -0.02em;
+  }
+
+  /* ============ КРУПНАЯ КАРТОЧКА ТЕМЫ ============ */
+  .topic-grid{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  @media (max-width: 780px){ .topic-grid{ grid-template-columns: 1fr; } }
+  .topic{
+    display: grid; grid-template-columns: 168px 1fr; gap: 20px; align-items: center;
+    padding: 22px; border-radius: var(--radius-2xl);
+    background: var(--white); text-decoration: none; color: var(--fg-1);
+    border: 1px solid var(--purple-4);
+    box-shadow: none;
+    transition: transform 160ms var(--ease-standard), box-shadow 160ms var(--ease-standard);
+  }
+  .topic:hover{
+    transform: translateY(-4px);
+    box-shadow: 0 8px 28px rgba(0,0,0,.12);
+  }
+  .topic:active{ transform: translateY(-1px) scale(0.99); }
+  @media (max-width: 520px){
+    .topic{ grid-template-columns: 1fr; padding: 20px; }
+    .topic__illus{ order: -1; }
+  }
+  .topic__illus{
+    width: 168px; height: 138px; border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    display: grid; place-items: center; overflow: hidden;
+    padding: 12px;
+  }
+  .topic__illus svg{ width: 100%; height: 100%; display: block; }
+  .topic__body{ display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .topic__step{
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 500; color: var(--purple-1);
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .topic__title{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: 22px; line-height: 1.15; letter-spacing: -0.01em; margin: 0;
+    text-wrap: balance;
+  }
+  .topic__desc{ margin: 0; color: var(--fg-2); font-size: 15px; line-height: 1.4; text-wrap: pretty; }
+
+  /* ============ КРУПНАЯ КАРТОЧКА ПРАКТИКИ ============ */
+  .practice-grid{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  @media (max-width: 600px){ .practice-grid{ grid-template-columns: 1fr; } }
+  .practice{
+    display: flex; flex-direction: column; gap: 14px;
+    padding: 20px; border-radius: var(--radius-2xl);
+    background: var(--white); text-decoration: none; color: var(--fg-1);
+    border: 1px solid var(--purple-4);
+    box-shadow: none;
+    transition: transform 160ms var(--ease-standard), box-shadow 160ms var(--ease-standard);
+  }
+  .practice:hover{
+    transform: translateY(-4px);
+    box-shadow: 0 8px 28px rgba(0,0,0,.12);
+  }
+  .practice__illus{
+    width: 100%; height: 200px;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    display: grid; place-items: center; overflow: hidden;
+    padding: 10px;
+  }
+  .practice__illus svg{ width: 100%; height: 100%; display: block; }
+  .practice__top{
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .practice__kind{
+    font-size: 12px; font-weight: 500; color: var(--fg-3);
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .practice__xp{
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 13px; font-weight: 500; color: var(--purple-1);
+    background: var(--purple-4); padding: 5px 10px; border-radius: 9999px;
+  }
+  .practice__xp .ms{ font-size: 15px; }
+  .practice__title{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: 20px; line-height: 1.15; letter-spacing: -0.01em; margin: 0;
+    text-wrap: balance;
+  }
+  .practice__desc{ margin: 0; color: var(--fg-2); font-size: 15px; line-height: 1.4; text-wrap: pretty; flex: 1; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="home-link" href="../../">← Все тренажёры</a>
+  <button class="share-btn" id="shareBtn">
+    <span class="ms">share</span>
+    Поделиться с учениками
+  </button>
+</div>
+<div class="share-toast" id="shareToast">Ссылка скопирована</div>
+
+<!-- ============ HERO (на всю ширину) ============ -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-preview">
+      <img src="../../assets/images/trainers/beaker.svg" alt="Мензурка">
+    </div>
+    <div class="hero-body">
+      <h1>Мензурка</h1>
+      <p class="hero-value">Готовый интерактивный урок для 7 класса по §2 Пёрышкина. Покажите классу, что такое объём и цена деления, научите правильно считывать уровень жидкости — а ученики сами проведут знаменитую лабораторную №1 и измерят объём камешка методом вытеснения.</p>
+      <div class="hero-meta" id="heroMeta"></div>
+      <div class="hero-cta">
+        <a class="btn-primary" id="startBtn" href="../lesson-volume/"><span class="ms">play_arrow</span> Провести урок</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<main class="kit">
+
+  <!-- ============ ТЕМЫ УРОКА ============ -->
+  <section class="sec">
+    <div class="sec-head">
+      <h2>Темы урока</h2>
+    </div>
+    <div class="topic-grid" id="topicGrid"></div>
+  </section>
+
+  <!-- ============ ПРАКТИКА ДЛЯ УЧЕНИКОВ ============ -->
+  <section class="sec">
+    <div class="sec-head">
+      <h2>Практика для учеников</h2>
+    </div>
+    <div class="practice-grid" id="practiceGrid"></div>
+  </section>
+
+</main>
+
+<script type="module">
+
+/* Анимированные inline-SVG иллюстрации карточек (светлая палитра, плоский стиль) */
+const ILLUS = {
+  // Тема 1: объём — кубик переливается в мензурку, уровень растёт
+  volume: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <!-- кубик с жидкостью -->
+      <rect x="14" y="52" width="44" height="44" rx="5" fill="#fff" stroke="#C9CEDA" stroke-width="2.5"/>
+      <rect x="17" y="70" width="38" height="23" rx="3" fill="#BFDCF9">
+        <animate attributeName="height" values="23;6;23" dur="4s" repeatCount="indefinite"/>
+        <animate attributeName="y" values="70;87;70" dur="4s" repeatCount="indefinite"/>
+      </rect>
+      <text x="36" y="114" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="12" fill="#6B7180">см³</text>
+      <!-- стрелка -->
+      <path d="M66 74 H88 M82 67 L90 74 L82 81" fill="none" stroke="#6240FF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <!-- мензурка -->
+      <path d="M104 26 L104 96 Q104 106 114 106 L134 106 Q144 106 144 96 L144 26" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="2.5"/>
+      <rect x="106" y="76" width="36" height="28" rx="4" fill="#BFDCF9">
+        <animate attributeName="height" values="28;46;28" dur="4s" repeatCount="indefinite"/>
+        <animate attributeName="y" values="76;58;76" dur="4s" repeatCount="indefinite"/>
+      </rect>
+      <g stroke="#5D6472" stroke-width="1.8" stroke-linecap="round">
+        <line x1="107" y1="92" x2="117" y2="92"/><line x1="107" y1="76" x2="113" y2="76"/>
+        <line x1="107" y1="60" x2="117" y2="60"/><line x1="107" y1="44" x2="113" y2="44"/>
+      </g>
+      <text x="124" y="120" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="12" fill="#6B7180">мл</text>
+    </svg>`,
+  // Тема 2: цена деления — фрагмент шкалы + формула
+  price: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <rect x="20" y="26" width="120" height="52" rx="10" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="2"/>
+      <g stroke="#2B2B33" stroke-width="2.4" stroke-linecap="round">
+        <line x1="36" y1="38" x2="36" y2="66"/>
+        <line x1="58" y1="46" x2="58" y2="66"/>
+        <line x1="80" y1="46" x2="80" y2="66"/>
+        <line x1="102" y1="46" x2="102" y2="66"/>
+        <line x1="124" y1="38" x2="124" y2="66"/>
+      </g>
+      <circle cx="80" cy="32" r="5" fill="#6240FF"><animate attributeName="cx" values="36;124;36" dur="4s" repeatCount="indefinite"/></circle>
+      <text x="36" y="94" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="13" fill="#2B2B33">20</text>
+      <text x="124" y="94" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="13" fill="#2B2B33">40</text>
+      <text x="80" y="118" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="14" fill="#6240FF">(40 − 20) : 4 = 5 мл</text>
+    </svg>`,
+  // Тема 3: уровень глаз — мензурка + глаз ездит вверх-вниз, луч к мениску
+  level: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <path d="M36 18 L36 100 Q36 110 46 110 L66 110 Q76 110 76 100 L76 18" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="2.5"/>
+      <path d="M38 62 Q56 68 74 62 L74 100 Q74 108 66 108 L46 108 Q38 108 38 100 Z" fill="#BFDCF9"/>
+      <path d="M38 62 Q56 68 74 62" fill="none" stroke="#5D9BE0" stroke-width="2.4"/>
+      <g stroke="#5D6472" stroke-width="1.8" stroke-linecap="round">
+        <line x1="40" y1="94" x2="50" y2="94"/><line x1="40" y1="78" x2="46" y2="78"/>
+        <line x1="40" y1="62" x2="50" y2="62"/><line x1="40" y1="46" x2="46" y2="46"/>
+        <line x1="40" y1="30" x2="50" y2="30"/>
+      </g>
+      <!-- луч взгляда -->
+      <line x1="76" y1="65" x2="118" y2="65" stroke="#6240FF" stroke-width="2" stroke-dasharray="4 4">
+        <animate attributeName="y2" values="30;100;65;65" keyTimes="0;.4;.7;1" dur="4s" repeatCount="indefinite"/>
+      </line>
+      <!-- глаз -->
+      <g>
+        <animateTransform attributeName="transform" type="translate" values="0 -35; 0 35; 0 0; 0 0" keyTimes="0;.4;.7;1" dur="4s" repeatCount="indefinite"/>
+        <path d="M112 65 Q126 51 140 65 Q126 79 112 65 Z" fill="#fff" stroke="#2B2B33" stroke-width="2.4"/>
+        <circle cx="126" cy="65" r="6" fill="#2F80ED"/>
+        <circle cx="126" cy="65" r="2.6" fill="#2B2B33"/>
+      </g>
+    </svg>`,
+  // Практика: лабораторная №1 — планшет-протокол + мензурка, галочки по очереди
+  lab1: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <rect x="16" y="16" width="76" height="98" rx="10" fill="#FFFDF5" stroke="#C9CEDA" stroke-width="2.5"/>
+      <rect x="40" y="10" width="28" height="12" rx="4" fill="#2B2B33"/>
+      <g>
+        <circle cx="34" cy="44" r="8" fill="none" stroke="#6240FF" stroke-width="2.4"/>
+        <path d="M30 44 l3 3 l6 -7" fill="none" stroke="#07BE7E" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><animate attributeName="opacity" values="0;0;1;1" dur="2.7s" repeatCount="indefinite"/></path>
+        <line x1="48" y1="44" x2="80" y2="44" stroke="#D6D9E4" stroke-width="4" stroke-linecap="round"/>
+      </g>
+      <g>
+        <circle cx="34" cy="68" r="8" fill="none" stroke="#6240FF" stroke-width="2.4"/>
+        <path d="M30 68 l3 3 l6 -7" fill="none" stroke="#07BE7E" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><animate attributeName="opacity" values="0;0;1;1" dur="2.7s" begin=".5s" repeatCount="indefinite"/></path>
+        <line x1="48" y1="68" x2="80" y2="68" stroke="#D6D9E4" stroke-width="4" stroke-linecap="round"/>
+      </g>
+      <g>
+        <circle cx="34" cy="92" r="8" fill="none" stroke="#6240FF" stroke-width="2.4"/>
+        <path d="M30 92 l3 3 l6 -7" fill="none" stroke="#07BE7E" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><animate attributeName="opacity" values="0;0;1;1" dur="2.7s" begin="1s" repeatCount="indefinite"/></path>
+        <line x1="48" y1="92" x2="80" y2="92" stroke="#D6D9E4" stroke-width="4" stroke-linecap="round"/>
+      </g>
+      <!-- мензурка рядом -->
+      <path d="M106 26 L106 100 Q106 110 116 110 L134 110 Q144 110 144 100 L144 26" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="2.5"/>
+      <path d="M108 58 Q125 63 142 58 L142 100 Q142 108 134 108 L116 108 Q108 108 108 100 Z" fill="#BFDCF9"/>
+      <g stroke="#5D6472" stroke-width="1.8" stroke-linecap="round">
+        <line x1="110" y1="94" x2="120" y2="94"/><line x1="110" y1="76" x2="116" y2="76"/>
+        <line x1="110" y1="58" x2="120" y2="58"/><line x1="110" y1="40" x2="116" y2="40"/>
+      </g>
+    </svg>`,
+  // Практика: камешек — падает в мензурку, уровень подскакивает
+  stone: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <path d="M56 18 L56 100 Q56 112 68 112 L92 112 Q104 112 104 100 L104 18" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="2.5"/>
+      <!-- жидкость: уровень подскакивает, когда камень внутри -->
+      <rect x="58" y="66" width="44" height="44" rx="5" fill="#BFDCF9">
+        <animate attributeName="y" values="66;66;52;52;66" keyTimes="0;.32;.42;.9;1" dur="4.5s" repeatCount="indefinite"/>
+        <animate attributeName="height" values="44;44;58;58;44" keyTimes="0;.32;.42;.9;1" dur="4.5s" repeatCount="indefinite"/>
+      </rect>
+      <g stroke="#5D6472" stroke-width="1.8" stroke-linecap="round">
+        <line x1="60" y1="96" x2="70" y2="96"/><line x1="60" y1="80" x2="66" y2="80"/>
+        <line x1="60" y1="66" x2="70" y2="66"/><line x1="60" y1="52" x2="66" y2="52"/>
+        <line x1="60" y1="38" x2="70" y2="38"/>
+      </g>
+      <!-- камешек падает -->
+      <path d="M-9 -6 Q0 -13 9 -6 Q13 2 7 7 Q-2 11 -8 5 Q-12 -1 -9 -6 Z" fill="#9AA0AC" stroke="#6E737E" stroke-width="1.6">
+        <animateTransform attributeName="transform" type="translate" values="80 -12; 80 -12; 80 96; 80 96" keyTimes="0;.28;.42;1" dur="4.5s" repeatCount="indefinite"/>
+      </path>
+      <!-- подписи V1 / V2 -->
+      <text x="118" y="70" font-family="var(--font-display), sans-serif" font-weight="500" font-size="14" fill="#6B7180">V₁<animate attributeName="opacity" values="1;1;0;0;1" keyTimes="0;.32;.42;.9;1" dur="4.5s" repeatCount="indefinite"/></text>
+      <text x="118" y="56" font-family="var(--font-display), sans-serif" font-weight="500" font-size="14" fill="#6240FF">V₂<animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;.32;.42;.9;1" dur="4.5s" repeatCount="indefinite"/></text>
+    </svg>`,
+};
+
+const TOPICS = [
+  { title: 'Объём и его единицы',    desc: 'Литр, миллилитр и кубический сантиметр — и зачем вообще измерять объём.', href: '../lesson-volume/', illus: 'volume' },
+  { title: 'Цена деления мензурки',  desc: 'Разность соседних чисел делим на число делений — и у каждой мензурки она своя.', href: '../lesson-price/', illus: 'price' },
+  { title: 'Как правильно считывать', desc: 'Глаз на уровне жидкости, мениск читаем по нижнему краю — иначе показание «плывёт».', href: '../lesson-level/', illus: 'level' },
+];
+
+const PRACTICES = [
+  { title: 'Лабораторная №1', kind: 'лабораторная', xp: '+30–80 XP', href: '../practice-lab1/',
+    desc: 'Как в учебнике: определи цену деления случайной мензурки и сними объём налитой жидкости. Три уровня сложности.', illus: 'lab1' },
+  { title: 'Объём камешка', kind: 'мини-исследование', xp: '+30–80 XP', href: '../practice-stone/',
+    desc: 'Метод вытеснения: измерь уровень до и после погружения тела и найди его объём. На сложном — тело, которое не тонет.', illus: 'stone' },
+];
+
+/* ---------- Строка тегов в hero ---------- */
+const heroMeta = [
+  { ic: 'auto_stories', text: `${TOPICS.length} интерактивные темы` },
+  { ic: 'science',      text: 'лабораторная №1' },
+  { ic: 'construction', text: `${PRACTICES.length} практики` },
+];
+document.getElementById('heroMeta').innerHTML = heroMeta.map(m =>
+  `<span class="meta-item"><span class="ms">${m.ic}</span> ${m.text}</span>`
+).join('');
+document.getElementById('startBtn').href = TOPICS[0].href;
+
+/* ---------- Темы урока ---------- */
+document.getElementById('topicGrid').innerHTML = TOPICS.map((t, i) => `
+  <a class="topic" href="${t.href}">
+    <div class="topic__illus">${ILLUS[t.illus]}</div>
+    <div class="topic__body">
+      <span class="topic__step">Тема ${i + 1}</span>
+      <h3 class="topic__title">${t.title}</h3>
+      <p class="topic__desc">${t.desc}</p>
+    </div>
+  </a>`).join('');
+
+/* ---------- Практика ---------- */
+document.getElementById('practiceGrid').innerHTML = PRACTICES.map(p => `
+  <a class="practice" href="${p.href}">
+    <div class="practice__illus">${ILLUS[p.illus]}</div>
+    <div class="practice__top">
+      <span class="practice__kind">${p.kind}</span>
+      <span class="practice__xp"><span class="ms">bolt</span> ${p.xp}</span>
+    </div>
+    <h3 class="practice__title">${p.title}</h3>
+    <p class="practice__desc">${p.desc}</p>
+  </a>`).join('');
+
+/* ---------- Поделиться с учениками ---------- */
+const shareBtn = document.getElementById('shareBtn');
+const shareToast = document.getElementById('shareToast');
+let toastTimer;
+function showToast(text){
+  shareToast.textContent = text;
+  shareToast.classList.add('is-open');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => shareToast.classList.remove('is-open'), 2200);
+}
+shareBtn.addEventListener('click', async () => {
+  const url = location.origin + location.pathname;
+  const title = 'Мензурка — интерактивный урок';
+  if (navigator.share) {
+    try { await navigator.share({ title, url }); return; } catch(e) { /* пользователь отменил — падаем в copy */ }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Ссылка скопирована');
+  } catch(e){
+    showToast('Скопируйте: ' + url);
+  }
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Что за изображение? · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔎</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .scheme-panel{
+    width: 100%; max-width: 620px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .scheme-panel svg{ width: 100%; height: auto; display: block; }
+  /* прорисовка лучей после ответа */
+  .rays-reveal path.ray{
+    stroke-dasharray: 1400; stroke-dashoffset: 1400;
+    animation: rayDraw 1s var(--ease-standard) forwards;
+  }
+  .rays-reveal .ray-img{
+    opacity: 0; animation: rayFade .5s var(--ease-standard) forwards;
+    animation-delay: 1.1s;
+  }
+  @keyframes rayDraw{ to{ stroke-dashoffset: 0; } }
+  @keyframes rayFade{ to{ opacity: 1; } }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Что за изображение?» — детектив по зонам линзы.
+   Показана схема: линза с отметками F и 2F, свеча на случайном
+   d. Ученик ставит диагноз изображению, а потом три главных
+   луча прорисовываются и показывают правду (честная геометрия:
+   f = d·F/(d−F), увеличение |f|/d).
+   ============================================================ */
+
+const fmtc = v => String(Math.round(v * 10) / 10).replace('.', ',');
+
+/* ---------- схема (SVG) ---------- */
+function candleMarkup(sw) {
+  // свеча базой в (0,0), пламя-кончик в (0,-44)
+  return `
+    <rect x="-5" y="-30" width="10" height="30" rx="2" fill="#EFE6D2" stroke="#C8BC9F" stroke-width="${sw}"/>
+    <line x1="0" y1="-30" x2="0" y2="-33" stroke="#8A8F9C" stroke-width="${sw}"/>
+    <ellipse cx="0" cy="-39" rx="4" ry="7" fill="#F0B23C"/>
+    <ellipse cx="0" cy="-37" rx="1.8" ry="3.5" fill="#FFE6AE"/>`;
+}
+
+function schemeSVG(F, d, reveal) {
+  const AX = 150, H_OBJ = 44;
+  const f = d === F ? null : d * F / (d - F);
+  const leftSpan = Math.max(d, 2.3 * F, f !== null && f < 0 ? Math.abs(f) + 0.3 * F : 0) + 0.2 * F;
+  const rightSpan = Math.max(2.3 * F, f !== null && f > 0 ? f + 0.4 * F : 0, d === F ? 2.6 * F : 0);
+  const s = 570 / (leftSpan + rightSpan);
+  const lx = 35 + leftSpan * s;
+  const cx = lx - d * s;
+  const ty = AX - H_OBJ;
+
+  /* отметки F и 2F */
+  const ticks = [[-2, '2F'], [-1, 'F'], [1, 'F'], [2, '2F']].map(([k, lab]) => {
+    const x = lx + k * F * s;
+    return `<line x1="${x.toFixed(1)}" y1="${AX - 8}" x2="${x.toFixed(1)}" y2="${AX + 8}" stroke="#6240FF" stroke-width="2.5" stroke-linecap="round"/>
+            <text x="${x.toFixed(1)}" y="${AX + 26}" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="14" font-weight="500" fill="#6240FF">${lab}</text>`;
+  }).join('');
+
+  /* лучи и изображение (при reveal) */
+  let rays = '';
+  if (reveal) {
+    const R1 = '#E5484D', R2 = '#2F80ED', R3 = '#F0B23C';
+    if (f === null) {
+      // d = F: после линзы лучи параллельны
+      const m = (AX - ty) / (F * s);   // общий наклон обоих лучей
+      const xe = 615;
+      rays = `
+        <g class="rays-reveal" fill="none" stroke-width="3" stroke-linecap="round">
+          <path class="ray" d="M${cx.toFixed(1)} ${ty} L${lx.toFixed(1)} ${ty} L${xe} ${(ty + m * (xe - lx)).toFixed(1)}" stroke="${R1}"/>
+          <path class="ray" d="M${cx.toFixed(1)} ${ty} L${xe} ${(ty + m * (xe - cx)).toFixed(1)}" stroke="${R2}" style="animation-delay:.35s"/>
+          <text class="ray-img" x="${(lx + 30).toFixed(1)}" y="${AX + 62}" font-family="var(--font-display), sans-serif" font-size="15" font-weight="500" fill="#6B7180">лучи параллельны — пересечения нет</text>
+        </g>`;
+    } else {
+      const ix = lx + f * s;
+      const iy = AX + H_OBJ * (f / d);
+      const k = Math.abs(f) / d;
+      if (f > 0) {
+        rays = `
+        <g class="rays-reveal" fill="none" stroke-width="3" stroke-linecap="round">
+          <path class="ray" d="M${cx.toFixed(1)} ${ty} L${lx.toFixed(1)} ${ty} L${ix.toFixed(1)} ${iy.toFixed(1)}" stroke="${R1}"/>
+          <path class="ray" d="M${cx.toFixed(1)} ${ty} L${ix.toFixed(1)} ${iy.toFixed(1)}" stroke="${R2}" style="animation-delay:.3s"/>
+          <path class="ray" d="M${cx.toFixed(1)} ${ty} L${lx.toFixed(1)} ${iy.toFixed(1)}" stroke="${R3}" style="animation-delay:.6s"/>
+          <path class="ray" d="M${lx.toFixed(1)} ${iy.toFixed(1)} L${ix.toFixed(1)} ${iy.toFixed(1)}" stroke="${R3}" style="animation-delay:.6s"/>
+          <g class="ray-img" transform="translate(${ix.toFixed(1)},${AX}) scale(${k.toFixed(3)},${(-k).toFixed(3)})" opacity="0">
+            ${candleMarkup((2.2 / k).toFixed(2))}
+          </g>
+        </g>`;
+      } else {
+        // мнимое: продолжения лучей назад — пунктиром
+        const xe = 615;
+        const m1 = (AX - ty) / (F * s);
+        rays = `
+        <g class="rays-reveal" fill="none" stroke-width="3" stroke-linecap="round">
+          <path class="ray" d="M${cx.toFixed(1)} ${ty} L${lx.toFixed(1)} ${ty} L${xe} ${(ty + m1 * (xe - lx)).toFixed(1)}" stroke="${R1}"/>
+          <path class="ray" d="M${cx.toFixed(1)} ${ty} L${xe} ${(ty + (AX - ty) / (lx - cx) * (xe - cx)).toFixed(1)}" stroke="${R2}" style="animation-delay:.3s"/>
+          <path class="ray" d="M${cx.toFixed(1)} ${ty} L${lx.toFixed(1)} ${iy.toFixed(1)} L${xe} ${iy.toFixed(1)}" stroke="${R3}" style="animation-delay:.6s"/>
+          <g stroke-dasharray="6 7" stroke-width="2.5">
+            <path class="ray" d="M${lx.toFixed(1)} ${ty} L${ix.toFixed(1)} ${iy.toFixed(1)}" stroke="${R1}" style="animation-delay:.8s"/>
+            <path class="ray" d="M${cx.toFixed(1)} ${ty} L${ix.toFixed(1)} ${iy.toFixed(1)}" stroke="${R2}" style="animation-delay:.8s"/>
+            <path class="ray" d="M${lx.toFixed(1)} ${iy.toFixed(1)} L${ix.toFixed(1)} ${iy.toFixed(1)}" stroke="${R3}" style="animation-delay:.8s"/>
+          </g>
+          <g class="ray-img" transform="translate(${ix.toFixed(1)},${AX}) scale(${k.toFixed(3)},${k.toFixed(3)})" opacity="0">
+            ${candleMarkup((2.2 / k).toFixed(2))}
+          </g>
+        </g>`;
+      }
+    }
+  }
+
+  return `
+    <div class="scheme-panel">
+    <svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg">
+      <line x1="10" y1="${AX}" x2="630" y2="${AX}" stroke="#C9CEDA" stroke-width="2" stroke-dasharray="2 8" stroke-linecap="round"/>
+      ${ticks}
+      ${rays}
+      <g transform="translate(${cx.toFixed(1)},${AX})">${candleMarkup('2.2')}</g>
+      <path d="M${lx.toFixed(1)} ${AX - 78} C ${(lx + 15).toFixed(1)} ${AX - 40}, ${(lx + 15).toFixed(1)} ${AX + 40}, ${lx.toFixed(1)} ${AX + 78} C ${(lx - 15).toFixed(1)} ${AX + 40}, ${(lx - 15).toFixed(1)} ${AX - 40}, ${lx.toFixed(1)} ${AX - 78} Z"
+            fill="#DCE9FB" fill-opacity=".85" stroke="#8FB4E8" stroke-width="3" stroke-linejoin="round"/>
+    </svg>
+    </div>`;
+}
+
+/* ---------- сцена + прорисовка правды после ответа ---------- */
+function makeScene(F, d) {
+  return (host, ctx) => {
+    host.innerHTML = schemeSVG(F, d, false);
+    const opts = document.getElementById('pOpts');
+    if (opts) {
+      let revealed = false;
+      opts.addEventListener('click', e => {
+        if (revealed || !e.target.closest('.opt-btn')) return;
+        revealed = true;
+        host.innerHTML = schemeSVG(F, d, true);
+      });
+    }
+  };
+}
+
+/* ---------- зоны ---------- */
+const ZONE_OPTIONS = zone => ([
+  { text: 'Действительное: перевёрнутое и увеличенное', correct: zone === 'between' },
+  { text: 'Действительное: перевёрнутое и уменьшенное', correct: zone === 'far' },
+  { text: 'Мнимое: прямое и увеличенное', correct: zone === 'virtual' },
+  { text: 'Изображения нет — лучи после линзы параллельны', correct: zone === 'none' },
+]);
+
+const ZONE_RIGHT = {
+  far:     'Свеча дальше 2F, значит изображение садится между F и 2F: уменьшенное и перевёрнутое. Смотри, как лучи это подтверждают.',
+  between: 'Свеча между F и 2F — изображение улетает за 2F: увеличенное и перевёрнутое. Схема проектора.',
+  virtual: 'Свеча ближе фокуса: лучи за линзой расходятся, а их продолжения сходятся с той же стороны. Мнимое, прямое, увеличенное — лупа.',
+  none:    'Свеча ровно в фокусе — коварный случай: лучи после линзы идут параллельно и не пересекаются нигде. Изображения нет.',
+};
+const ZONE_WRONG = {
+  far:     'Сравни d с отметками: свеча ДАЛЬШЕ 2F. В этой зоне изображение всегда уменьшенное и перевёрнутое — лучи уже прорисовались и показывают это.',
+  between:'Свеча стоит МЕЖДУ F и 2F. Лучи сошлись далеко за 2F — изображение увеличенное и перевёрнутое.',
+  virtual: 'Свеча БЛИЖЕ фокуса: действительного изображения нет вовсе. Пунктирные продолжения лучей сходятся слева — мнимое, прямое, увеличенное.',
+  none:    'Свеча стоит ТОЧНО в фокусе. После линзы лучи параллельны — им негде пересечься, изображения нет.',
+};
+
+/* d по зоне (со случайностью), избегаем окрестность 2F */
+function dForZone(zone, F, rnd) {
+  if (zone === 'far')     return Math.round(F * (2.6 + rnd() * 0.6));
+  if (zone === 'between') return Math.round(F * (1.38 + rnd() * 0.3));
+  if (zone === 'virtual') return Math.max(3, Math.round(F * (0.4 + rnd() * 0.2)));
+  return F; // none
+}
+
+function shuffle(arr, rnd) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* ---------- сложный уровень: с расчётом f и увеличения ---------- */
+const HARD_CASES = {
+  far: [
+    { F: 10, d: 30, f: 15, g: 0.5 }, { F: 12, d: 36, f: 18, g: 0.5 },
+    { F: 10, d: 35, f: 14, g: 0.4 }, { F: 20, d: 60, f: 30, g: 0.5 },
+  ],
+  between: [
+    { F: 10, d: 15, f: 30, g: 2 }, { F: 12, d: 18, f: 36, g: 2 },
+    { F: 12, d: 16, f: 48, g: 3 }, { F: 20, d: 30, f: 60, g: 2 },
+  ],
+  virtual: [
+    { F: 10, d: 5, f: -10, g: 2 }, { F: 12, d: 6, f: -12, g: 2 },
+    { F: 15, d: 10, f: -30, g: 3 }, { F: 12, d: 8, f: -24, g: 3 },
+  ],
+  none: [
+    { F: 10, d: 10 }, { F: 12, d: 12 }, { F: 15, d: 15 },
+  ],
+};
+
+function gTxt(g) {
+  return g === 1 ? 'в натуральную величину' : (g > 1 ? `увеличенное в ${fmtc(g)} раза` : `уменьшенное в ${fmtc(1 / g)} раза`);
+}
+
+function hardOptions(zone, c) {
+  if (zone === 'none') {
+    return [
+      { text: 'Изображения нет: лучи выходят параллельным пучком', correct: true },
+      { text: `Действительное, в ${fmtc(2 * c.F)} см за линзой, в натуральную величину`, correct: false },
+      { text: `Мнимое, в ${fmtc(c.F)} см перед линзой, прямое`, correct: false },
+      { text: `Точка в фокусе, в ${fmtc(c.F)} см за линзой`, correct: false },
+    ];
+  }
+  const wrongF = Math.round(c.d * c.F / (c.d + c.F) * 10) / 10;   // ошибка знака: 1/f = 1/d + 1/F
+  if (zone === 'virtual') {
+    return [
+      { text: `Мнимое, в ${fmtc(-c.f)} см перед линзой, прямое, ${gTxt(c.g)}`, correct: true },
+      { text: `Действительное, в ${fmtc(-c.f)} см за линзой, перевёрнутое`, correct: false },
+      { text: `Мнимое, в ${fmtc(wrongF)} см перед линзой, уменьшенное`, correct: false },
+      { text: 'Изображения нет: свеча слишком близко', correct: false },
+    ];
+  }
+  return [
+    { text: `Действительное, в ${fmtc(c.f)} см за линзой, перевёрнутое, ${gTxt(c.g)}`, correct: true },
+    { text: `Действительное, в ${fmtc(c.f)} см за линзой, прямое, ${gTxt(1 / c.g)}`, correct: false },
+    { text: `Действительное, в ${fmtc(wrongF)} см за линзой, перевёрнутое, ${gTxt(c.g)}`, correct: false },
+    { text: `Мнимое, в ${fmtc(c.f)} см перед линзой, прямое`, correct: false },
+  ];
+}
+
+const HARD_RIGHT = (zone, c) => zone === 'none'
+  ? 'd = F — особый случай: 1/f = 1/F − 1/d = 0, изображение «на бесконечности», то есть его нет.'
+  : `Считаем: 1/f = 1/F − 1/d → f = d·F/(d−F) = ${fmtc(c.d)}·${fmtc(c.F)}/(${fmtc(c.d)}−${fmtc(c.F)}) = ${fmtc(c.f)} см. Увеличение |f|/d = ${fmtc(Math.abs(c.f) / c.d)}. Лучи на схеме сошлись ровно там.`;
+const HARD_WRONG = (zone, c) => zone === 'none'
+  ? 'Подставь в формулу: 1/f = 1/F − 1/d при d = F даёт ноль. Лучи параллельны — изображения нет.'
+  : `Формула тонкой линзы: 1/F = 1/d + 1/f → f = d·F/(d−F) = ${fmtc(c.f)} см${c.f < 0 ? ' (минус — значит мнимое, с той же стороны)' : ''}. Увеличение |f|/d = ${fmtc(Math.abs(c.f) / c.d)}.`;
+
+/* ---------- сборка уровней ---------- */
+function buildSteps(level, rnd) {
+  if (level === 'hard') {
+    const zones = shuffle(['far', 'between', 'virtual', 'none'], rnd);
+    return zones.map((zone, i) => {
+      const c = { ...HARD_CASES[zone][Math.floor(rnd() * HARD_CASES[zone].length)] };
+      return {
+        type: 'choice',
+        title: `Задача ${i + 1} из ${zones.length}`,
+        text: `F = ${fmtc(c.F)} см, свеча в d = ${fmtc(c.d)} см от линзы. Где будет изображение и какое?`,
+        render: makeScene(c.F, c.d),
+        options: hardOptions(zone, c),
+        right: HARD_RIGHT(zone, c),
+        wrong: HARD_WRONG(zone, c),
+      };
+    });
+  }
+
+  const zones = level === 'easy'
+    ? shuffle(['far', 'between', 'virtual'], rnd)
+    : shuffle(['far', 'between', 'virtual', 'none'], rnd);
+  const Fs = [10, 12, 15, 20];
+  return zones.map((zone, i) => {
+    const F = Fs[Math.floor(rnd() * Fs.length)];
+    const d = dForZone(zone, F, rnd);
+    return {
+      type: 'choice',
+      title: `Задача ${i + 1} из ${zones.length}`,
+      text: `F = ${fmtc(F)} см, свеча в ${fmtc(d)} см от линзы. Какое изображение даст линза?`,
+      render: makeScene(F, d),
+      options: ZONE_OPTIONS(zone),
+      right: ZONE_RIGHT[zone],
+      wrong: ZONE_WRONG[zone],
+    };
+  });
+}
+
+runPractice({
+  practiceId: 'what',
+  storageKey: 'lenses-progress',
+  homeHref: '../demo/',
+  title: 'Что за изображение?',
+  subtitle: 'Свеча стоит на случайном месте перед линзой. Поставь диагноз изображению — а лучи потом прорисуются и покажут правду.',
+  levels: {
+    easy:   { label: 'Разминка',  desc: '3 задачи: крайние случаи без ловушек.', xp: 30 },
+    medium: { label: 'Детектив',  desc: '4 задачи: все зоны, включая ловушку d = F.', xp: 45 },
+    hard:   { label: 'Эксперт',   desc: '4 задачи с расчётом f и увеличения.', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Лабораторная №1 · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧪</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .p-scene svg{ max-width: 420px; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Лабораторная №1» (Пёрышкин, §2 / лабораторная работа
+   «Определение цены деления измерительного прибора»).
+   Две случайные мензурки, для каждой: определи цену деления
+   (выбор из 4) → считай объём налитой жидкости (ввод с допуском).
+   Уровни: easy — уровень на подписанном штрихе; medium — между
+   подписями; hard — между делениями (пол цены деления) и хитрые
+   шкалы вроде 0–250 по 10 мл.
+   ============================================================ */
+
+const fmt = v => String(Math.round(v * 100) / 100).replace('.', ',');
+const priceOf = s => s.label / s.minor;
+
+/* ---------- пулы шкал ---------- */
+const POOLS = {
+  easy: [
+    { max: 50,  label: 10, minor: 5 },   // 2 мл
+    { max: 100, label: 20, minor: 4 },   // 5 мл
+    { max: 100, label: 25, minor: 5 },   // 5 мл
+    { max: 200, label: 50, minor: 5 },   // 10 мл
+  ],
+  medium: [
+    { max: 50,  label: 10, minor: 5 },
+    { max: 30,  label: 10, minor: 5 },   // 2 мл
+    { max: 100, label: 20, minor: 4 },
+    { max: 100, label: 25, minor: 5 },
+    { max: 60,  label: 20, minor: 4 },   // 5 мл
+    { max: 200, label: 50, minor: 5 },
+  ],
+  hard: [
+    { max: 50,  label: 10, minor: 5 },
+    { max: 100, label: 20, minor: 4 },
+    { max: 100, label: 25, minor: 5 },
+    { max: 250, label: 50, minor: 5 },   // хитрая: 0–250 по 10 мл
+    { max: 40,  label: 10, minor: 4 },   // хитрая: 2,5 мл
+    { max: 60,  label: 20, minor: 4 },
+  ],
+};
+
+/* ---------- плоская мензурка (стиль §8) ---------- */
+function beakerBody({ max, label, minor, level = 0 }) {
+  const yZero = 284, yTop = 66;
+  const price = label / minor;
+  const y = v => yZero - (v / max) * (yZero - yTop);
+  let ticks = '';
+  const n = Math.round(max / price);
+  for (let i = 0; i <= n; i++) {
+    const v = i * price;
+    const major = Math.round(v * 100) % Math.round(label * 100) === 0;
+    const len = major ? 20 : 12;
+    const yy = y(v).toFixed(1);
+    ticks += `<line x1="69" y1="${yy}" x2="${69 + len}" y2="${yy}" stroke="#5D6472" stroke-width="${major ? 2.4 : 1.5}" stroke-linecap="round"/>`;
+    if (major) ticks += `<text x="${69 + len + 5}" y="${yy}" dominant-baseline="central" font-family="var(--font-display), sans-serif" font-weight="500" font-size="14" fill="#3E434C">${fmt(v)}</text>`;
+  }
+  const yL = y(level);
+  const liquid = level > 0 ? `
+    <path d="M69 ${(yL - 4).toFixed(1)} Q110 ${(yL + 4).toFixed(1)} 151 ${(yL - 4).toFixed(1)} L151 283 Q151 299 135 299 L85 299 Q69 299 69 283 Z" fill="#BFDCF9"/>
+    <path d="M69 ${(yL - 4).toFixed(1)} Q110 ${(yL + 4).toFixed(1)} 151 ${(yL - 4).toFixed(1)}" fill="none" stroke="#5D9BE0" stroke-width="2.6" stroke-linecap="round"/>` : '';
+  return `
+    <path d="M66 36 L66 284 Q66 302 84 302 L136 302 Q154 302 154 284 L154 36" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+    <path d="M66 36 L57 28" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+    <path d="M154 36 L160 31" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+    ${liquid}
+    ${ticks}`;
+}
+
+function sceneSVG(s, level, withPointer) {
+  const yZero = 284, yTop = 66;
+  const yL = yZero - (level / s.max) * (yZero - yTop);
+  const pointer = withPointer && level > 0 ? `
+    <path d="M258 ${yL.toFixed(1)} L318 ${yL.toFixed(1)}" stroke="#6240FF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 7"/>
+    <text x="330" y="${(yL - 6).toFixed(1)}" font-family="var(--font-display), sans-serif" font-weight="500" font-size="26" fill="#6240FF">?
+      <animate attributeName="opacity" values="1;.35;1" dur="1.6s" repeatCount="indefinite"/>
+    </text>
+    <text x="330" y="${(yL + 18).toFixed(1)}" font-family="var(--font-sans), sans-serif" font-size="14" fill="#6B7180">мл</text>` : '';
+  return `
+    <svg viewBox="0 0 380 340" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(100,0)">${beakerBody({ ...s, level })}</g>
+      ${pointer}
+    </svg>`;
+}
+
+/* ---------- генерация ---------- */
+function pickScale(level, rnd, exclude) {
+  let pool = POOLS[level];
+  if (exclude) {
+    const filtered = pool.filter(s => priceOf(s) !== priceOf(exclude));
+    if (filtered.length) pool = filtered;
+  }
+  return pool[Math.floor(rnd() * pool.length)];
+}
+
+function genVolume(level, s, rnd) {
+  const price = priceOf(s);
+  const nDiv = Math.round(s.max / price);
+  if (level === 'easy') {
+    const kMax = Math.round(s.max / s.label) - 1;
+    return (1 + Math.floor(rnd() * kMax)) * s.label;
+  }
+  if (level === 'medium' || !Number.isInteger(price)) {
+    // полное деление, но не на подписанном штрихе
+    for (let t = 0; t < 60; t++) {
+      const k = 1 + Math.floor(rnd() * (nDiv - 1));
+      const v = k * price;
+      if (Math.round(v * 100) % Math.round(s.label * 100) !== 0) return v;
+    }
+    return price;
+  }
+  // hard: уровень между делениями — плюс половина цены деления
+  const k = 1 + Math.floor(rnd() * (nDiv - 2));
+  return k * price + price / 2;
+}
+
+function priceOptions(s) {
+  const price = priceOf(s);
+  const cands = [s.label, price * 2, price / 2, s.label * 2, price * 5, 1];
+  const distract = [];
+  for (const c of cands) {
+    if (Math.abs(c - price) > 1e-9 && !distract.some(d => Math.abs(d - c) < 1e-9)) distract.push(c);
+    if (distract.length === 3) break;
+  }
+  return [
+    { text: `${fmt(price)} мл`, correct: true },
+    ...distract.map(d => ({ text: `${fmt(d)} мл`, correct: false })),
+  ];
+}
+
+/* ---------- пара шагов на одну мензурку ---------- */
+function beakerRound(no, s, v, level) {
+  const price = priceOf(s);
+  const below = Math.floor((v + 1e-9) / s.label) * s.label;
+  const stepsUp = (v - below) / price;
+  const half = Math.abs(stepsUp - Math.round(stepsUp)) > 1e-9;
+  const hintCount = half
+    ? `Отметка ${fmt(below)}, выше неё ${Math.floor(stepsUp)} ${plumb(Math.floor(stepsUp))} и ещё <b>половина деления</b> — половина от ${fmt(price)} мл это ${fmt(price / 2)} мл.`
+    : stepsUp === 0
+      ? `Уровень стоит ровно на подписанной отметке — просто прочитай её.`
+      : `Уровень на ${stepsUp} ${plumb(stepsUp)} выше отметки ${fmt(below)}: считай ${fmt(below)} + ${stepsUp} × ${fmt(price)}.`;
+  const readText = half
+    ? 'Лаборант налил жидкость — уровень встал <b>между делениями</b>. Считай по нижнему краю мениска и впиши объём.'
+    : 'Лаборант налил жидкость. Считай по нижнему краю мениска и впиши объём.';
+  return [
+    {
+      type: 'choice',
+      title: `Мензурка №${no} · цена деления`,
+      text: 'Рассмотри шкалу: сколько миллилитров в одном делении?',
+      render(host) { host.innerHTML = sceneSVG(s, 0, false); },
+      options: priceOptions(s),
+      right: `Разность соседних подписей — ${fmt(s.label)} мл, между ними ${s.minor} делений: ${fmt(s.label)} : ${s.minor} = ${fmt(price)} мл.`,
+      wrong: `Считай по правилу: разность соседних подписей (${fmt(s.label)} мл) дели на число делений между ними (${s.minor}). Получается ${fmt(price)} мл.`,
+    },
+    {
+      type: 'reading',
+      title: `Мензурка №${no} · объём жидкости`,
+      text: readText,
+      render(host) { host.innerHTML = sceneSVG(s, v, true); },
+      answer: v,
+      tolerance: price / 4,
+      unit: 'мл',
+      hints: [
+        `Цена деления этой шкалы — ${fmt(price)} мл. Найди ближайшую подпись ниже уровня и отсчитывай деления вверх.`,
+        hintCount,
+      ],
+      right: `✓ Точно: ${fmt(v)} мл.`,
+    },
+  ];
+}
+function plumb(n) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return 'деление';
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return 'деления';
+  return 'делений';
+}
+
+/* ---------- сборка миссии ---------- */
+function buildSteps(level, rnd) {
+  const s1 = pickScale(level, rnd);
+  const s2 = pickScale(level, rnd, s1);
+  const v1 = genVolume(level, s1, rnd);
+  const v2 = genVolume(level, s2, rnd);
+  return [
+    ...beakerRound(1, s1, v1, level),
+    ...beakerRound(2, s2, v2, level),
+  ];
+}
+
+/* ---------- запуск ---------- */
+runPractice({
+  practiceId: 'lab1',
+  storageKey: 'beaker-progress',
+  homeHref: '../demo/',
+  title: 'Лабораторная №1',
+  subtitle: 'Как в учебнике: тебе выдали случайную мензурку. Определи цену деления, а потом измерь объём налитой жидкости. Каждый запуск — новые шкалы.',
+  levels: {
+    easy:   { label: 'Разминка', desc: 'Уровень встаёт на подписанный штрих — круглые числа.', xp: 30 },
+    medium: { label: 'Лаборант', desc: 'Уровень между подписями — придётся считать деления.', xp: 50 },
+    hard:   { label: 'Профи',    desc: 'Уровень между делениями и хитрые шкалы вроде 0–250.', xp: 80 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

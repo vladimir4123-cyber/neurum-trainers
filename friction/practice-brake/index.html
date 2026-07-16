@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Тормозной путь · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛑</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .brake-panel{
+    width: 100%; max-width: 620px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 12px;
+  }
+  .brake-panel svg{ width: 100%; height: auto; display: block; }
+  .brake-note{ margin: 10px 0 0; text-align: center; font-size: 14px; color: var(--fg-3); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Тормозной путь».
+   Предскажи, кто остановится раньше / уедет дальше, — а после
+   ответа сцена честно проигрывает торможение: a = μ·g,
+   s = v²/(2·μ·g). Масса на тормозной путь не влияет — ловушка
+   среднего уровня. Сложный уровень — расчёт F = μ·m·g.
+   ============================================================ */
+
+const G = 10;
+const SURF = {
+  ice:     { label: 'лёд',    mu: 0.02, base: '#BFDCF9', edge: '#8FBDEB' },
+  snow:    { label: 'снег',   mu: 0.2,  base: '#EEF0FF', edge: '#C9CEDA' },
+  asphalt: { label: 'асфальт', mu: 0.7, base: '#A8ADB8', edge: '#7E8290' },
+};
+const pick = (arr, rnd) => arr[Math.floor(rnd() * arr.length)];
+const fmt = v => (Math.round(v * 10) / 10).toFixed(1).replace('.', ',');
+const fmtMu = mu => String(mu).replace('.', ',');
+const dist = (v0, mu) => v0 * v0 / (2 * mu * G);   // честный тормозной путь, м
+
+/* ---------- сцена: полосы + анимация после ответа ---------- */
+/* lanes: [{ surf, emoji, cap }], v0 — м/с. Анимация стартует по клику на вариант. */
+function makeScene(lanes, v0) {
+  return function render(host) {
+    const maxS = Math.max(...lanes.map(l => dist(v0, l.surf.mu)));
+    const trackM = maxS * 1.12 + 0.4;
+    const W = 600, PADL = 96, PADR = 16;
+    const trackW = W - PADL - PADR;
+    const laneH = 74, H = lanes.length * laneH + 30;
+    const m2px = trackW / trackM;
+    const x0 = PADL + 0.15 * m2px;
+
+    host.innerHTML = `
+      <div class="brake-panel">
+        <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+          ${lanes.map((l, i) => {
+            const cy = 30 + laneH * i + laneH * 0.62;
+            return `
+              <g>
+                <rect x="${PADL}" y="${cy}" width="${trackW}" height="12" rx="6" fill="${l.surf.base}" stroke="${l.surf.edge}" stroke-width="2"/>
+                <text x="8" y="${cy + 10}" font-family="var(--font-display), sans-serif" font-size="15" fill="#6B7180">${l.surf.label}</text>
+                ${l.cap ? `<text x="8" y="${cy - 14}" font-family="var(--font-display), sans-serif" font-size="14" fill="#9AA0AA">${l.cap}</text>` : ''}
+                <path class="bk-skid" data-i="${i}" d="" fill="none" stroke="#8A8F9C" stroke-width="4" stroke-linecap="round" stroke-dasharray="7 8" opacity="0"/>
+                <g class="bk-mover" data-i="${i}" transform="translate(${x0},${cy - 8})">
+                  <text x="0" y="0" text-anchor="middle" font-size="30">${l.emoji}</text>
+                </g>
+                <text class="bk-res" data-i="${i}" x="0" y="${cy - 26}" font-family="var(--font-display), sans-serif" font-weight="700" font-size="16" fill="#6240FF" opacity="0"></text>
+              </g>`;
+          }).join('')}
+          <text x="${PADL}" y="${H - 4}" font-family="var(--font-display), sans-serif" font-size="13" fill="#9AA0AA">скорость на старте у всех одинаковая: ${fmt(v0)} м/с</text>
+        </svg>
+      </div>
+      <p class="brake-note">Ответь — и сцена честно проиграет торможение.</p>`;
+
+    // анимация-проверка: стартует по первому клику на вариант ответа
+    const opts = document.getElementById('pOpts');
+    if (!opts) return;
+    opts.addEventListener('click', e => {
+      if (!e.target.closest('.opt-btn')) return;
+      startAnim();
+    }, { once: true });
+
+    function startAnim() {
+      const movers = [...host.querySelectorAll('.bk-mover')];
+      const skids = [...host.querySelectorAll('.bk-skid')];
+      const results = [...host.querySelectorAll('.bk-res')];
+      const t0 = performance.now();
+      const K = 2.6;                        // ускорение времени показа
+      function frame(now) {
+        if (!host.isConnected) return;
+        const t = (now - t0) / 1000 * K;
+        let allDone = true;
+        lanes.forEach((l, i) => {
+          const a = l.surf.mu * G;
+          const tStop = v0 / a;
+          const tt = Math.min(t, tStop);
+          const s = v0 * tt - a * tt * tt / 2;
+          const cy = 30 + laneH * i + laneH * 0.62;
+          movers[i].setAttribute('transform', `translate(${x0 + s * m2px},${cy - 8})`);
+          skids[i].setAttribute('d', `M${x0} ${cy + 6} L${x0 + s * m2px} ${cy + 6}`);
+          skids[i].setAttribute('opacity', '0.85');
+          if (t < tStop) allDone = false;
+          else {
+            const sFin = dist(v0, l.surf.mu);
+            const r = results[i];
+            r.setAttribute('opacity', '1');
+            r.setAttribute('x', Math.min(x0 + sFin * m2px + 12, 600 - 74));
+            r.textContent = fmt(sFin) + ' м';
+          }
+        });
+        if (!allDone) requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+  };
+}
+
+/* ---------- генераторы задач ---------- */
+
+/* сравнение поверхностей: лёд / снег / асфальт */
+function surfaceTask(rnd, n, total) {
+  const veh = pick([
+    { emoji: '🛷',
+      far: 'По льду, по снегу и по асфальту с одинаковой скоростью пустили одинаковые санки. Где они уедут дальше всего?',
+      soon: 'По льду, по снегу и по асфальту с одинаковой скоростью пустили одинаковые санки. Где они остановятся раньше всего?' },
+    { emoji: '🚗',
+      far: 'Три одинаковые машины тормозят юзом с одной и той же скорости: одна на льду, другая на снегу, третья на асфальте. Какая проедет дальше всего?',
+      soon: 'Три одинаковые машины тормозят юзом с одной и той же скорости: одна на льду, другая на снегу, третья на асфальте. Какая остановится раньше всего?' },
+    { emoji: '🥌',
+      far: 'Три одинаковых кёрлинг-камня пустили с одинаковой скоростью: по льду, по снегу и по асфальту. Какой уедет дальше всего?',
+      soon: 'Три одинаковых кёрлинг-камня пустили с одинаковой скоростью: по льду, по снегу и по асфальту. Какой остановится раньше всего?' },
+  ], rnd);
+  const far = rnd() < 0.5;
+  const v0 = pick([1.2, 1.4, 1.6], rnd);
+  const lanes = [
+    { surf: SURF.ice, emoji: veh.emoji },
+    { surf: SURF.snow, emoji: veh.emoji },
+    { surf: SURF.asphalt, emoji: veh.emoji },
+  ];
+  const q = far ? veh.far : veh.soon;
+  return {
+    type: 'choice',
+    title: `Задача ${n} из ${total}`,
+    text: q,
+    render: makeScene(lanes, v0),
+    options: [
+      { text: `На льду (μ = ${fmtMu(SURF.ice.mu)})`,        correct: far },
+      { text: `На снегу (μ = ${fmtMu(SURF.snow.mu)})`,      correct: false },
+      { text: `На асфальте (μ = ${fmtMu(SURF.asphalt.mu)})`, correct: !far },
+      { text: 'Везде одинаково — скорость-то одна',          correct: false },
+    ],
+    right: far
+      ? `Чем меньше μ, тем слабее торможение: путь s = v²/(2μg). На льду μ в ${Math.round(SURF.asphalt.mu / SURF.ice.mu)} раз меньше, чем на асфальте, — и путь во столько же раз длиннее.`
+      : 'Чем больше μ, тем сильнее трение тормозит: путь s = v²/(2μg). Самый цепкий — асфальт, на нём остановка почти мгновенная.',
+    wrong: far
+      ? 'Смотри на анимацию: по льду проехало дальше всего. Меньше μ — слабее трение — длиннее путь: s = v²/(2μg).'
+      : 'Смотри на анимацию: на асфальте остановка раньше всех. Больше μ — сильнее трение — короче путь.',
+  };
+}
+
+/* ловушка с массой: путь от массы не зависит */
+function massTask(rnd, n, total) {
+  const sc = pick([
+    { surfKey: 'ice',  emoji: '🛷', text: (m1, m2) => `Двое одинаковых санок скользят по льду с одинаковой скоростью. В одних — первоклассник (всего ${m1} кг), в других — папа (всего ${m2} кг). Кто проедет дальше?`, caps: (m1, m2) => [`${m1} кг`, `${m2} кг`] },
+    { surfKey: 'snow', emoji: '🛷', text: (m1, m2) => `По снегу с одинаковой скоростью пустили пустые санки (${m1} кг) и санки с мешком (${m2} кг). Какие уедут дальше?`, caps: (m1, m2) => [`${m1} кг`, `${m2} кг`] },
+    { surfKey: 'asphalt', emoji: '🚗', text: (m1, m2) => `Пустая машина (${m1} кг) и гружёная (${m2} кг) тормозят юзом на одном асфальте с одинаковой скорости. Какая проедет дальше?`, caps: (m1, m2) => [`${m1} кг`, `${m2} кг`] },
+  ], rnd);
+  const [m1, m2] = sc.surfKey === 'asphalt' ? [1000, 2000] : pick([[30, 100], [20, 80], [25, 75]], rnd);
+  const surf = SURF[sc.surfKey];
+  const v0 = sc.surfKey === 'ice' ? 1.3 : sc.surfKey === 'snow' ? 3 : 5;
+  const caps = sc.caps(m1, m2);
+  const lanes = [
+    { surf, emoji: sc.emoji, cap: 'лёгкие · ' + caps[0] },
+    { surf, emoji: sc.emoji, cap: 'тяжёлые · ' + caps[1] },
+  ];
+  return {
+    type: 'choice',
+    title: `Задача ${n} из ${total}`,
+    text: sc.text(m1, m2),
+    render: makeScene(lanes, v0),
+    options: [
+      { text: 'Тяжёлые — запас хода у них больше', correct: false },
+      { text: 'Лёгкие — их слабее прижимает к дороге', correct: false },
+      { text: 'Практически одинаково: тормозной путь от массы не зависит', correct: true },
+      { text: 'Тяжёлые вообще не смогут остановиться', correct: false },
+    ],
+    right: 'Ловушка раскрыта! Сила трения у тяжёлых больше (F = μmg), но и разгонять-тормозить им надо большую массу: замедление a = F/m = μg — масса сократилась. Путь s = v²/(2μg) одинаковый.',
+    wrong: 'Смотри на анимацию: остановились рядом! Трение у тяжёлых больше (F = μmg), но замедление a = F/m = μg — масса сокращается. Путь от неё не зависит.',
+  };
+}
+
+/* расчёт F = μ·m·g (reading) */
+function calcTask(rnd, n, total) {
+  const sc = pick([
+    { text: (m, mu) => `Ящик массой ${m} кг тянут по полу равномерно. Коэффициент трения μ = ${fmtMu(mu)}, g = 10 Н/кг. Чему равна сила трения?`,
+      mus: [0.2, 0.3, 0.4, 0.5], ms: [20, 30, 40, 50], emoji: '📦', surfKey: 'asphalt' },
+    { text: (m, mu) => `Санки с седоком массой ${m} кг равномерно тянут по снегу. μ = ${fmtMu(mu)}, g = 10 Н/кг. Найди силу трения.`,
+      mus: [0.1, 0.2], ms: [30, 40, 50, 60], emoji: '🛷', surfKey: 'snow' },
+    { text: (m, mu) => `Машина массой ${m} кг тормозит юзом на асфальте. μ = ${fmtMu(mu)}, g = 10 Н/кг. Какая сила трения её тормозит?`,
+      mus: [0.5, 0.7], ms: [1000, 2000], emoji: '🚗', surfKey: 'asphalt' },
+  ], rnd);
+  const mu = pick(sc.mus, rnd);
+  const m = pick(sc.ms, rnd);
+  const F = Math.round(mu * m * G * 100) / 100;   // честно: F = μ·m·g
+  const surf = SURF[sc.surfKey];
+  return {
+    type: 'reading',
+    title: `Задача ${n} из ${total}: посчитай силу`,
+    text: sc.text(m, mu),
+    render: host => {
+      host.innerHTML = `
+        <div class="brake-panel">
+          <svg viewBox="0 0 600 150" xmlns="http://www.w3.org/2000/svg">
+            <rect x="20" y="104" width="560" height="12" rx="6" fill="${surf.base}" stroke="${surf.edge}" stroke-width="2"/>
+            <text x="150" y="86" text-anchor="middle" font-size="44">${sc.emoji}</text>
+            <line x1="196" y1="80" x2="252" y2="80" stroke="#9AA0AA" stroke-width="4" stroke-linecap="round"/>
+            <rect x="252" y="64" width="120" height="32" rx="16" fill="#F4F1FF" stroke="#C9CEDA" stroke-width="2.5"/>
+            <text x="312" y="85" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="700" font-size="20" fill="#6240FF">? Н</text>
+            <g font-family="var(--font-display), sans-serif" font-size="17" fill="#6B7180">
+              <text x="430" y="46">m = ${m} кг</text>
+              <text x="430" y="72">μ = ${fmtMu(mu)}</text>
+              <text x="430" y="98">g = 10 Н/кг</text>
+            </g>
+            <text x="150" y="140" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="14" fill="#9AA0AA">движение равномерное: тяга = трение</text>
+          </svg>
+        </div>`;
+    },
+    answer: F,
+    tolerance: Math.max(0.5, F * 0.005),
+    unit: 'Н',
+    hints: [
+      'Формула: F = μ · N. При горизонтальном движении N — это вес: N = m · g.',
+      `Считаем прижатие: N = ${m} · 10 = ${m * G} Н. Теперь умножь на μ = ${fmtMu(mu)}.`,
+    ],
+    right: `✓ Верно! F = μ·m·g = ${fmtMu(mu)} · ${m} · 10 = ${String(F).replace('.', ',')} Н.`,
+  };
+}
+
+/* ---------- сборка уровней ---------- */
+function buildSteps(level, rnd) {
+  const steps = [];
+  if (level === 'easy') {
+    const total = 3;
+    for (let i = 0; i < total; i++) steps.push(surfaceTask(rnd, i + 1, total));
+  } else if (level === 'medium') {
+    const total = 4;
+    steps.push(surfaceTask(rnd, 1, total));
+    steps.push(massTask(rnd, 2, total));
+    steps.push(surfaceTask(rnd, 3, total));
+    steps.push(massTask(rnd, 4, total));
+  } else {
+    const total = 4;
+    steps.push(massTask(rnd, 1, total));
+    steps.push(calcTask(rnd, 2, total));
+    steps.push(surfaceTask(rnd, 3, total));
+    steps.push(calcTask(rnd, 4, total));
+  }
+  return steps;
+}
+
+runPractice({
+  practiceId: 'brake',
+  storageKey: 'friction-progress',
+  homeHref: '../demo/',
+  title: 'Тормозной путь',
+  subtitle: 'Санки, машина и кёрлинг-камень разогнались — а дальше их останавливает только трение. Предскажи исход, а сцена честно проверит: s = v²/(2μg).',
+  levels: {
+    easy:   { label: 'Наблюдатель', desc: '3 предсказания: лёд, снег, асфальт — кто дальше?', xp: 25 },
+    medium: { label: 'Испытатель',  desc: '4 задачи, среди них ловушка с массой.', xp: 40 },
+    hard:   { label: 'Инженер',     desc: 'Ловушки + расчёт силы трения F = μmg.', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,40 @@
+<svg viewBox="0 0 240 320" xmlns="http://www.w3.org/2000/svg">
+  <!-- Давление: плоский стиль §8 — канцелярская кнопка входит в доску остриём -->
+  <!-- Тень-подложка -->
+  <ellipse cx="120" cy="300" rx="88" ry="10" fill="#EEF0FF"/>
+  <!-- Доска (срез) -->
+  <rect x="28" y="236" width="184" height="58" rx="10" fill="#E9D7BC"/>
+  <rect x="28" y="236" width="184" height="58" rx="10" fill="none" stroke="#C9B191" stroke-width="3"/>
+  <!-- Волокна дерева -->
+  <g stroke="#D8C3A2" stroke-width="2.5" stroke-linecap="round">
+    <line x1="44" y1="252" x2="96" y2="252"/>
+    <line x1="150" y1="256" x2="196" y2="256"/>
+    <line x1="52" y1="276" x2="112" y2="276"/>
+    <line x1="140" y1="278" x2="188" y2="278"/>
+  </g>
+  <!-- Лунка от острия -->
+  <path d="M112 236 L120 252 L128 236 Z" fill="#C9B191"/>
+  <!-- Кнопка: остриё вошло в доску -->
+  <g>
+    <!-- остриё -->
+    <path d="M114 208 L120 250 L126 208 Z" fill="#AEB4C2"/>
+    <path d="M114 208 L120 250 L126 208 Z" fill="none" stroke="#8A8F9C" stroke-width="2"/>
+    <!-- шляпка -->
+    <rect x="76" y="188" width="88" height="22" rx="10" fill="#6240FF"/>
+    <rect x="76" y="188" width="88" height="22" rx="10" fill="none" stroke="#4A2FD9" stroke-width="2.5"/>
+    <rect x="90" y="176" width="60" height="18" rx="8" fill="#8B6FFF"/>
+    <rect x="90" y="176" width="60" height="18" rx="8" fill="none" stroke="#6240FF" stroke-width="2.5"/>
+  </g>
+  <!-- Стрелка силы сверху -->
+  <g fill="#E5484D">
+    <rect x="112" y="72" width="16" height="72" rx="8"/>
+    <path d="M120 168 L98 140 L142 140 Z"/>
+  </g>
+  <!-- Подпись силы -->
+  <text x="140" y="98" font-family="'Aeonik Pro', 'Inter', sans-serif" font-size="22" font-weight="500" fill="#B23A3F">F</text>
+  <!-- Искры-акценты у точки входа -->
+  <g stroke="#F0B23C" stroke-width="3" stroke-linecap="round">
+    <line x1="96" y1="226" x2="86" y2="218"/>
+    <line x1="144" y1="226" x2="154" y2="218"/>
+  </g>
+</svg>

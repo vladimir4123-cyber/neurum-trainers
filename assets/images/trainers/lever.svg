@@ -1,0 +1,37 @@
+<svg viewBox="0 0 320 240" xmlns="http://www.w3.org/2000/svg">
+  <!-- Рычаг: плоский стиль §8 — качели в равновесии,
+       большой груз близко к опоре, маленький — далеко -->
+  <!-- Тень-подложка -->
+  <ellipse cx="160" cy="216" rx="120" ry="12" fill="#EEF0FF"/>
+  <!-- Опора (треугольник) -->
+  <path d="M160 148 L134 208 L186 208 Z" fill="#C9CEDA"/>
+  <path d="M160 148 L134 208 L186 208 Z" fill="none" stroke="#A9AFBE" stroke-width="3" stroke-linejoin="round"/>
+  <!-- Доска (слегка не по центру опоры: слева короткое плечо, справа длинное) -->
+  <g>
+    <rect x="28" y="138" width="264" height="12" rx="6" fill="#D9BC8E" stroke="#B99862" stroke-width="2.5" transform="rotate(-1.2 160 144)"/>
+  </g>
+  <!-- Ось -->
+  <circle cx="160" cy="144" r="7" fill="#6240FF"/>
+  <circle cx="160" cy="144" r="3" fill="#EEF0FF"/>
+  <!-- Большой груз слева, близко к опоре -->
+  <g transform="rotate(-1.2 160 144)">
+    <rect x="70" y="86" width="54" height="50" rx="8" fill="#E5484D" stroke="#B4373B" stroke-width="2.5"/>
+    <path d="M85 86 Q97 68 109 86" fill="none" stroke="#B4373B" stroke-width="4" stroke-linecap="round"/>
+    <text x="97" y="117" text-anchor="middle" font-family="'Aeonik Pro', 'Inter', sans-serif" font-size="18" font-weight="500" fill="#8F282C">10</text>
+  </g>
+  <!-- Маленький груз справа, далеко от опоры -->
+  <g transform="rotate(-1.2 160 144)">
+    <rect x="258" y="106" width="28" height="28" rx="6" fill="#2F80ED" stroke="#2361B6" stroke-width="2.5"/>
+    <path d="M265 106 Q272 94 279 106" fill="none" stroke="#2361B6" stroke-width="3" stroke-linecap="round"/>
+    <text x="272" y="126" text-anchor="middle" font-family="'Aeonik Pro', 'Inter', sans-serif" font-size="13" font-weight="500" fill="#1B4B8F">2</text>
+  </g>
+  <!-- Плечи: короткое и длинное -->
+  <g stroke="#6240FF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 7">
+    <path d="M156 170 L104 170"/>
+    <path d="M166 170 L268 170"/>
+  </g>
+  <g font-family="'Aeonik Pro', 'Inter', sans-serif" font-size="15" font-weight="500" fill="#6240FF">
+    <text x="128" y="190" text-anchor="middle">l₁</text>
+    <text x="218" y="190" text-anchor="middle">l₂</text>
+  </g>
+</svg>

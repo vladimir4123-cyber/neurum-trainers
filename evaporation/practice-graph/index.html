@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>График нагревания с кипением · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .canvas-panel{
+    width: 100%; max-width: 520px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* canvas не понимает var() в ctx.font — разворачиваем токен шрифта заранее */
+const FONT = (getComputedStyle(document.documentElement).getPropertyValue('--font-display') || '').replace(/\s+/g, ' ').trim() || '"Aeonik Pro", sans-serif';
+
+/* ============================================================
+   ПРАКТИКА «График нагревания с кипением».
+   Случайный график T(t) с полочкой на температуре кипения —
+   как в первой части ОГЭ. Жидкость не обязательно вода:
+   спирт кипит при 78 °C, эфир — при 35 °C.
+   На сложном уровне — график остывания пара (конденсация).
+   ============================================================ */
+
+const TXT = '#6B7180', AXIS = '#8A8F9C';
+const SEG_COLORS = ['#2F80ED', '#E8590C', '#E5484D'];   // ① ② ③
+
+/* Жидкости: onGrid — полочка попадает на линию сетки */
+const LIQUIDS = [
+  { n: 'вода',  boil: 100, step: 20, starts: [20, 40, 60], coolStart: 140, coolEnd: 60,  onGrid: true },
+  { n: 'спирт', boil: 78,  step: 20, starts: [20, 40],     coolStart: 98,  coolEnd: 38,  onGrid: false },
+  { n: 'эфир',  boil: 35,  step: 5,  starts: [15, 20],     coolStart: 45,  coolEnd: 25,  onGrid: true },
+];
+
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+
+const pick = (arr, rnd) => arr[Math.floor(rnd() * arr.length)];
+
+/* ---------- генератор сценария ---------- */
+function genScenario(liq, rnd, cooling, easy) {
+  const t1 = easy ? pick([2, 4], rnd) : pick([2, 3, 4, 5], rnd);
+  const len = easy ? pick([4, 6], rnd) : pick([3, 4, 5, 6], rnd);
+  const t2 = t1 + len;
+  const after = cooling ? (easy ? 2 : pick([2, 3], rnd)) : 0;
+  const t3 = t2 + after;
+
+  const startT = cooling ? liq.coolStart : pick(liq.starts, rnd);
+  const endT = cooling ? liq.coolEnd : liq.boil;
+
+  const step = liq.step;
+  const lo = Math.min(startT, endT, liq.boil), hi = Math.max(startT, endT, liq.boil);
+  const yMin = Math.floor(lo / step) * step;
+  const yMax = Math.ceil((hi + step * 0.25) / step) * step;
+  const yTicks = [];
+  for (let v = yMin; v <= yMax; v += step) yTicks.push(v);
+  const xStep = t3 > 12 ? 2 : 1;
+  const xMax = Math.ceil(t3 / xStep) * xStep;
+
+  return { liq, cooling: !!cooling, t1, t2, t3, len, startT, endT, yMin, yMax, yTicks, xStep, xMax };
+}
+
+/* T(мин) по сценарию */
+function tAt(m, sc) {
+  const b = sc.liq.boil;
+  if (m <= sc.t1) return sc.startT + (b - sc.startT) * (m / sc.t1);
+  if (m <= sc.t2 || !sc.cooling) return b;
+  return b + (sc.endT - b) * ((m - sc.t2) / (sc.t3 - sc.t2));
+}
+
+/* ---------- отрисовка графика ①②(③) ---------- */
+function drawScenario(ctx, w, h, sc, animProg) {
+  const left = 92, right = 20, top = 22, bottom = 54;
+  const L = left, R = w - right, T = top, B = h - bottom;
+  const gx = v => L + (v / sc.xMax) * (R - L);
+  const gy = v => B - ((v - sc.yMin) / (sc.yMax - sc.yMin)) * (B - T);
+
+  ctx.font = Math.round(w * 0.024) + 'px ' + FONT;
+  ctx.textAlign = 'right';
+  sc.yTicks.forEach(v => {
+    const y = gy(v);
+    ctx.strokeStyle = '#E4E7F0';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(R, y); ctx.stroke();
+    ctx.fillStyle = AXIS;
+    ctx.fillText(String(v), L - 8, y + 7);
+  });
+  ctx.textAlign = 'center';
+  for (let m = 0; m <= sc.xMax; m += sc.xStep) {
+    const x = gx(m);
+    ctx.strokeStyle = '#EDEFF5';
+    ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, B); ctx.stroke();
+    ctx.fillStyle = AXIS;
+    ctx.fillText(String(m), x, B + 26);
+  }
+  ctx.strokeStyle = AXIS;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(L, T); ctx.lineTo(L, B); ctx.lineTo(R, B); ctx.stroke();
+  ctx.fillStyle = TXT;
+  ctx.fillText('время, мин', (L + R) / 2, h - 6);
+  ctx.save();
+  ctx.translate(18, (T + B) / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('t, °C', 0, 0);
+  ctx.restore();
+  ctx.textAlign = 'start';
+
+  // участки с подписями ①②(③)
+  const segs = sc.cooling
+    ? [{ m0: 0, m1: sc.t1 }, { m0: sc.t1, m1: sc.t2 }, { m0: sc.t2, m1: sc.t3 }]
+    : [{ m0: 0, m1: sc.t1 }, { m0: sc.t1, m1: sc.t2 }];
+  const labels = ['①', '②', '③'];
+  const endM = sc.cooling ? sc.t3 : sc.t2;
+  const mProg = animProg * endM;
+  segs.forEach((sg, i) => {
+    const mEnd = Math.min(sg.m1, mProg);
+    if (mEnd <= sg.m0) return;
+    ctx.beginPath();
+    ctx.strokeStyle = SEG_COLORS[i];
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.moveTo(gx(sg.m0), gy(tAt(sg.m0, sc)));
+    ctx.lineTo(gx(mEnd), gy(tAt(mEnd, sc)));
+    ctx.stroke();
+    // подпись участка
+    const mm = (sg.m0 + sg.m1) / 2;
+    const off = i === 1 ? -18 : (sc.cooling ? 26 : -14);
+    ctx.font = '700 ' + Math.round(w * 0.03) + 'px ' + FONT;
+    ctx.fillStyle = SEG_COLORS[i];
+    ctx.textAlign = 'center';
+    ctx.fillText(labels[i], gx(mm) + (i === 1 ? 0 : 14), gy(tAt(mm, sc)) + off);
+    ctx.textAlign = 'start';
+  });
+  // ключевые точки — начало и конец полочки
+  if (mProg >= sc.t1) {
+    [[sc.t1], mProg >= sc.t2 ? [sc.t2] : null].filter(Boolean).forEach(([m]) => {
+      ctx.beginPath();
+      ctx.arc(gx(m), gy(sc.liq.boil), 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = '#E8590C';
+      ctx.lineWidth = 3;
+      ctx.fill();
+      ctx.stroke();
+    });
+  }
+}
+
+function startScene(host, sc) {
+  host.innerHTML = `<div class="canvas-panel"><canvas id="bgCanvas" height="210"></canvas></div>`;
+  const canvas = host.querySelector('#bgCanvas');
+  const ctx = canvas.getContext('2d');
+  const t0 = performance.now() / 1000;
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 210);
+    ctx.clearRect(0, 0, w, h);
+    const anim = Math.min(1, (t - t0) / 1.6);
+    drawScenario(ctx, w, h, sc, anim);
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ---------- вопрос «какая температура кипения?» ---------- */
+function boilTempStep(sc, word) {
+  const b = sc.liq.boil;
+  if (sc.liq.onGrid) {
+    return {
+      type: 'reading',
+      title: `Температура ${word}`,
+      text: `Определи по графику температуру ${word} и впиши её.`,
+      render: host => startScene(host, sc),
+      answer: b, tolerance: 0, unit: '°C',
+      hints: [
+        'Это высота полочки (участка ②) по оси t.',
+        'Проведи от полочки линию влево до оси температуры — на какой отметке она упрётся?',
+      ],
+      right: `✓ Да, полочка на ${b} °C.`,
+    };
+  }
+  // полочка между линиями сетки — выбираем из вариантов
+  return {
+    type: 'choice',
+    title: `Температура ${word}`,
+    text: `Полочка легла между линиями сетки. Какая это температура ${word}?`,
+    render: host => startScene(host, sc),
+    options: [
+      { text: `${b} °C`, correct: true },
+      { text: `${b + 10} °C`, correct: false },
+      { text: `${b - 18} °C`, correct: false },
+      { text: '100 °C', correct: false },
+    ],
+    right: `✓ Полочка чуть ниже отметки ${b + 2} — это ${b} °C. И это точно не 100: не всякая жидкость — вода!`,
+    wrong: `Полочка проходит чуть ниже линии ${Math.ceil(b / 20) * 20} °C — это ${b} °C. Сверяй высоту полочки с осью температуры.`,
+  };
+}
+
+/* ---------- вопрос «какая это жидкость?» ---------- */
+function whichLiquidStep(sc) {
+  const opts = [
+    { text: 'Вода (t кип = 100 °C)', n: 'вода' },
+    { text: 'Спирт (t кип = 78 °C)', n: 'спирт' },
+    { text: 'Ацетон (t кип = 56 °C)', n: 'ацетон' },
+    { text: 'Эфир (t кип = 35 °C)', n: 'эфир' },
+  ];
+  return {
+    type: 'choice',
+    title: 'Что за жидкость?',
+    text: 'Высота полочки — паспорт жидкости. Сравни её с таблицей температур кипения и определи вещество.',
+    render: host => startScene(host, sc),
+    options: opts.map(o => ({ text: o.text, correct: o.n === sc.liq.n })),
+    right: `✓ Полочка на ${sc.liq.boil} °C — это ${sc.liq.n}.`,
+    wrong: `Полочка стоит на ${sc.liq.boil} °C — по таблице это ${sc.liq.n}. Сначала читай высоту полочки, потом смотри в таблицу.`,
+  };
+}
+
+/* ---------- шаги: нагревание с кипением ---------- */
+function heatingSteps(sc, withLiquid) {
+  const scene = host => startScene(host, sc);
+  const steps = [
+    {
+      type: 'choice',
+      title: 'Что на участке ②?',
+      text: 'Жидкость нагревали на горелке и записывали температуру. Что происходит с ней на участке ②?',
+      render: scene,
+      options: [
+        { text: 'Кипит: пар рождается по всему объёму, энергия идёт на парообразование', correct: true },
+        { text: 'Просто нагревается дальше', correct: false },
+        { text: 'Плавится: рушится кристаллическая решётка', correct: false },
+        { text: 'Остывает: горелку выключили', correct: false },
+      ],
+      right: '✓ Полочка при нагревании жидкости — это кипение. Температура стоит, потому что вся энергия уходит на превращение жидкости в пар.',
+      wrong: 'Полочка = кипение: жидкость уже дошла до температуры кипения, и вся энергия горелки уходит на парообразование, а не на нагрев. Плавление тут ни при чём — вещество жидкое с самого начала.',
+    },
+    boilTempStep(sc, 'кипения'),
+    {
+      type: 'reading',
+      title: 'Когда закипело?',
+      text: 'На какой минуте жидкость закипела? Прочитай по графику и впиши.',
+      render: scene,
+      answer: sc.t1, tolerance: 0, unit: 'мин',
+      hints: [
+        'Кипение начинается там, где график ломается и идёт полочка.',
+        'Найди по оси времени точку, где кончается участок ① и начинается ②.',
+      ],
+      right: `✓ Верно: на ${sc.t1}-й минуте график вышел на полочку — жидкость закипела.`,
+    },
+    {
+      type: 'reading',
+      title: 'Сколько минут кипела?',
+      text: 'Сколько минут жидкость кипела до конца наблюдения? Прочитай по графику и впиши.',
+      render: scene,
+      answer: sc.len, tolerance: 0, unit: 'мин',
+      hints: [
+        'Кипение — это полочка: от её начала до конца графика.',
+        `Полочка тянется с ${sc.t1}-й по ${sc.t2}-ю минуту. Вычти одно из другого.`,
+      ],
+      right: `✓ Верно: ${sc.t2} − ${sc.t1} = ${sc.len} мин кипения.`,
+    },
+  ];
+  if (withLiquid) steps.splice(2, 0, whichLiquidStep(sc));
+  return steps;
+}
+
+/* ---------- шаги: остывание пара (ловушка) ---------- */
+function coolingSteps(sc) {
+  const scene = host => startScene(host, sc);
+  return [
+    {
+      type: 'choice',
+      title: 'График-обманка',
+      text: 'Внимание: температура падает, но в середине — полочка. Что происходит на ней?',
+      render: scene,
+      options: [
+        { text: 'Конденсация: пар превращается в жидкость и отдаёт энергию', correct: true },
+        { text: 'Кипение: жидкость превращается в пар', correct: false },
+        { text: 'Кристаллизация: жидкость затвердевает', correct: false },
+        { text: 'Термометр заело — так не бывает', correct: false },
+      ],
+      right: '✓ Это остывает пар! На полочке идёт конденсация — процесс, зеркальный кипению: пар превращается в жидкость и выделяет энергию.',
+      wrong: 'График идёт вниз — вещество остывает, кипеть оно не может. На полочке пар превращается в жидкость — это конденсация, зеркало кипения. До затвердевания ещё далеко: температура выше температуры кипения жидкости.',
+    },
+    boilTempStep(sc, 'конденсации'),
+    whichLiquidStep(sc),
+    {
+      type: 'reading',
+      title: 'Сколько шла конденсация?',
+      text: 'Сколько минут пар превращался в жидкость? Прочитай по графику и впиши.',
+      render: scene,
+      answer: sc.len, tolerance: 0, unit: 'мин',
+      hints: [
+        'Конденсация — это полочка: найди минуты её начала и конца.',
+        `Полочка тянется с ${sc.t1}-й по ${sc.t2}-ю минуту.`,
+      ],
+      right: `✓ Верно: ${sc.t2} − ${sc.t1} = ${sc.len} мин. Конденсация идёт при той же температуре, что и кипение.`,
+    },
+    {
+      type: 'choice',
+      title: 'Что остывает на участке ③?',
+      text: 'Полочка закончилась, температура снова падает. Что остывает на участке ③?',
+      render: scene,
+      options: [
+        { text: 'Жидкость: весь пар уже сконденсировался', correct: true },
+        { text: 'Пар: он ещё не начал превращаться в жидкость', correct: false },
+        { text: 'Твёрдое вещество', correct: false },
+        { text: 'Смесь пара и жидкости', correct: false },
+      ],
+      right: '✓ Да: до полочки остывал пар (①), на полочке он превращался в жидкость (②), после — остывает уже жидкость (③).',
+      wrong: 'Порядок такой: пар остывает (①) → конденсируется на полочке (②) → дальше остывает уже жидкость (③). Смесь была только на самой полочке.',
+    },
+  ];
+}
+
+/* ---------- сборка шагов ---------- */
+function buildSteps(level, rnd) {
+  if (level === 'easy') {
+    return heatingSteps(genScenario(LIQUIDS[0], rnd, false, true), false);
+  }
+  if (level === 'medium') {
+    const liq = pick([LIQUIDS[1], LIQUIDS[2]], rnd);
+    return heatingSteps(genScenario(liq, rnd, false, false), true);
+  }
+  const liq = pick(LIQUIDS, rnd);
+  return coolingSteps(genScenario(liq, rnd, true, false));
+}
+
+runPractice({
+  practiceId: 'graph',
+  storageKey: 'evaporation-progress',
+  homeHref: '../demo/',
+  title: 'График нагревания с кипением',
+  subtitle: 'График T(t) с полочкой кипения — реальное задание первой части ОГЭ. Числа не подсказываем: считывай с графика и вписывай сам.',
+  levels: {
+    easy:   { label: 'Разминка', desc: 'Вода, круглые числа, четыре вопроса.', xp: 30 },
+    medium: { label: 'Экзамен',  desc: 'Загадочная жидкость: спирт или эфир? Полный разбор.', xp: 45 },
+    hard:   { label: 'Ловушка',  desc: 'График остывания пара! Не дай себя обмануть.', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

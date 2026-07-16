@@ -1,0 +1,55 @@
+<svg viewBox="0 0 240 320" xmlns="http://www.w3.org/2000/svg">
+  <!-- Чашка с паром: плоский стиль, палитра §8 (жидкость #2F80ED + тинты) -->
+  <!-- Тень-подложка -->
+  <ellipse cx="118" cy="296" rx="82" ry="11" fill="#EEF0FF"/>
+  <!-- Блюдце -->
+  <path d="M40 272 Q40 288 66 288 L170 288 Q196 288 196 272 L188 264 L48 264 Z" fill="#D9DDE7"/>
+  <path d="M48 264 L188 264 L182 272 L54 272 Z" fill="#C9CEDA"/>
+  <!-- Ручка -->
+  <path d="M184 168 Q222 168 222 200 Q222 232 182 234" fill="none" stroke="#C9CEDA" stroke-width="14" stroke-linecap="round"/>
+  <path d="M184 168 Q222 168 222 200 Q222 232 182 234" fill="none" stroke="#E8EAF2" stroke-width="6" stroke-linecap="round"/>
+  <!-- Чашка -->
+  <path d="M50 140 L58 236 Q60 258 86 258 L150 258 Q176 258 178 236 L186 140 Z" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="3" stroke-linejoin="round"/>
+  <!-- Горячая вода (виден верх) -->
+  <ellipse cx="118" cy="140" rx="68" ry="14" fill="#BFDCF9" stroke="#5D9BE0" stroke-width="3"/>
+  <ellipse cx="118" cy="140" rx="46" ry="8" fill="#D8EAFB"/>
+  <!-- Пузырьки у поверхности -->
+  <circle cx="96" cy="139" r="3.4" fill="#F4F8FE"/>
+  <circle cx="138" cy="143" r="2.6" fill="#F4F8FE"/>
+  <circle cx="118" cy="137" r="2.2" fill="#F4F8FE"/>
+  <!-- Полоска-декор на чашке -->
+  <path d="M55 196 L181 196" stroke="#6240FF" stroke-width="7" stroke-linecap="round" opacity=".85"/>
+  <!-- Пар: три струйки, молекулы-беглецы -->
+  <g fill="none" stroke="#9AA7C7" stroke-width="7" stroke-linecap="round" opacity=".75">
+    <path d="M84 112 Q74 96 84 80 Q94 64 84 46">
+      <animate attributeName="d" dur="3.2s" repeatCount="indefinite"
+        values="M84 112 Q74 96 84 80 Q94 64 84 46; M84 112 Q94 96 84 80 Q74 64 84 46; M84 112 Q74 96 84 80 Q94 64 84 46"/>
+      <animate attributeName="opacity" values=".75;.4;.75" dur="3.2s" repeatCount="indefinite"/>
+    </path>
+    <path d="M120 106 Q108 86 120 66 Q132 46 120 24">
+      <animate attributeName="d" dur="3.8s" repeatCount="indefinite"
+        values="M120 106 Q108 86 120 66 Q132 46 120 24; M120 106 Q132 86 120 66 Q108 46 120 24; M120 106 Q108 86 120 66 Q132 46 120 24"/>
+      <animate attributeName="opacity" values=".7;.35;.7" dur="3.8s" repeatCount="indefinite"/>
+    </path>
+    <path d="M156 112 Q166 96 156 80 Q146 64 156 46">
+      <animate attributeName="d" dur="3.5s" repeatCount="indefinite"
+        values="M156 112 Q166 96 156 80 Q146 64 156 46; M156 112 Q146 96 156 80 Q166 64 156 46; M156 112 Q166 96 156 80 Q146 64 156 46"/>
+      <animate attributeName="opacity" values=".75;.4;.75" dur="3.5s" repeatCount="indefinite"/>
+    </path>
+  </g>
+  <!-- Улетающие молекулы -->
+  <g fill="#E5484D">
+    <circle cx="100" cy="60" r="5">
+      <animateTransform attributeName="transform" type="translate" values="0,0; -8,-40" dur="2.6s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="1;0" dur="2.6s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="142" cy="48" r="5">
+      <animateTransform attributeName="transform" type="translate" values="0,0; 10,-36" dur="3.1s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="1;0" dur="3.1s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="120" cy="80" r="4.4">
+      <animateTransform attributeName="transform" type="translate" values="0,0; 4,-52" dur="3.6s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values=".9;0" dur="3.6s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+</svg>

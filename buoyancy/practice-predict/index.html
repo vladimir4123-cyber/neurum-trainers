@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Тонет — не тонет? · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛟</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .glass-panel{
+    width: 100%; max-width: 380px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .glass-panel svg{ width: 100%; height: auto; display: block; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Тонет — не тонет?».
+   Раунды-предсказания: тело (материал + плотность) и жидкость.
+   Ученик отвечает — а потом тело падает в стакан и делает то,
+   что должно. easy — очевидные пары; medium — близкие плотности
+   (лёд в масле!); hard — расчёт F = ρ·g·V против веса (g = 10 Н/кг).
+   ============================================================ */
+
+const MATS = {
+  wood:    { name: 'дерево',  gen: 'дерева',  dens: 0.7,  fill: '#C9975C', edge: '#9C7040' },
+  ice:     { name: 'лёд',     gen: 'льда',    dens: 0.9,  fill: '#DDF1FF', edge: '#8FB6D9' },
+  plastic: { name: 'пластик', gen: 'пластика', dens: 1.05, fill: '#E5484D', edge: '#B0353A' },
+  steel:   { name: 'сталь',   gen: 'стали',   dens: 7.8,  fill: '#8A8F9C', edge: '#5A5F6E' },
+};
+const LIQS = {
+  water: { name: 'вода',         gen: 'воды',          acc: 'воду',          dens: 1.0,  rho: 1000, fill: '#BFDCF9', edge: '#5D9BE0' },
+  oil:   { name: 'масло',        gen: 'масла',         acc: 'масло',         dens: 0.9,  rho: 900,  fill: '#F2DCA0', edge: '#CBA84E' },
+  salt:  { name: 'солёная вода', gen: 'солёной воды',  acc: 'солёную воду',  dens: 1.03, rho: 1030, fill: '#B9E3DE', edge: '#5FB3A8' },
+  merc:  { name: 'ртуть',        gen: 'ртути',         acc: 'ртуть',         dens: 13.6, rho: 13600, fill: '#D6DAE3', edge: '#9AA0AA' },
+};
+
+const fd = v => String(Math.round(v * 100) / 100).replace('.', ',');
+const shuffle = (arr, rnd) => {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
+/* ---------- сцена: стакан + тело, анимация проверки ---------- */
+function sceneGlass(host, cfg) {
+  /* cfg: { liq, bodyFill, bodyEdge, bodyLabel, outcome, frFloat, unknown } */
+  const VB_W = 320, VB_H = 260;
+  const gx = 160, gw = 144, gTop = 34, gBot = 246, ly = 92, size = 42;
+  host.innerHTML = `
+    <div class="glass-panel">
+    <svg viewBox="0 0 ${VB_W} ${VB_H}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="${gx - gw / 2 + 3}" y="${ly}" width="${gw - 6}" height="${gBot - ly - 3}" rx="8" fill="${cfg.liq.fill}"/>
+      <g id="bodyG">
+        <rect x="${-size / 2}" y="${-size / 2}" width="${size}" height="${size}" rx="9"
+              fill="${cfg.unknown ? '#EDEFF5' : cfg.bodyFill}" stroke="${cfg.unknown ? '#9AA0AA' : cfg.bodyEdge}"
+              stroke-width="3" ${cfg.unknown ? 'stroke-dasharray="6 5"' : ''}/>
+        <text x="0" y="0" text-anchor="middle" dominant-baseline="central"
+              font-family="var(--font-display), sans-serif" font-weight="500" font-size="14"
+              fill="${cfg.unknown ? '#5A5F6E' : cfg.bodyEdge}">${cfg.unknown ? '?' : cfg.bodyLabel}</text>
+      </g>
+      <path id="surf" d="M${gx - gw / 2 + 3} ${ly} Q${gx} ${ly + 4} ${gx + gw / 2 - 3} ${ly}"
+            fill="none" stroke="${cfg.liq.edge}" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M${gx - gw / 2} ${gTop} L${gx - gw / 2} ${gBot - 12} Q${gx - gw / 2} ${gBot} ${gx - gw / 2 + 12} ${gBot}
+               L${gx + gw / 2 - 12} ${gBot} Q${gx + gw / 2} ${gBot} ${gx + gw / 2} ${gBot - 12} L${gx + gw / 2} ${gTop}"
+            fill="none" stroke="#C9CEDA" stroke-width="5" stroke-linecap="round"/>
+      <text x="12" y="22" font-family="var(--font-display), sans-serif"
+            font-weight="500" font-size="15" fill="${cfg.liq.edge}">${cfg.liq.name}</text>
+    </svg>
+    </div>`;
+
+  const svg = host.querySelector('svg');
+  const bodyG = host.querySelector('#bodyG');
+
+  const startY = gTop - size / 2 - 4;
+  let y = startY, vy = 0, running = false, lastT = 0;
+  const targetY = cfg.outcome === 'sink' ? gBot - 6 - size / 2
+    : cfg.outcome === 'hover' || cfg.outcome === 'unknown' ? (ly + gBot) / 2
+    : ly - size / 2 + size * Math.min(1, cfg.frFloat || 0.5);
+
+  function put(t) {
+    const bob = (!running && y === startY) || cfg.outcome === 'unknown'
+      ? Math.sin(t * 2) * 2 : (Math.abs(y - targetY) < 3 && cfg.outcome === 'float' ? Math.sin(t * 2.2) * 2 : 0);
+    bodyG.setAttribute('transform', `translate(${gx}, ${y + bob})`);
+  }
+
+  function frame(t) {
+    if (!svg.isConnected) return;
+    const dt = Math.min(0.033, t - lastT || 0.016);
+    lastT = t;
+    if (running) {
+      const inLiquid = y + size / 2 > ly;
+      if (!inLiquid) vy += 620 * dt;
+      else {
+        vy += (targetY - y) * 24 * dt;
+        vy *= Math.exp(-4.8 * dt);
+      }
+      y += vy * dt;
+      if (y > gBot - 6 - size / 2) { y = gBot - 6 - size / 2; vy = 0; }
+    }
+    put(t);
+    requestAnimationFrame(ts => frame(ts / 1000));
+  }
+  requestAnimationFrame(ts => frame(ts / 1000));
+
+  return { drop() { running = true; } };
+}
+
+/* привязать анимацию к первому клику по варианту */
+function armOnAnswer(host, scene) {
+  const opts = host.parentElement && host.parentElement.querySelector('#pOpts');
+  if (!opts) return;
+  opts.addEventListener('click', e => {
+    if (e.target.closest('.opt-btn')) scene.drop();
+  }, { once: true, capture: true });
+}
+
+/* ---------- варианты (всегда 4, ровно один верный) ---------- */
+function makeOptions(outcome) {
+  return [
+    { text: 'Утонет', correct: outcome === 'sink' },
+    { text: 'Всплывёт и будет плавать', correct: outcome === 'float' },
+    { text: 'Зависнет в толще жидкости', correct: outcome === 'hover' },
+    { text: 'Не хватает данных', correct: outcome === 'unknown' },
+  ];
+}
+
+/* ---------- раунд «сравни плотности» ---------- */
+function densRound(matKey, liqKey) {
+  const m = MATS[matKey], l = LIQS[liqKey];
+  const outcome = Math.abs(m.dens - l.dens) < 1e-9 ? 'hover' : m.dens > l.dens ? 'sink' : 'float';
+  const cmp = outcome === 'sink' ? '&gt;' : outcome === 'hover' ? '=' : '&lt;';
+  const verdict = outcome === 'sink' ? 'тонет' : outcome === 'hover' ? 'зависает — силы уравновешены' : 'всплывает и плавает';
+  const explain = `ρ ${m.gen} (${fd(m.dens)}) ${cmp} ρ ${l.gen} (${fd(l.dens)}) — ${verdict}.`;
+  return {
+    outcome,
+    text: `Кусок ${m.gen} (ρ = ${fd(m.dens)} г/см³) опускают в ${l.acc} (ρ = ${fd(l.dens)} г/см³). Что произойдёт?`,
+    right: explain,
+    wrong: explain + ' Сравнивай плотности внимательнее.',
+    scene: { liq: l, bodyFill: m.fill, bodyEdge: m.edge, bodyLabel: fd(m.dens), frFloat: m.dens / l.dens },
+  };
+}
+
+/* ---------- раунд «не хватает данных» ---------- */
+function trapRound(liqKey, thing) {
+  const l = LIQS[liqKey];
+  return {
+    outcome: 'unknown',
+    text: `${thing} опускают в ${l.acc}. Ни объём, ни плотность его не известны. Что произойдёт?`,
+    right: 'Без объёма (или плотности) тела не найти ни выталкивающую силу, ни исход. Данных не хватает — и это честный ответ физика.',
+    wrong: 'Ловушка! Одной массы мало: не зная объёма, нельзя ни вычислить F = ρ·g·V, ни сравнить плотности. Данных не хватает.',
+    scene: { liq: l, unknown: true },
+  };
+}
+
+/* ---------- раунд с расчётом сил (hard) ---------- */
+function calcRound(liqKey, V_l, m_kg) {
+  const l = LIQS[liqKey];
+  const F = l.rho * 10 * (V_l / 1000);   // Н
+  const P = m_kg * 10;                   // Н
+  const outcome = Math.abs(F - P) < 1e-9 ? 'hover' : F > P ? 'float' : 'sink';
+  const verdict = outcome === 'float' ? 'F больше — тело всплывает'
+    : outcome === 'sink' ? 'F меньше — тело тонет'
+    : 'силы равны — тело зависает';
+  const Vm3 = (V_l / 1000).toFixed(3).replace('.', ',');
+  const explain = `F = ρ·g·V = ${l.rho}·10·${Vm3} = ${fd(F)} Н; вес P = m·g = ${fd(m_kg)}·10 = ${fd(P)} Н. ${verdict}.`;
+  return {
+    outcome,
+    text: `Тело: масса ${fd(m_kg)} кг, объём ${fd(V_l)} л (${Vm3} м³). Его целиком опускают в ${l.acc} (ρ = ${l.rho} кг/м³), g = 10 Н/кг. Что произойдёт?`,
+    right: explain,
+    wrong: explain,
+    scene: {
+      liq: l, bodyFill: '#F0B23C', bodyEdge: '#C98A2E',
+      bodyLabel: fd(m_kg) + ' кг',
+      frFloat: Math.min(1, m_kg / (l.dens * V_l)),
+    },
+  };
+}
+
+/* ---------- наборы раундов по уровням ---------- */
+function makeRounds(level, rnd) {
+  if (level === 'easy') {
+    const pool = [
+      densRound('wood', 'water'), densRound('steel', 'water'), densRound('ice', 'water'),
+      densRound('steel', 'merc'), densRound('steel', 'oil'), densRound('wood', 'salt'),
+    ];
+    return shuffle(pool, rnd).slice(0, 4);
+  }
+  if (level === 'medium') {
+    const pool = [
+      densRound('ice', 'oil'),            // 0,9 = 0,9 — зависнет!
+      densRound('plastic', 'water'),      // 1,05 > 1,0
+      densRound('plastic', 'salt'),       // 1,05 > 1,03 — еле-еле
+      densRound('ice', 'salt'),           // 0,9 < 1,03
+      densRound('wood', 'oil'),           // 0,7 < 0,9
+    ];
+    const traps = [
+      trapRound('water', 'Мешочек с монетами массой 300 г'),
+      trapRound('salt', 'Закрытую банку массой 500 г'),
+    ];
+    return shuffle(shuffle(pool, rnd).slice(0, 4).concat([traps[Math.floor(rnd() * traps.length)]]), rnd);
+  }
+  /* hard: расчёт сил */
+  const rounds = [];
+  const plan = shuffle(['float', 'sink', 'hover', rnd() < 0.5 ? 'float' : 'sink'], rnd);
+  const liqPlan = shuffle(['water', 'water', 'oil', rnd() < 0.5 ? 'water' : 'oil'], rnd);
+  for (let i = 0; i < 4; i++) {
+    const liqKey = liqPlan[i];
+    const V = 1 + Math.floor(rnd() * 4);              // 1..4 л
+    const base = LIQS[liqKey].dens * V;               // кг, при которых силы равны
+    let m;
+    if (plan[i] === 'hover') m = base;
+    else if (plan[i] === 'float') m = Math.max(0.5, Math.round((base - (rnd() < 0.5 ? 0.5 : 1)) * 10) / 10);
+    else m = Math.round((base + (rnd() < 0.5 ? 0.5 : 1)) * 10) / 10;
+    rounds.push(calcRound(liqKey, V, m));
+  }
+  rounds.push(densRound('plastic', 'salt'));
+  rounds.push(trapRound('water', 'Металлический слиток массой 3 кг'));
+  return shuffle(rounds, rnd);
+}
+
+/* ---------- сборка шагов ---------- */
+function buildSteps(level, rnd) {
+  const rounds = makeRounds(level, rnd);
+  return rounds.map((round, i) => ({
+    type: 'choice',
+    title: `Задача ${i + 1} из ${rounds.length}`,
+    text: round.text,
+    render(host) {
+      const scene = sceneGlass(host, round.scene ? { outcome: round.outcome, ...round.scene } : { outcome: round.outcome, liq: LIQS.water });
+      armOnAnswer(host, scene);
+    },
+    options: makeOptions(round.outcome),
+    right: round.right,
+    wrong: round.wrong,
+  }));
+}
+
+runPractice({
+  practiceId: 'predict',
+  storageKey: 'buoyancy-progress',
+  homeHref: '../demo/',
+  title: 'Тонет — не тонет?',
+  subtitle: 'Перед тобой тело и жидкость. Предскажи судьбу — а потом смотри проверку: тело упадёт в стакан и сделает то, что должно.',
+  levels: {
+    easy:   { label: 'Разминка',      desc: 'Очевидные пары: плотности отличаются сильно.', xp: 30 },
+    medium: { label: 'Тонкие случаи', desc: 'Плотности почти равны. Лёд в масле — сюрприз! И берегись ловушки.', xp: 40 },
+    hard:   { label: 'Расчёт сил',    desc: 'Считай F = ρ·g·V и сравнивай с весом. g = 10 Н/кг.', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

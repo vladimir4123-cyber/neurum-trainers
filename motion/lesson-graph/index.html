@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>График движения · Скорость и графики движения</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 620px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 14px;
+  }
+  .canvas-panel svg{ width: 100%; height: auto; display: block; }
+  .canvas-panel canvas{ width: 100%; display: block; }
+  .canvas-hint{
+    margin: 14px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+  .mini-actions{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  .mini-play-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border: 0; border-radius: var(--radius-md);
+    background: var(--fg-1); color: #fff; cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .mini-play-btn:hover:not(:disabled){ background: #3a3a3f; }
+  .mini-play-btn:active:not(:disabled){ transform: scale(0.96); }
+  .chip-btn{
+    padding: 12px 18px; border: 1px solid var(--purple-4); border-radius: var(--radius-md);
+    background: var(--white); color: var(--fg-2); cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .chip-btn:hover{ background: var(--purple-4); }
+  .chip-btn:active{ transform: scale(0.96); }
+
+  /* слайдер скорости */
+  .speed-row{
+    display: flex; align-items: center; gap: 14px; justify-content: center;
+    margin-top: 14px; flex-wrap: wrap;
+  }
+  .speed-lbl{
+    font-family: var(--font-display); font-size: 19px; font-weight: 500;
+    color: var(--fg-1); font-variant-numeric: tabular-nums; min-width: 190px; text-align: center;
+  }
+  .speed-lbl b{ color: var(--purple-1); font-weight: 500; }
+  input.speed-slider{
+    -webkit-appearance: none; appearance: none;
+    width: min(340px, 72vw); height: 10px; border-radius: 9999px;
+    background: linear-gradient(90deg, #FFD2C5 0%, #E4E7F2 50%, #D6CCFF 100%);
+    outline: none; cursor: pointer;
+  }
+  input.speed-slider::-webkit-slider-thumb{
+    -webkit-appearance: none; appearance: none;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: #fff; border: 4px solid var(--purple-1);
+    box-shadow: 0 2px 8px rgba(98,64,255,.35); cursor: grab;
+  }
+  input.speed-slider::-moz-range-thumb{
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; border: 4px solid var(--purple-1);
+    box-shadow: 0 2px 8px rgba(98,64,255,.35); cursor: grab;
+  }
+  .speed-ends{
+    display: flex; justify-content: space-between;
+    width: min(340px, 72vw); margin: -6px auto 0;
+    font-size: 12.5px; color: var(--fg-3);
+  }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ============================================================
+   ТЕМА 2 «График движения» — вау-центр тренажёра.
+   Машинка едет по прямой дороге (вверху), а внизу ЖИВЬЁМ
+   рисуется график x(t). Слайдер = скорость (механика PhET
+   Moving Man): быстрее → круче, стоишь → полочка, назад → вниз.
+   ============================================================ */
+
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+const fmt1 = v => (Math.round(v * 10) / 10).toFixed(1).replace('.', ',');
+
+/* ---------- дорога с домом и деревом ---------- */
+function roadSVG() {
+  return `
+    <svg viewBox="0 0 640 96" xmlns="http://www.w3.org/2000/svg">
+      <!-- дом у отметки 0 -->
+      <g transform="translate(18,18)">
+        <rect x="4" y="22" width="34" height="28" rx="3" fill="#F4F1FF" stroke="#C9CEDA" stroke-width="2.5"/>
+        <path d="M0 24 L21 6 L42 24 Z" fill="#8B6FFF" stroke="#6240FF" stroke-width="2" stroke-linejoin="round"/>
+        <rect x="16" y="34" width="10" height="16" rx="2" fill="#C9CEDA"/>
+      </g>
+      <!-- дерево у отметки 60 -->
+      <g transform="translate(596,20)">
+        <rect x="-3" y="26" width="7" height="22" rx="3" fill="#B98A4A"/>
+        <circle cx="0" cy="16" r="16" fill="#8FCF9F"/>
+        <circle cx="-11" cy="24" r="10" fill="#7BC28D"/>
+        <circle cx="11" cy="24" r="10" fill="#7BC28D"/>
+      </g>
+      <rect x="24" y="66" width="600" height="14" rx="7" fill="#DDE1EC"/>
+      <g stroke="#fff" stroke-width="2.5" stroke-linecap="round">
+        ${[64,144,224,304,384,464,544].map(x => `<line x1="${x}" y1="73" x2="${x + 24}" y2="73"/>`).join('')}
+      </g>
+      <g font-family="var(--font-display), sans-serif" font-size="13" font-weight="500" fill="#9AA0AA">
+        <text x="39" y="94" text-anchor="middle">0 м</text>
+        <text x="330" y="94" text-anchor="middle">30 м</text>
+        <text x="621" y="94" text-anchor="middle">60 м</text>
+      </g>
+      <g id="simCar">
+        <g transform="translate(-30,32)">
+          <path d="M4 22 Q4 13 13 13 L18 13 Q23 3 35 3 L48 3 Q59 3 64 13 L69 13 Q76 13 76 22 L76 28 Q76 31 73 31 L7 31 Q4 31 4 28 Z"
+                fill="#E5484D" stroke="#B2373B" stroke-width="2.2" stroke-linejoin="round"/>
+          <path d="M25 13 Q28 6 35 6 L44 6 L44 13 Z" fill="#F4F8FE" stroke="#B2373B" stroke-width="1.6"/>
+          <path d="M48 6 Q57 6 61 13 L48 13 Z" fill="#F4F8FE" stroke="#B2373B" stroke-width="1.6"/>
+          <circle cx="21" cy="31" r="7" fill="#3E434C"/><circle cx="21" cy="31" r="3" fill="#C9CEDA"/>
+          <circle cx="59" cy="31" r="7" fill="#3E434C"/><circle cx="59" cy="31" r="3" fill="#C9CEDA"/>
+        </g>
+      </g>
+    </svg>`;
+}
+
+/* ============================================================
+   ИНТЕРАКТИВ: машинка + живой график x(t)
+   ============================================================ */
+function startSim(root, done) {
+  const T = 12, XMAX = 60;
+  const roadHost = root.querySelector('#simRoad');
+  roadHost.innerHTML = roadSVG();
+  const car = roadHost.querySelector('#simCar');
+  const canvas = root.querySelector('#simCanvas');
+  const slider = root.querySelector('#simSlider');
+  const vLbl = root.querySelector('#simV');
+  const resetBtn = root.querySelector('#simReset');
+  const ctx2 = canvas.getContext('2d');
+
+  let t = 0, x = 30, trace = [[0, 30]], last = null, moved = false;
+
+  slider.addEventListener('input', () => {
+    if (!moved) { moved = true; done(); }
+  });
+  resetBtn.addEventListener('click', () => {
+    t = 0; x = 30; trace = [[0, 30]]; last = null;
+    slider.value = '0';
+    vLbl.innerHTML = 'Скорость: <b>0,0 м/с</b>';
+  });
+
+  const PAD = { l: 74, r: 20, t: 24, b: 52 };
+  function px(tt, w) { return PAD.l + (tt / T) * (w - PAD.l - PAD.r); }
+  function py(xx, h) { return h - PAD.b - (xx / XMAX) * (h - PAD.t - PAD.b); }
+
+  function drawGraph() {
+    const { w, h } = fit(canvas, 280);
+    ctx2.clearRect(0, 0, w, h);
+    ctx2.lineCap = 'round'; ctx2.lineJoin = 'round';
+
+    // сетка
+    ctx2.strokeStyle = '#E4E7F2'; ctx2.lineWidth = 2;
+    for (let s = 0; s <= T; s++) {
+      ctx2.beginPath(); ctx2.moveTo(px(s, w), py(0, h)); ctx2.lineTo(px(s, w), py(XMAX, h)); ctx2.stroke();
+    }
+    for (let m = 0; m <= XMAX; m += 10) {
+      ctx2.beginPath(); ctx2.moveTo(px(0, w), py(m, h)); ctx2.lineTo(px(T, w), py(m, h)); ctx2.stroke();
+    }
+    // оси
+    ctx2.strokeStyle = '#B0B4BE'; ctx2.lineWidth = 3;
+    ctx2.beginPath(); ctx2.moveTo(px(0, w), py(XMAX, h)); ctx2.lineTo(px(0, w), py(0, h)); ctx2.lineTo(px(T, w), py(0, h)); ctx2.stroke();
+    // подписи
+    ctx2.font = '500 ' + Math.round(w * 0.034) + 'px var(--font-display), sans-serif';
+    ctx2.fillStyle = '#6B7180'; ctx2.textAlign = 'center';
+    for (let s = 0; s <= T - 2; s += 2) ctx2.fillText(String(s), px(s, w), py(0, h) + 34);
+    ctx2.textAlign = 'right';
+    for (let m = 0; m <= XMAX; m += 20) ctx2.fillText(String(m), px(0, w) - 14, py(m, h) + 8);
+    ctx2.textAlign = 'left';
+    ctx2.fillStyle = '#232323';
+    ctx2.fillText('x, м', 8, py(XMAX, h) - 4);
+    ctx2.textAlign = 'right';
+    ctx2.fillText('t, с', w - 8, py(0, h) + 34);
+    ctx2.textAlign = 'start';
+
+    // след x(t)
+    if (trace.length > 1) {
+      ctx2.strokeStyle = '#6240FF'; ctx2.lineWidth = 5;
+      ctx2.beginPath();
+      trace.forEach(([tt, xx], i) => {
+        const X = px(tt, w), Y = py(xx, h);
+        if (i === 0) ctx2.moveTo(X, Y); else ctx2.lineTo(X, Y);
+      });
+      ctx2.stroke();
+    }
+    // текущая точка
+    const cx = px(t, w), cy = py(x, h);
+    ctx2.beginPath(); ctx2.arc(cx, cy, 9, 0, Math.PI * 2); ctx2.fillStyle = '#E5484D'; ctx2.fill();
+    ctx2.beginPath(); ctx2.arc(cx, cy, 3.6, 0, Math.PI * 2); ctx2.fillStyle = '#fff'; ctx2.fill();
+  }
+
+  function frame(now) {
+    if (!canvas.isConnected) return;                 // шаг сменился — глушим цикл
+    if (last != null) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      const v = parseFloat(slider.value);
+      t += dt;
+      x = Math.min(XMAX, Math.max(0, x + v * dt));
+      if (t >= T) { t = 0; trace = []; }             // лента закончилась — новая
+      trace.push([t, x]);
+      vLbl.innerHTML = `Скорость: <b>${fmt1(v)} м/с</b>`;
+    }
+    last = now;
+    // машинка на дороге: 0..60 м → 39..621 px
+    car.setAttribute('transform', `translate(${39 + (x / XMAX) * (621 - 39)},0)`);
+    drawGraph();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'info', visual: 'axes', big: true,
+    title: 'График движения — это рассказ о поездке',
+    text: 'По горизонтали откладываем <b>время t</b> (секунды бегут слева направо всегда, их не остановить). По вертикали — <b>координату x</b>: где тело находится на дороге. Одна точка графика = «в такой-то момент тело было вот здесь».',
+  },
+  {
+    phase: 'theory', type: 'interact', id: 'sim', visual: 'sim',
+    title: 'Веди машинку — график нарисуется сам',
+    text: 'Двигай слайдер скорости и смотри вниз: едешь быстрее — линия <b>круче</b>, остановился — <b>полочка</b>, поехал назад — линия идёт <b>вниз</b>. Попробуй нарисовать «горку»: уехать и вернуться.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'shapes', big: true,
+    title: 'Три жеста, из которых состоит любой график',
+    text: 'Любой график равномерного движения складывается из трёх кусочков: <b>вверх</b> — еду вперёд (чем круче, тем быстрее), <b>полочка</b> — стою, <b>вниз</b> — еду назад. Научишься их узнавать — прочитаешь любую задачу ОГЭ.',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Два вопроса — и график твой.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос',
+    text: 'На графике x(t) линия идёт горизонтально — «полочка». Что делает тело?',
+    options: [
+      { id: 'a', text: 'Едет с постоянной скоростью', correct: false },
+      { id: 'b', text: 'Стоит на месте', correct: true },
+      { id: 'c', text: 'Едет назад', correct: false },
+    ],
+    right: 'Время идёт, а координата x не меняется — тело никуда не сдвинулось. Полочка = остановка.',
+    wrong: 'Смотри на ось x: на полочке координата не меняется, хотя время идёт. Значит, тело стоит.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос',
+    text: 'Линия графика x(t) пошла вниз. Что это значит?',
+    options: [
+      { id: 'a', text: 'Тело тормозит', correct: false },
+      { id: 'b', text: 'Тело падает вниз', correct: false },
+      { id: 'c', text: 'Тело едет обратно — координата уменьшается', correct: true },
+    ],
+    right: 'Координата x уменьшается со временем — тело возвращается к точке 0. График «вниз» = движение назад.',
+    wrong: 'График — не картинка дороги! Вниз идёт координата x: тело возвращается назад, к нулю.',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  axes: () => `
+    <svg viewBox="0 0 260 170" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#E4E7F2" stroke-width="1.4">
+        ${[56,92,128,164,200,236].map(x => `<line x1="${x}" y1="18" x2="${x}" y2="132"/>`).join('')}
+        ${[46,74,102].map(y => `<line x1="34" y1="${y}" x2="240" y2="${y}"/>`).join('')}
+      </g>
+      <g stroke="#B0B4BE" stroke-width="3" stroke-linecap="round">
+        <line x1="34" y1="14" x2="34" y2="132"/>
+        <line x1="34" y1="132" x2="244" y2="132"/>
+      </g>
+      <g font-family="var(--font-display), sans-serif" font-weight="500">
+        <text x="14" y="22" font-size="16" fill="#232323">x, м</text>
+        <text x="232" y="154" font-size="16" fill="#232323">t, с</text>
+        <text x="120" y="163" text-anchor="middle" font-size="13" fill="#6B7180">время бежит вправо →</text>
+      </g>
+      <circle cx="128" cy="74" r="7" fill="#E5484D">
+        <animate attributeName="opacity" values="1;.35;1" dur="1.8s" repeatCount="indefinite"/>
+      </circle>
+      <g stroke="#6240FF" stroke-width="2" stroke-dasharray="4 5" fill="none">
+        <line x1="128" y1="74" x2="128" y2="132"/>
+        <line x1="128" y1="74" x2="34" y2="74"/>
+      </g>
+    </svg>`,
+  sim: () => `
+    <div class="canvas-panel"><div id="simRoad"></div></div>
+    <div class="canvas-panel" style="margin-top:12px;"><canvas id="simCanvas" height="280"></canvas></div>
+    <div class="speed-row">
+      <span class="speed-lbl" id="simV">Скорость: <b>0,0 м/с</b></span>
+      <input class="speed-slider" id="simSlider" type="range" min="-5" max="5" step="0.5" value="0">
+      <button class="chip-btn" id="simReset">↺ Сначала</button>
+    </div>
+    <div class="speed-ends"><span>← назад</span><span>стоп</span><span>вперёд →</span></div>
+    <p class="canvas-hint">Крути слайдер: <b>круче</b> — быстрее, <b>полочка</b> — стоишь, <b>вниз</b> — назад</p>`,
+  shapes: () => `
+    <svg viewBox="0 0 300 130" xmlns="http://www.w3.org/2000/svg">
+      <g font-family="var(--font-display), sans-serif" font-size="13" font-weight="500" fill="#6B7180" text-anchor="middle">
+        <text x="55" y="122">еду вперёд</text>
+        <text x="150" y="122">стою</text>
+        <text x="245" y="122">еду назад</text>
+      </g>
+      ${[10, 105, 200].map(x => `
+        <g stroke="#C9CEDA" stroke-width="2.5" stroke-linecap="round" fill="none">
+          <path d="M${x + 8} 16 L${x + 8} 100 L${x + 88} 100"/>
+        </g>`).join('')}
+      <path d="M18 96 L88 30" stroke="#6240FF" stroke-width="5" stroke-linecap="round" fill="none"
+            stroke-dasharray="97" stroke-dashoffset="97">
+        <animate attributeName="stroke-dashoffset" values="97;0" dur="1.1s" fill="freeze" begin="0s"/>
+      </path>
+      <path d="M113 56 L183 56" stroke="#07BE7E" stroke-width="5" stroke-linecap="round" fill="none"
+            stroke-dasharray="70" stroke-dashoffset="70">
+        <animate attributeName="stroke-dashoffset" values="70;0" dur="1s" fill="freeze" begin="1.2s"/>
+      </path>
+      <path d="M208 30 L278 96" stroke="#E5484D" stroke-width="5" stroke-linecap="round" fill="none"
+            stroke-dasharray="97" stroke-dashoffset="97">
+        <animate attributeName="stroke-dashoffset" values="97;0" dur="1.1s" fill="freeze" begin="2.3s"/>
+      </path>
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'sim') startSim(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'graph',
+  storageKey: 'motion-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-read/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,86 @@
+<svg viewBox="0 0 800 620" xmlns="http://www.w3.org/2000/svg">
+  <!-- Рычажные весы — hero-иллюстрация тренажёра. Плоский стиль:
+       сплошные заливки, тонкие тёмные края, без чёрных контуров. -->
+
+  <!-- Основание -->
+  <rect x="290" y="520" width="220" height="26" rx="13" fill="#C9CEDA"/>
+  <rect x="290" y="520" width="220" height="8" rx="4" fill="#DFE3EC"/>
+  <rect x="330" y="490" width="140" height="34" rx="10" fill="#B3B9C6"/>
+
+  <!-- Стойка -->
+  <rect x="388" y="210" width="24" height="290" rx="8" fill="#C9CEDA"/>
+  <rect x="388" y="210" width="9" height="290" rx="4" fill="#DFE3EC"/>
+
+  <!-- Шкала стрелки -->
+  <g stroke="#B3B9C6" stroke-width="4" stroke-linecap="round">
+    <line x1="352" y1="342" x2="360" y2="330"/>
+    <line x1="376" y1="352" x2="380" y2="338"/>
+    <line x1="424" y1="352" x2="420" y2="338"/>
+    <line x1="448" y1="342" x2="440" y2="330"/>
+  </g>
+  <line x1="400" y1="356" x2="400" y2="336" stroke="#6240FF" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- Коромысло + чашки: качаются вместе, чашки остаются горизонтальными -->
+  <g>
+    <animateTransform attributeName="transform" type="rotate"
+      values="-3 400 210; 3 400 210; -3 400 210" dur="6s" repeatCount="indefinite"
+      calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1"/>
+
+    <!-- балка -->
+    <rect x="160" y="198" width="480" height="24" rx="12" fill="#6240FF"/>
+    <rect x="160" y="198" width="480" height="9" rx="4.5" fill="#8B6FFF"/>
+
+    <!-- стрелка-указатель (жёстко скреплена с коромыслом) -->
+    <path d="M400 226 L400 320 L392 320 L400 344 L408 320 L400 320" fill="#E5484D" stroke="#E5484D" stroke-width="6" stroke-linejoin="round"/>
+
+    <!-- левая чашка: яблоко -->
+    <g transform="translate(184 210)">
+      <animateTransform attributeName="transform" type="rotate" additive="sum"
+        values="3 0 0; -3 0 0; 3 0 0" dur="6s" repeatCount="indefinite"
+        calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1"/>
+      <circle cx="0" cy="0" r="8" fill="#4A2FD9"/>
+      <path d="M0 0 L-92 128 M0 0 L92 128" stroke="#8F95A3" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M-118 132 a118 26 0 0 0 236 0 l0 8 a118 26 0 0 1 -236 0 z" fill="#9AA0AC"/>
+      <ellipse cx="0" cy="132" rx="118" ry="20" fill="#C9CEDA"/>
+      <ellipse cx="0" cy="130" rx="106" ry="15" fill="#DFE3EC"/>
+      <!-- яблоко -->
+      <circle cx="0" cy="86" r="42" fill="#E5484D"/>
+      <circle cx="0" cy="86" r="42" fill="none" stroke="#B7383C" stroke-width="3"/>
+      <ellipse cx="-14" cy="74" rx="9" ry="14" fill="#F08A8E"/>
+      <path d="M0 48 q4 -16 2 -22" stroke="#7A5B3A" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M2 34 q20 -6 26 8 q-18 8 -26 -8 z" fill="#3A9D5D"/>
+    </g>
+
+    <!-- правая чашка: гири -->
+    <g transform="translate(616 210)">
+      <animateTransform attributeName="transform" type="rotate" additive="sum"
+        values="3 0 0; -3 0 0; 3 0 0" dur="6s" repeatCount="indefinite"
+        calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1"/>
+      <circle cx="0" cy="0" r="8" fill="#4A2FD9"/>
+      <path d="M0 0 L-92 128 M0 0 L92 128" stroke="#8F95A3" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M-118 132 a118 26 0 0 0 236 0 l0 8 a118 26 0 0 1 -236 0 z" fill="#9AA0AC"/>
+      <ellipse cx="0" cy="132" rx="118" ry="20" fill="#C9CEDA"/>
+      <ellipse cx="0" cy="130" rx="106" ry="15" fill="#DFE3EC"/>
+      <!-- гиря 100 -->
+      <g transform="translate(-34 124)">
+        <rect x="-33" y="-52" width="66" height="52" rx="6" fill="#F5B93B"/>
+        <rect x="-33" y="-52" width="66" height="52" rx="6" fill="none" stroke="#C9941B" stroke-width="2.5"/>
+        <rect x="-20" y="-66" width="40" height="16" rx="4" fill="#F5B93B" stroke="#C9941B" stroke-width="2.5"/>
+        <circle cx="0" cy="-70" r="8" fill="none" stroke="#C9941B" stroke-width="4.5"/>
+        <text x="0" y="-26" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-weight="700" font-size="24" fill="#6E5109">100</text>
+      </g>
+      <!-- гиря 50 -->
+      <g transform="translate(34 124)">
+        <rect x="-27" y="-42" width="54" height="42" rx="5" fill="#F5B93B"/>
+        <rect x="-27" y="-42" width="54" height="42" rx="5" fill="none" stroke="#C9941B" stroke-width="2.5"/>
+        <rect x="-16" y="-54" width="32" height="14" rx="4" fill="#F5B93B" stroke="#C9941B" stroke-width="2.5"/>
+        <circle cx="0" cy="-58" r="7" fill="none" stroke="#C9941B" stroke-width="4"/>
+        <text x="0" y="-21" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-weight="700" font-size="20" fill="#6E5109">50</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Ось опоры поверх балки -->
+  <circle cx="400" cy="210" r="15" fill="#4A2FD9"/>
+  <circle cx="400" cy="210" r="6" fill="#EEF0FF"/>
+</svg>

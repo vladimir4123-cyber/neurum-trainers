@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Сила Архимеда · Архимедова сила</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛟</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 560px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; }
+  .canvas-hint{
+    margin: 14px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+  .dip-controls{
+    width: 100%; max-width: 560px; margin: 14px auto 0;
+    display: flex; flex-direction: column; gap: 12px; align-items: stretch;
+  }
+  .dip-slider{
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 10px; border-radius: 9999px;
+    background: var(--purple-4); outline: none; cursor: pointer;
+    accent-color: var(--purple-1);
+  }
+  .dip-slider::-webkit-slider-thumb{
+    -webkit-appearance: none; appearance: none;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--purple-1); border: 4px solid #fff;
+    box-shadow: 0 2px 8px rgba(98,64,255,.4);
+  }
+  .dip-slider::-moz-range-thumb{
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--purple-1); border: 4px solid #fff;
+    box-shadow: 0 2px 8px rgba(98,64,255,.4);
+  }
+  .dip-stats{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .dip-chip{
+    background: #fff; border-radius: var(--radius-md);
+    box-shadow: 0 2px 10px rgba(24,12,34,.07);
+    padding: 10px 16px; font-size: 16px; color: var(--fg-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .dip-chip b{ font-family: var(--font-display); font-weight: 500; color: var(--purple-1); font-size: 18px; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ============================================================
+   ТЕМА 2 «Сила Архимеда».
+   Интерактив: погружай цилиндр слайдером — уровень воды в
+   мензурке растёт, стрелка силы растёт ДО полного погружения,
+   дальше не меняется (важный момент!).
+   ============================================================ */
+
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+function arrowV(ctx, x, yFrom, yTo, color, width) {
+  const dir = yTo > yFrom ? 1 : -1;
+  const len = Math.abs(yTo - yFrom);
+  if (len < 6) return;
+  const hHead = Math.min(len * 0.45, width * 2.4);
+  ctx.fillStyle = color;
+  const shaftLen = len - hHead;
+  const sy = dir > 0 ? yFrom : yFrom - shaftLen;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x - width / 2, sy, width, shaftLen, width / 2);
+  else ctx.rect(x - width / 2, sy, width, shaftLen);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x, yTo);
+  ctx.lineTo(x - width * 1.3, yTo - dir * hHead);
+  ctx.lineTo(x + width * 1.3, yTo - dir * hHead);
+  ctx.closePath();
+  ctx.fill();
+}
+
+const WATER = '#BFDCF9', WATER_EDGE = '#5D9BE0', GLASS = '#C9CEDA';
+const BODY = '#F0B23C', BODY_EDGE = '#C98A2E';
+const PURPLE = '#6240FF', GRAY = '#6B7180', INK = '#3E434C';
+
+const fmt = v => (Math.round(v * 100) / 100).toFixed(2).replace('.', ',');
+/* canvas не понимает var() в font — разворачиваем токен руками */
+const FONT = '"Aeonik Pro", "Inter", sans-serif';
+
+/* ============================================================
+   ИНТЕРАКТИВ: мензурка + слайдер погружения
+   ============================================================ */
+function startDip(root, done) {
+  const canvas = root.querySelector('#dipCanvas');
+  const slider = root.querySelector('#dipSlider');
+  const hint = root.querySelector('#dipHint');
+  const volEl = root.querySelector('#dipVol');
+  const forceEl = root.querySelector('#dipForce');
+  const ctx = canvas.getContext('2d');
+
+  const V_BODY = 100;       // см³
+  const WATER0 = 120;       // мл воды без тела
+  const CAPACITY = 250;     // мл — шкала мензурки
+
+  let sVis = 0;             // плавное отображаемое значение слайдера
+  let saidFull = false, saidDeep = false, isDone = false;
+
+  slider.addEventListener('input', () => {
+    const s = +slider.value;
+    if (s >= 100 && !saidFull) {
+      saidFull = true;
+      hint.innerHTML = 'Целиком под водой! Вытеснять больше нечего. А теперь <b>тяни глубже</b>…';
+    }
+    if (s >= 120 && !saidDeep) {
+      saidDeep = true;
+      hint.innerHTML = '⚓ Глубже — а сила <b>не растёт</b>! Ей важен только объём погружённой части.';
+      if (!isDone) { isDone = true; done(); }
+    }
+  });
+
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 320);
+    ctx.clearRect(0, 0, w, h);
+
+    const s = +slider.value;
+    sVis += (s - sVis) * 0.2;
+    const f = Math.min(sVis, 100) / 100;               // доля погружения
+    const extraN = Math.max(0, sVis - 100) / 40;       // 0..1 «глубже»
+
+    /* геометрия мензурки */
+    const bx = w * 0.50, bw = w * 0.34;
+    const byTop = h * 0.09, byBot = h * 0.93;
+    const innerH = byBot - byTop;
+    const pxPerMl = innerH / CAPACITY;
+
+    const displaced = V_BODY * f;                       // мл
+    const levelMl = WATER0 + displaced;
+    const levelY = byBot - levelMl * pxPerMl;
+
+    /* тело-цилиндр */
+    const cw = bw * 0.42, ch = innerH * 0.30;
+    const maxExtra = byBot - 20 - (levelY + ch);
+    const bodyBottom = levelY + f * ch + extraN * Math.max(0, maxExtra) * (f >= 1 ? 1 : 0);
+    const bodyTop = bodyBottom - ch;
+    const bodyX = bx;
+
+    /* нить подвеса */
+    ctx.strokeStyle = '#9AA0AA';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(bodyX, 0);
+    ctx.lineTo(bodyX, bodyTop + 3);
+    ctx.stroke();
+
+    /* вода */
+    ctx.fillStyle = WATER;
+    ctx.beginPath();
+    ctx.rect(bx - bw / 2 + 3, levelY, bw - 6, byBot - levelY - 3);
+    ctx.fill();
+    /* мениск */
+    ctx.strokeStyle = WATER_EDGE;
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(bx - bw / 2 + 3, levelY);
+    ctx.quadraticCurveTo(bx, levelY + 6, bx + bw / 2 - 3, levelY);
+    ctx.stroke();
+
+    /* цилиндр в воде */
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bodyX - cw / 2, bodyTop, cw, ch, 10);
+    else ctx.rect(bodyX - cw / 2, bodyTop, cw, ch);
+    ctx.fillStyle = BODY;
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = BODY_EDGE;
+    ctx.stroke();
+
+    /* стенки мензурки поверх воды */
+    ctx.strokeStyle = GLASS;
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(bx - bw / 2, byTop);
+    ctx.lineTo(bx - bw / 2, byBot - 14);
+    ctx.quadraticCurveTo(bx - bw / 2, byBot, bx - bw / 2 + 14, byBot);
+    ctx.lineTo(bx + bw / 2 - 14, byBot);
+    ctx.quadraticCurveTo(bx + bw / 2, byBot, bx + bw / 2, byBot - 14);
+    ctx.lineTo(bx + bw / 2, byTop);
+    ctx.stroke();
+
+    /* шкала мензурки */
+    ctx.font = '500 ' + Math.round(w * 0.032) + 'px ' + FONT;
+    ctx.fillStyle = INK;
+    ctx.textAlign = 'right';
+    for (let ml = 0; ml <= CAPACITY; ml += 50) {
+      const y = byBot - ml * pxPerMl;
+      ctx.strokeStyle = '#5D6472';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(bx - bw / 2 - 14, y);
+      ctx.lineTo(bx - bw / 2, y);
+      ctx.stroke();
+      ctx.fillText(String(ml), bx - bw / 2 - 20, y + Math.round(w * 0.01));
+    }
+    ctx.textAlign = 'start';
+
+    /* стрелка выталкивающей силы рядом с телом */
+    const F = f;   // Н: 100 см³ воды → 1 Н при g = 10 Н/кг
+    if (F > 0.02) {
+      const ax = bx + bw / 2 + w * 0.10;
+      const aLen = h * 0.10 + F * h * 0.34;
+      const ay = (bodyTop + bodyBottom) / 2 + h * 0.02;
+      arrowV(ctx, ax, ay, ay - aLen, PURPLE, 10);
+      ctx.font = '500 ' + Math.round(w * 0.048) + 'px ' + FONT;
+      ctx.fillStyle = PURPLE;
+      ctx.textAlign = 'left';
+      ctx.fillText('F', ax + w * 0.025, ay - aLen / 2);
+      ctx.textAlign = 'start';
+    }
+
+    /* подпись уровня воды */
+    ctx.font = '500 ' + Math.round(w * 0.036) + 'px ' + FONT;
+    ctx.fillStyle = WATER_EDGE;
+    ctx.textAlign = 'left';
+    ctx.fillText(Math.round(levelMl) + ' мл', bx + bw / 2 + 10, levelY + 4);
+    ctx.textAlign = 'start';
+
+    /* обновляем чипы */
+    volEl.innerHTML = 'Вытеснено: <b>' + Math.round(displaced) + ' см³</b>';
+    forceEl.innerHTML = 'Сила: <b>F = ' + fmt(F) + ' Н</b>';
+
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'interact', id: 'dip', visual: 'dip',
+    title: 'Погружай и следи за водой',
+    text: 'Опускай цилиндр слайдером и смотри на две вещи сразу: сколько воды он вытеснил (уровень в мензурке!) и как растёт выталкивающая сила. Обязательно дотяни слайдер до самого конца.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'law', big: true,
+    title: 'Сила Архимеда',
+    text: 'Выталкивающая сила равна <b>весу вытесненной жидкости</b>: F = ρ<sub>ж</sub>·g·V, где V — объём <b>погружённой части</b> тела. Ты сам это видел: как только тело скрылось под водой целиком, вытеснять больше нечего — и сила перестала расти. Глубина не важна. Важен объём.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'eureka', big: true,
+    title: '«Эврика!»',
+    text: 'Царь Гиерон заподозрил, что ювелир подмешал в его золотую корону серебро, и поручил проверку Архимеду. По легенде, которую записал римский архитектор Витрувий, ответ пришёл в ванне: погружаясь, Архимед заметил, как поднимается вода, — и с криком <b>«Эврика!»</b> («нашёл!») понял, что по вытесненной воде можно узнать объём короны, а значит — и её плотность.',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Два вопроса — и тема твоя.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 1',
+    text: 'Кубик целиком погрузили в воду на глубину 20 см, а потом опустили на глубину 2 м. Как изменилась архимедова сила?',
+    options: [
+      { id: 'a', text: 'Выросла — глубже вода давит сильнее', correct: false },
+      { id: 'b', text: 'Не изменилась — объём вытесненной воды тот же', correct: true },
+      { id: 'c', text: 'Уменьшилась — на глубине выталкивать труднее', correct: false },
+    ],
+    right: 'F = ρж·g·V. Кубик и там и там погружён целиком, объём вытесненной воды одинаков — сила одна и та же.',
+    wrong: 'Вспомни слайдер: после полного погружения сила замерла. В формуле F = ρж·g·V глубины нет — только объём погружённой части.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос 2',
+    text: 'Стальной и деревянный шары одинакового объёма целиком погрузили в воду (деревянный удерживают). На какой действует бо́льшая выталкивающая сила?',
+    options: [
+      { id: 'a', text: 'На стальной — он тяжелее', correct: false },
+      { id: 'b', text: 'На деревянный — он же стремится всплыть', correct: false },
+      { id: 'c', text: 'Сила одинаковая — объёмы равны', correct: true },
+    ],
+    right: 'В формуле F = ρж·g·V нет массы тела! Объёмы равны — равны и силы. Просто у стального шара вес больше этой силы, а у деревянного — меньше.',
+    wrong: 'В формуле F = ρж·g·V нет ни массы, ни материала тела. Одинаковый объём — одинаковая сила. Разная лишь судьба: чей вес больше, тот и тонет.',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  dip: () => `
+    <div class="canvas-panel"><canvas id="dipCanvas" height="320"></canvas></div>
+    <div class="dip-controls">
+      <input class="dip-slider" id="dipSlider" type="range" min="0" max="140" value="0" step="1" aria-label="Глубина погружения">
+      <div class="dip-stats">
+        <span class="dip-chip" id="dipVol">Вытеснено: <b>0 см³</b></span>
+        <span class="dip-chip" id="dipForce">Сила: <b>F = 0,00 Н</b></span>
+      </div>
+    </div>
+    <p class="canvas-hint" id="dipHint">Тяни слайдер вправо — <b>погружай цилиндр</b></p>`,
+  law: () => `
+    <svg viewBox="0 0 260 160" xmlns="http://www.w3.org/2000/svg">
+      <g font-family="var(--font-display), sans-serif" font-weight="500">
+        <path d="M30 20 L30 130 Q30 142 42 142 L98 142 Q110 142 110 130 L110 20" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+        <rect x="33" y="60" width="74" height="79" rx="8" fill="#BFDCF9"/>
+        <rect x="55" y="52" width="30" height="52" rx="6" fill="#F0B23C" stroke="#C98A2E" stroke-width="2.5"/>
+        <path d="M33 60 Q70 66 107 60" fill="none" stroke="#5D9BE0" stroke-width="3" stroke-linecap="round"/>
+        <g fill="#6240FF">
+          <rect x="126" y="72" width="9" height="34" rx="4.5"/>
+          <path d="M130.5 58 L117 78 L144 78 Z"/>
+          <animate attributeName="opacity" values=".5;1;.5" dur="2.2s" repeatCount="indefinite"/>
+        </g>
+        <text x="152" y="78" font-size="24" fill="#232323">F = ρ<tspan font-size="15" dy="5">ж</tspan><tspan dy="-5">·g·V</tspan></text>
+        <text x="152" y="104" font-size="13" fill="#6B7180">V — погружённая</text>
+        <text x="152" y="121" font-size="13" fill="#6B7180">часть тела</text>
+      </g>
+    </svg>`,
+  eureka: () => `
+    <svg viewBox="0 0 260 160" xmlns="http://www.w3.org/2000/svg">
+      <path d="M28 74 Q28 66 36 66 L224 66 Q232 66 232 74 L226 122 Q224 138 208 138 L52 138 Q36 138 34 122 Z" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="3"/>
+      <rect x="36" y="72" width="188" height="60" rx="10" fill="#BFDCF9"/>
+      <path d="M36 74 Q130 82 224 74" fill="none" stroke="#5D9BE0" stroke-width="3" stroke-linecap="round">
+        <animate attributeName="d" values="M36 74 Q130 82 224 74;M36 76 Q130 70 224 76;M36 74 Q130 82 224 74" dur="2.4s" repeatCount="indefinite"/>
+      </path>
+      <circle cx="118" cy="60" r="17" fill="#F3C89E" stroke="#D9A876" stroke-width="2.5"/>
+      <path d="M104 50 Q118 38 132 50" fill="none" stroke="#B98A5A" stroke-width="4" stroke-linecap="round"/>
+      <ellipse cx="118" cy="96" rx="34" ry="20" fill="#F3C89E" stroke="#D9A876" stroke-width="2.5"/>
+      <g>
+        <circle cx="170" cy="86" r="4" fill="#E3F0FC"><animate attributeName="cy" values="86;72" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0" dur="1.8s" repeatCount="indefinite"/></circle>
+        <circle cx="72" cy="92" r="3" fill="#E3F0FC"><animate attributeName="cy" values="92;76" dur="2.3s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0" dur="2.3s" repeatCount="indefinite"/></circle>
+      </g>
+      <text x="152" y="36" font-family="var(--font-display), sans-serif" font-weight="500" font-size="19" fill="#6240FF">Эврика!
+        <animate attributeName="opacity" values=".4;1;.4" dur="2s" repeatCount="indefinite"/>
+      </text>
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'dip') startDip(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'archimedes',
+  storageKey: 'buoyancy-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-float/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

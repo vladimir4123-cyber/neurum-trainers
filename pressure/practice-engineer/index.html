@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Инженер · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚜</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .task-scene{
+    width: 100%; max-width: 520px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 14px 14px 8px;
+  }
+  .task-scene svg{ width: 100%; height: auto; display: block; }
+  .task-data{
+    display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+    margin: 14px auto 0; max-width: 520px;
+  }
+  .task-chip{
+    padding: 8px 14px; border-radius: 9999px;
+    background: #fff; box-shadow: 0 3px 10px rgba(24,12,34,.08);
+    font-size: 15px; color: var(--fg-2); font-variant-numeric: tabular-nums;
+  }
+  .task-chip b{ color: var(--fg-1); font-weight: 500; }
+  .task-chip.goal{ background: var(--purple-4); color: var(--purple-1); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Инженер» — обратные задачи по p = F/S.
+   Ученик подбирает площадь опоры, чтобы техника не провалилась:
+   S(мин) = F / p(предельное). Или наоборот: F(макс) = p × S.
+   easy — круглые числа и прямые формулировки;
+   medium — числа посложнее и обратный ход (найди F);
+   hard — кН и кПа: сначала разберись с единицами.
+   Ответ ученик ВПИСЫВАЕТ сам (type:'reading').
+   ============================================================ */
+
+/* ===GEN=== чистый генератор (без DOM) — проверяется node-скриптом */
+const pick = (arr, rnd) => arr[Math.floor(rnd() * arr.length)];
+const fmtN = v => String(Math.round(v * 1000) / 1000).replace('.', ',');
+const fmtBig = v => Math.round(v).toLocaleString('ru-RU');
+
+/* Комбинации подобраны так, чтобы ответ был «красивым» и физика честной.
+   Везде хранится базовая версия в Н и Па; kilo=true → показ в кН и кПа. */
+const COMBOS = {
+  /* трактор на болоте: найти S = F/p */
+  tractor: {
+    easy:   [{ p: 10000, S: 2 }, { p: 5000, S: 3 }, { p: 10000, S: 3 }, { p: 5000, S: 2 }],
+    medium: [{ p: 8000, S: 2.5 }, { p: 20000, S: 1.5 }, { p: 12000, S: 2.5 }, { p: 16000, S: 1.5 }],
+    hard:   [{ p: 20000, S: 1.5 }, { p: 25000, S: 2 }, { p: 40000, S: 1.5 }, { p: 15000, S: 4 }],
+  },
+  /* снегоступы: найти S = F/p */
+  snow: {
+    easy:   [{ p: 2000, S: 0.2 }, { p: 2500, S: 0.2 }, { p: 2000, S: 0.3 }, { p: 1000, S: 0.5 }],
+    medium: [{ p: 1500, S: 0.3 }, { p: 2500, S: 0.24 }, { p: 1600, S: 0.25 }, { p: 2400, S: 0.25 }],
+    hard:   [{ p: 2000, S: 0.35 }, { p: 2500, S: 0.28 }, { p: 2000, S: 0.25 }, { p: 1250, S: 0.4 }],
+  },
+  /* фундамент: найти S = F/p */
+  house: {
+    easy:   [{ p: 100000, S: 2 }, { p: 50000, S: 4 }, { p: 100000, S: 3 }, { p: 200000, S: 1 }],
+    medium: [{ p: 60000, S: 5 }, { p: 80000, S: 2.5 }, { p: 40000, S: 6 }, { p: 120000, S: 2.5 }],
+    hard:   [{ p: 150000, S: 8 }, { p: 100000, S: 12 }, { p: 300000, S: 5 }, { p: 250000, S: 6 }],
+  },
+  /* лёд: обратный ход — найти F = p × S */
+  ice: {
+    easy:   [{ p: 4000, S: 0.5 }, { p: 3000, S: 1 }, { p: 5000, S: 0.5 }, { p: 2000, S: 1 }],
+    medium: [{ p: 2500, S: 0.8 }, { p: 5000, S: 0.4 }, { p: 2000, S: 1.5 }, { p: 4000, S: 0.6 }],
+    hard:   [{ p: 3000, S: 1.5 }, { p: 5000, S: 0.8 }, { p: 8000, S: 0.5 }, { p: 4000, S: 1.5 }],
+  },
+};
+
+function makeTask(kind, level, rnd) {
+  const c = pick(COMBOS[kind][level], rnd);
+  const F = c.p * c.S;                        // всегда честно: F = p·S
+  const kilo = level === 'hard' && kind !== 'snow';
+  const pLabel = kilo ? `${fmtN(c.p / 1000)} кПа` : `${fmtBig(c.p)} Па`;
+  const fLabel = kilo ? `${fmtN(F / 1000)} кН` : `${fmtBig(F)} Н`;
+
+  if (kind === 'ice') {
+    /* найти F(макс) = p × S; при kilo ответ всё равно в Н */
+    const t = {
+      kind, F, p: c.p, S: c.S, kilo,
+      title: 'Груз на льду',
+      text: `Сани стоят на льду на полозьях площадью <b>${fmtN(c.S)} м²</b>. Лёд выдерживает давление не больше <b>${pLabel}</b>. Какой наибольший вес (сани + груз) можно допустить? Ответ в ньютонах.`,
+      answer: F, unit: 'Н',
+      hints: [
+        'Здесь ищем силу. Из p = F/S выражаем: F = p × S.',
+        kilo
+          ? `Сначала переведи: ${fmtN(c.p / 1000)} кПа = ${fmtBig(c.p)} Па. Потом умножь на ${fmtN(c.S)} м².`
+          : `Подставь числа: F = ${fmtBig(c.p)} × ${fmtN(c.S)}.`,
+      ],
+      right: `✓ Верно! F = p × S = ${fmtBig(c.p)} Па × ${fmtN(c.S)} м² = ${fmtBig(F)} Н. Больше — и лёд треснет.`,
+    };
+    return t;
+  }
+
+  const stories = {
+    tractor: {
+      title: 'Трактор на болоте',
+      what: `Трактор весит <b>${fLabel}</b>. Болотистый грунт выдерживает давление не больше <b>${pLabel}</b>. Какой минимальной должна быть суммарная площадь гусениц? Ответ в м².`,
+      why: 'меньше площадь — трактор утонет в болоте',
+    },
+    snow: {
+      title: 'Снегоступы',
+      what: `Турист весит <b>${fLabel}</b>. Рыхлый снег выдерживает давление не больше <b>${pLabel}</b>. Какой минимальной должна быть общая площадь снегоступов? Ответ в м².`,
+      why: 'меньше площадь — нога проваливается в снег',
+    },
+    house: {
+      title: 'Фундамент дома',
+      what: `Дом весит <b>${fLabel}</b>. Грунт под ним выдерживает давление не больше <b>${pLabel}</b>. Какой минимальной должна быть площадь фундамента? Ответ в м².`,
+      why: 'меньше площадь — дом начнёт проседать',
+    },
+  };
+  const st = stories[kind];
+  return {
+    kind, F, p: c.p, S: c.S, kilo,
+    title: st.title,
+    text: st.what,
+    answer: c.S, unit: 'м²',
+    hints: [
+      'Из p = F/S вырази площадь: S = F/p. Дели силу на предельное давление.',
+      kilo
+        ? `Хитрость единиц: кН можно делить на кПа напрямую — тысячи сокращаются. S = ${fmtN(F / 1000)}/${fmtN(c.p / 1000)}.`
+        : `Подставь числа: S = ${fmtBig(F)}/${fmtBig(c.p)}.`,
+    ],
+    right: `✓ Верно! S = F/p = ${fmtBig(F)} Н / ${fmtBig(c.p)} Па = ${fmtN(c.S)} м². Если ${st.why}.`,
+  };
+}
+
+function makeTasks(level, rnd) {
+  const kinds = level === 'easy'
+    ? ['tractor', 'snow', 'ice']
+    : ['tractor', 'snow', 'house', 'ice'];
+  const tasks = kinds.map(k => makeTask(k, level, rnd));
+  /* перемешать */
+  for (let i = tasks.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [tasks[i], tasks[j]] = [tasks[j], tasks[i]];
+  }
+  return tasks;
+}
+/* ===ENDGEN=== */
+
+/* ---------- сцены (плоский стиль §8) ---------- */
+const SCENES = {
+  tractor: `
+    <svg viewBox="0 0 300 130" xmlns="http://www.w3.org/2000/svg">
+      <rect x="8" y="96" width="284" height="26" rx="9" fill="#CBE3D2"/>
+      <path d="M8 106 Q80 98 150 106 Q222 114 292 106" fill="none" stroke="#A9CDB4" stroke-width="3" stroke-linecap="round"/>
+      <ellipse cx="60" cy="112" rx="24" ry="5" fill="#B7D8C2"/>
+      <ellipse cx="244" cy="114" rx="28" ry="5" fill="#B7D8C2"/>
+      <g>
+        <rect x="112" y="38" width="56" height="30" rx="7" fill="#6240FF" stroke="#4A2FD9" stroke-width="2.5"/>
+        <rect x="158" y="24" width="26" height="24" rx="5" fill="#8B6FFF" stroke="#6240FF" stroke-width="2.5"/>
+        <rect x="102" y="68" width="94" height="22" rx="11" fill="#3E434C"/>
+        <circle cx="120" cy="79" r="6.5" fill="#C9CEDA"/>
+        <circle cx="149" cy="79" r="6.5" fill="#C9CEDA"/>
+        <circle cx="178" cy="79" r="6.5" fill="#C9CEDA"/>
+        <animateTransform attributeName="transform" type="translate" values="0,0;0,3;0,0" dur="2.2s" repeatCount="indefinite"/>
+      </g>
+    </svg>`,
+  snow: `
+    <svg viewBox="0 0 300 130" xmlns="http://www.w3.org/2000/svg">
+      <rect x="8" y="92" width="284" height="30" rx="10" fill="#EAF2FC"/>
+      <path d="M8 102 Q80 94 150 102 Q222 110 292 102" fill="none" stroke="#C7DBF3" stroke-width="3" stroke-linecap="round"/>
+      <g>
+        <circle cx="150" cy="26" r="11" fill="#F3C89E" stroke="#D9A876" stroke-width="2"/>
+        <line x1="150" y1="37" x2="150" y2="64" stroke="#6240FF" stroke-width="5.5" stroke-linecap="round"/>
+        <line x1="150" y1="45" x2="132" y2="58" stroke="#6240FF" stroke-width="4.5" stroke-linecap="round"/>
+        <line x1="150" y1="45" x2="168" y2="58" stroke="#6240FF" stroke-width="4.5" stroke-linecap="round"/>
+        <line x1="150" y1="64" x2="140" y2="86" stroke="#4A2FD9" stroke-width="4.5" stroke-linecap="round"/>
+        <line x1="150" y1="64" x2="160" y2="86" stroke="#4A2FD9" stroke-width="4.5" stroke-linecap="round"/>
+        <ellipse cx="138" cy="90" rx="26" ry="6" fill="#E5484D" stroke="#B23A3F" stroke-width="2"/>
+        <ellipse cx="164" cy="90" rx="26" ry="6" fill="#E5484D" stroke="#B23A3F" stroke-width="2"/>
+        <animateTransform attributeName="transform" type="translate" values="0,0;0,2.5;0,0" dur="2.4s" repeatCount="indefinite"/>
+      </g>
+    </svg>`,
+  house: `
+    <svg viewBox="0 0 300 130" xmlns="http://www.w3.org/2000/svg">
+      <rect x="8" y="100" width="284" height="22" rx="8" fill="#E1D5C2"/>
+      <rect x="96" y="88" width="108" height="14" rx="4" fill="#C9CEDA"/>
+      <g>
+        <rect x="112" y="46" width="76" height="44" rx="4" fill="#F0B23C" stroke="#C98A2E" stroke-width="2.5"/>
+        <path d="M104 48 L150 16 L196 48 Z" fill="#E5484D" stroke="#B23A3F" stroke-width="2.5" stroke-linejoin="round"/>
+        <rect x="138" y="66" width="18" height="24" rx="3" fill="#8A5A2E"/>
+        <rect x="122" y="56" width="14" height="12" rx="2" fill="#CFE6FF" stroke="#9AB8DC" stroke-width="1.5"/>
+        <rect x="166" y="56" width="14" height="12" rx="2" fill="#CFE6FF" stroke="#9AB8DC" stroke-width="1.5"/>
+        <animateTransform attributeName="transform" type="translate" values="0,0;0,1.6;0,0" dur="2.8s" repeatCount="indefinite"/>
+      </g>
+    </svg>`,
+  ice: `
+    <svg viewBox="0 0 300 130" xmlns="http://www.w3.org/2000/svg">
+      <rect x="8" y="94" width="284" height="16" rx="7" fill="#CFE6FF"/>
+      <rect x="8" y="110" width="284" height="12" rx="6" fill="#EAF2FC"/>
+      <path d="M60 94 L78 102 M226 94 L210 102" stroke="#9AB8DC" stroke-width="2" stroke-linecap="round"/>
+      <g>
+        <rect x="112" y="58" width="76" height="26" rx="7" fill="#8A5A2E"/>
+        <rect x="120" y="40" width="60" height="22" rx="5" fill="#F0B23C" stroke="#C98A2E" stroke-width="2.5"/>
+        <path d="M104 88 Q100 94 108 94 L192 94 Q202 94 198 86" fill="none" stroke="#3E434C" stroke-width="4" stroke-linecap="round"/>
+        <animateTransform attributeName="transform" type="translate" values="0,0;0,1.6;0,0" dur="2.4s" repeatCount="indefinite"/>
+      </g>
+    </svg>`,
+};
+
+function renderTask(host, t) {
+  const chips = [];
+  const kilo = t.kilo;
+  if (t.kind === 'ice') {
+    chips.push(`опора <b>S = ${fmtN(t.S)} м²</b>`);
+    chips.push(`лёд держит <b>p ≤ ${kilo ? fmtN(t.p / 1000) + ' кПа' : fmtBig(t.p) + ' Па'}</b>`);
+    chips.push(`<span>найди наибольший вес <b>F</b>, Н</span>`);
+  } else {
+    chips.push(`вес <b>F = ${kilo ? fmtN(t.F / 1000) + ' кН' : fmtBig(t.F) + ' Н'}</b>`);
+    chips.push(`опора держит <b>p ≤ ${kilo ? fmtN(t.p / 1000) + ' кПа' : fmtBig(t.p) + ' Па'}</b>`);
+    chips.push(`<span>найди минимальную площадь <b>S</b>, м²</span>`);
+  }
+  host.innerHTML = `
+    <div class="task-scene">${SCENES[t.kind]}</div>
+    <div class="task-data">
+      ${chips.slice(0, 2).map(c => `<span class="task-chip">${c}</span>`).join('')}
+      <span class="task-chip goal">${chips[2]}</span>
+    </div>`;
+}
+
+/* ---------- сборка шагов ---------- */
+function buildSteps(level, rnd) {
+  const tasks = makeTasks(level, rnd);
+  return tasks.map(t => ({
+    type: 'reading',
+    title: t.title,
+    text: t.text,
+    render: host => renderTask(host, t),
+    answer: t.answer,
+    tolerance: Math.max(t.answer * 0.01, 0.005),
+    unit: t.unit,
+    hints: t.hints,
+    right: t.right,
+  }));
+}
+
+runPractice({
+  practiceId: 'engineer',
+  storageKey: 'pressure-progress',
+  homeHref: '../demo/',
+  title: 'Инженер',
+  subtitle: 'Трактор на болоте, снегоступы, фундамент, груз на льду. Подбери площадь опоры (или предельный вес), чтобы ничего не провалилось, — и впиши расчёт.',
+  levels: {
+    easy:   { label: 'Стажёр',        desc: 'Три миссии с круглыми числами. Формула S = F/p подсказана.', xp: 40 },
+    medium: { label: 'Инженер',       desc: 'Четыре миссии: числа посложнее, есть обратный ход — найти вес.', xp: 50 },
+    hard:   { label: 'Главный инженер', desc: 'кН и кПа: сначала разберись с единицами, потом считай.', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

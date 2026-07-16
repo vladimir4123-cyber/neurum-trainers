@@ -1,0 +1,39 @@
+<svg viewBox="0 0 240 320" xmlns="http://www.w3.org/2000/svg">
+  <!-- Термометр: плоский стиль, палитра §8 (красный столбик #E5484D, акцент #6240FF, нейтрали) -->
+  <!-- Тень-подложка -->
+  <ellipse cx="120" cy="300" rx="64" ry="9" fill="#EEF0FF"/>
+  <!-- Корпус (стекло) -->
+  <rect x="99" y="18" width="42" height="244" rx="21" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="3"/>
+  <!-- Резервуар -->
+  <circle cx="120" cy="272" r="30" fill="#E5484D" stroke="#B93840" stroke-width="3"/>
+  <!-- Капилляр (канал) -->
+  <rect x="114" y="34" width="12" height="222" rx="6" fill="#EDEFF5"/>
+  <!-- Столбик жидкости (до отметки 30) -->
+  <rect x="114" y="106" width="12" height="150" rx="6" fill="#E5484D"/>
+  <!-- Шкала: штрихи слева от канала -->
+  <g stroke="#5D6472" stroke-width="2" stroke-linecap="round">
+    <line x1="76" y1="226" x2="94" y2="226"/>
+    <line x1="82" y1="206" x2="94" y2="206"/>
+    <line x1="76" y1="186" x2="94" y2="186"/>
+    <line x1="82" y1="166" x2="94" y2="166"/>
+    <line x1="76" y1="146" x2="94" y2="146"/>
+    <line x1="82" y1="126" x2="94" y2="126"/>
+    <line x1="76" y1="106" x2="94" y2="106"/>
+    <line x1="82" y1="86"  x2="94" y2="86"/>
+    <line x1="76" y1="66"  x2="94" y2="66"/>
+  </g>
+  <g font-family="'Aeonik Pro', 'Inter', sans-serif" font-size="15" font-weight="500" fill="#3E434C" text-anchor="end">
+    <text x="70" y="231">0</text>
+    <text x="70" y="191">10</text>
+    <text x="70" y="151">20</text>
+    <text x="70" y="111">30</text>
+    <text x="70" y="71">40</text>
+  </g>
+  <!-- Единица шкалы -->
+  <text x="120" y="12" text-anchor="middle" font-family="'Aeonik Pro', 'Inter', sans-serif" font-size="15" font-weight="500" fill="#6B7180">°C</text>
+  <!-- Подпись уровня (читаем по верху столбика) -->
+  <g>
+    <path d="M146 106 L176 106" stroke="#6240FF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 6"/>
+    <text x="181" y="111" font-family="'Aeonik Pro', 'Inter', sans-serif" font-size="17" font-weight="500" fill="#6240FF">30°</text>
+  </g>
+</svg>

@@ -1,0 +1,36 @@
+<svg viewBox="0 0 240 320" xmlns="http://www.w3.org/2000/svg">
+  <!-- Архимедова сила: тело в воде + выталкивающая сила вверх. Плоский стиль §8 -->
+  <!-- Тень-подложка -->
+  <ellipse cx="120" cy="300" rx="82" ry="10" fill="#EEF0FF"/>
+  <!-- Аквариум (стекло) -->
+  <path d="M52 44 L52 272 Q52 290 70 290 L170 290 Q188 290 188 272 L188 44"
+        fill="#F4F8FE" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+  <!-- Вода -->
+  <path d="M55 92 Q120 100 185 92 L185 272 Q185 287 170 287 L70 287 Q55 287 55 272 Z" fill="#BFDCF9"/>
+  <!-- Поверхность воды -->
+  <path d="M55 92 Q120 100 185 92" fill="none" stroke="#5D9BE0" stroke-width="3" stroke-linecap="round"/>
+  <!-- Пузырьки -->
+  <circle cx="86" cy="150" r="4" fill="#E3F0FC"/>
+  <circle cx="158" cy="130" r="3" fill="#E3F0FC"/>
+  <circle cx="96" cy="248" r="3" fill="#E3F0FC"/>
+  <circle cx="150" cy="226" r="2.6" fill="#E3F0FC"/>
+  <!-- Тело: мяч, погружённый в воду -->
+  <circle cx="120" cy="188" r="34" fill="#F0B23C" stroke="#C98A2E" stroke-width="3"/>
+  <path d="M92 169 Q120 156 148 169" fill="none" stroke="#C98A2E" stroke-width="3" stroke-linecap="round"/>
+  <path d="M92 207 Q120 220 148 207" fill="none" stroke="#C98A2E" stroke-width="3" stroke-linecap="round"/>
+  <!-- Выталкивающая сила: большая стрелка вверх -->
+  <g fill="#6240FF">
+    <rect x="112" y="112" width="16" height="38" rx="6"/>
+    <path d="M120 90 L98 122 L142 122 Z"/>
+  </g>
+  <!-- Вес: малая стрелка вниз -->
+  <g fill="#6B7180">
+    <rect x="115" y="228" width="10" height="22" rx="5"/>
+    <path d="M120 264 L106 246 L134 246 Z"/>
+  </g>
+  <!-- Подписи сил -->
+  <g font-family="'Aeonik Pro', 'Inter', sans-serif" font-weight="500">
+    <text x="152" y="118" font-size="20" fill="#6240FF">F</text>
+    <text x="134" y="258" font-size="15" fill="#6B7180">вес</text>
+  </g>
+</svg>

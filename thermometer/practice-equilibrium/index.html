@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Измерь правильно · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌡️</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .p-scene svg{ max-width: 430px; }
+  .eq-status{
+    margin: 10px auto 0; text-align: center; font-size: 16.5px;
+    font-weight: 500; color: var(--warning-ink, #B7791F);
+  }
+  .eq-status.done{ color: var(--success); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">5</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Измерь правильно» — тепловое равновесие и ловушки.
+   Сценки: столбик ещё ползёт / вынули из воды / упёрся в дно /
+   резервуар торчит из воды. Плюс живой замер: дождись, пока
+   столбик остановится, и сними показания сам.
+   ============================================================ */
+
+const RED = '#E5484D', RED_EDGE = '#B93840', GLASS = '#C9CEDA', CH = '#EDEFF5', WATER = '#BFDCF9';
+const fmt = v => String(Math.round(v * 100) / 100).replace('.', ',').replace('-', '−');
+
+/* ---------- сценка: термометр в стакане ----------
+   opts: { frac 0..1 — высота столбика, rising, label, callout, tilt, bulbOut, flame } */
+function beakerScene(opts = {}) {
+  const { frac = 0.5, rising = false, label = '', callout = '', tilt = 0, bulbOut = false, flame = false, noThermo = false } = opts;
+  const yTop = 36, yBot = 210;                       // капилляр
+  const colY = yBot - (yBot - yTop) * frac;
+  const startY = yBot - (yBot - yTop) * Math.max(0, frac - 0.34);
+  const column = rising
+    ? `<rect x="-5" y="${startY.toFixed(1)}" width="10" height="${(238 - startY).toFixed(1)}" rx="5" fill="${RED}">
+         <animate attributeName="y" values="${startY.toFixed(1)};${colY.toFixed(1)}" dur="30s" fill="freeze"/>
+         <animate attributeName="height" values="${(238 - startY).toFixed(1)};${(238 - colY).toFixed(1)}" dur="30s" fill="freeze"/>
+       </rect>
+       <g transform="translate(24,${(colY - 12).toFixed(1)})" fill="${RED}">
+         <path d="M0 14 L7 0 L14 14 Z">
+           <animateTransform attributeName="transform" type="translate" values="0 4; 0 -6; 0 4" dur="1.1s" repeatCount="indefinite"/>
+         </path>
+       </g>`
+    : `<rect x="-5" y="${colY.toFixed(1)}" width="10" height="${(238 - colY).toFixed(1)}" rx="5" fill="${RED}"/>`;
+  const bulbY = 216;
+  return `
+    <g transform="rotate(${tilt})">
+      <!-- стакан -->
+      <g transform="translate(0,120)">
+        <path d="M-110 -36 L-100 138 Q-99 152 -85 152 L85 152 Q99 152 100 138 L110 -36"
+              fill="#F4F8FE" stroke="${GLASS}" stroke-width="3.5" stroke-linejoin="round"/>
+        <path d="M-104 6 Q0 16 104 6 L96 136 Q95 147 85 147 L-85 147 Q-95 147 -96 136 Z" fill="${WATER}"/>
+        <path d="M-104 6 Q0 16 104 6" fill="none" stroke="#5D9BE0" stroke-width="3" stroke-linecap="round"/>
+      </g>
+      ${flame ? `
+        <g transform="translate(0,292)">
+          <path d="M0 0 q-20 -14 -9 -30 q5 -8 4 -15 q14 9 13 22 q8 -4 7 -13 q11 13 3 26 q-7 12 -18 10"
+                fill="#F5B93B" stroke="#D97A1F" stroke-width="1.8">
+            <animateTransform attributeName="transform" type="scale" values="1 1; 1.1 1.14; 1 1" dur="0.7s" repeatCount="indefinite" additive="sum"/>
+          </path>
+        </g>` : ''}
+      <!-- термометр (bulbOut: поднят так, что резервуар наполовину над водой) -->
+      ${noThermo ? '' : `
+      <g transform="translate(0,${bulbOut ? -118 : 0})">
+        <rect x="-17" y="16" width="34" height="216" rx="17" fill="#fff" stroke="${GLASS}" stroke-width="3"/>
+        <circle cx="0" cy="${bulbY + 30}" r="23" fill="${RED}" stroke="${RED_EDGE}" stroke-width="3"/>
+        <rect x="-5" y="30" width="10" height="196" rx="5" fill="${CH}"/>
+        ${column}
+        <g stroke="#5D6472" stroke-width="2" stroke-linecap="round">
+          <line x1="-36" y1="40" x2="-22" y2="40"/><line x1="-30" y1="76" x2="-22" y2="76"/>
+          <line x1="-36" y1="112" x2="-22" y2="112"/><line x1="-30" y1="148" x2="-22" y2="148"/>
+          <line x1="-36" y1="184" x2="-22" y2="184"/>
+        </g>
+      </g>`}
+      ${callout ? `
+        <path d="M28 ${colY.toFixed(1)} L74 ${colY.toFixed(1)}" stroke="#6240FF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 6"/>
+        <text x="82" y="${colY.toFixed(1)}" font-family="var(--font-display), sans-serif" font-weight="500"
+              font-size="30" fill="#6240FF" style="font-variant-numeric: tabular-nums" dominant-baseline="central">${callout}</text>` : ''}
+    </g>
+    ${label ? `<text x="0" y="300" text-anchor="middle" font-family="var(--font-sans), sans-serif"
+          font-size="19" fill="#3E434C" dominant-baseline="central">${label}</text>` : ''}`;
+}
+const sceneSVG = (inner, w = 460, y0 = 0, h = 320) => `
+  <svg viewBox="${-w / 2} ${y0} ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+    <g transform="translate(0,10)">${inner}</g>
+  </svg>`;
+
+/* ---------- живой замер: большой термометр со шкалой 0–50 в стакане ---------- */
+function liveThermoSVG() {
+  const yTop = 46, yBot = 356, cx = 0;
+  let ticks = '';
+  for (let t = 0; t <= 50; t += 1) {
+    const y = (yBot - (yBot - yTop) * (t / 50)).toFixed(2);
+    const major = t % 10 === 0;
+    const mid = !major && t % 5 === 0;
+    ticks += `<line x1="${cx - 26 - (major ? 26 : mid ? 18 : 11)}" y1="${y}" x2="${cx - 26}" y2="${y}"
+      stroke="${major ? '#3E434C' : '#8A8F9C'}" stroke-width="${major ? 2.6 : 1.8}" stroke-linecap="round"/>`;
+    if (major) {
+      ticks += `<text x="${cx - 60}" y="${y}" text-anchor="end" font-family="var(--font-display), sans-serif"
+        font-weight="500" font-size="19" fill="#3E434C" style="font-variant-numeric: tabular-nums"
+        dominant-baseline="central">${t}</text>`;
+    }
+  }
+  return `
+    <svg class="thermo" viewBox="-170 0 360 500" xmlns="http://www.w3.org/2000/svg" style="max-width:320px">
+      <!-- стакан вокруг резервуара -->
+      <g transform="translate(0,330)">
+        <path d="M-120 -20 L-112 132 Q-111 146 -97 146 L97 146 Q111 146 112 132 L120 -20"
+              fill="#F4F8FE" stroke="${GLASS}" stroke-width="3.5" stroke-linejoin="round"/>
+        <path d="M-114 14 Q0 24 114 14 L108 130 Q107 141 97 141 L-97 141 Q-107 141 -108 130 Z" fill="${WATER}"/>
+        <path d="M-114 14 Q0 24 114 14" fill="none" stroke="#5D9BE0" stroke-width="3" stroke-linecap="round"/>
+      </g>
+      <text x="0" y="22" text-anchor="middle" font-family="var(--font-display), sans-serif"
+            font-weight="500" font-size="20" fill="#6B7180" dominant-baseline="central">°C</text>
+      <rect x="-22" y="26" width="44" height="346" rx="22" fill="#F4F8FE" stroke="${GLASS}" stroke-width="3"/>
+      <circle cx="0" cy="398" r="28" fill="${RED}" stroke="${RED_EDGE}" stroke-width="3"/>
+      <rect x="-6" y="42" width="12" height="332" rx="6" fill="${CH}"/>
+      <rect id="liveCol" x="-6" y="230" width="12" height="150" rx="6" fill="${RED}"/>
+      ${ticks}
+    </svg>
+    <p class="eq-status" id="eqStatus">столбик ползёт — жди…</p>`;
+}
+
+/* Анимация живого замера: столбик ползёт от tStart к target ~6 секунд */
+function animateLive(host, tStart, target, onStop) {
+  const col = host.querySelector('#liveCol');
+  const status = host.querySelector('#eqStatus');
+  const yTop = 46, yBot = 356;
+  const yOf = t => yBot - (yBot - yTop) * (t / 50);
+  const t0 = performance.now();
+  const DUR = 6000;
+  let stopped = false;
+  function frame(now) {
+    if (!col.isConnected) return;                     // шаг сменился — глушим цикл
+    const p = Math.min(1, (now - t0) / DUR);
+    const ease = 1 - Math.pow(1 - p, 3);
+    const t = tStart + (target - tStart) * ease;
+    const y = yOf(t);
+    col.setAttribute('y', y.toFixed(2));
+    col.setAttribute('height', (380 - y).toFixed(2));
+    if (p < 1) { requestAnimationFrame(frame); }
+    else if (!stopped) {
+      stopped = true;
+      status.textContent = 'столбик остановился — тепловое равновесие, можно читать';
+      status.classList.add('done');
+      if (onStop) onStop();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- сценка сравнения: два стакана с показаниями ---------- */
+function compareSVG(t1, t2) {
+  const mini = (x, t, name) => `
+    <g transform="translate(${x},20) scale(0.82)">
+      ${beakerScene({ frac: t / 50, callout: fmt(t) + '°' })}
+      <text x="0" y="-18" text-anchor="middle" font-family="var(--font-display), sans-serif"
+            font-weight="500" font-size="30" fill="#232323" dominant-baseline="central">${name}</text>
+    </g>`;
+  return `
+    <svg viewBox="-310 0 620 300" xmlns="http://www.w3.org/2000/svg">
+      ${mini(-150, t1, 'А')}
+      ${mini(150, t2, 'Б')}
+    </svg>`;
+}
+
+/* =================== ГЕНЕРАЦИЯ ШАГОВ =================== */
+function buildSteps(level, rnd) {
+  const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
+
+  /* 1. Столбик ещё ползёт */
+  const stepRising = {
+    type: 'choice',
+    title: 'Сценка 1',
+    text: 'Термометр опустили в тёплую воду десять секунд назад. Столбик ещё ползёт вверх. Можно ли записывать показания?',
+    render(host) { host.innerHTML = sceneSVG(beakerScene({ frac: 0.72, rising: true })); },
+    options: [
+      { text: 'Нет: жди, пока столбик остановится, — теплового равновесия ещё нет', correct: true },
+      { text: 'Да: термометр показывает температуру воды сразу', correct: false },
+      { text: 'Да: главное, что резервуар уже в воде', correct: false },
+      { text: 'Нет: сначала надо вынуть термометр и встряхнуть', correct: false },
+    ],
+    right: 'Пока столбик движется, термометр ещё нагревается и показывает свою температуру, а не воды. Жди равновесия.',
+    wrong: 'Раз столбик ползёт — термометр ещё не догнал воду по температуре. Записывать можно только после остановки столбика.',
+  };
+
+  /* 2. Вынули из воды */
+  const stepPullOut = {
+    type: 'choice',
+    title: 'Сценка 2',
+    text: 'Термометр вынули из горячей воды, чтобы поднести к глазам и прочитать. Что произойдёт с показаниями?',
+    render(host) {
+      host.innerHTML = sceneSVG(`
+        ${beakerScene({ noThermo: true })}
+        <g transform="translate(120,-16) rotate(18)">
+          <rect x="-14" y="20" width="28" height="180" rx="14" fill="#fff" stroke="${GLASS}" stroke-width="2.8"/>
+          <circle cx="0" cy="212" r="19" fill="${RED}" stroke="${RED_EDGE}" stroke-width="2.8"/>
+          <rect x="-4" y="32" width="8" height="164" rx="4" fill="${CH}"/>
+          <rect x="-4" y="80" width="8" height="120" rx="4" fill="${RED}">
+            <animate attributeName="y" values="80;150" dur="4s" fill="freeze"/>
+            <animate attributeName="height" values="120;50" dur="4s" fill="freeze"/>
+          </rect>
+        </g>`);
+    },
+    options: [
+      { text: 'Столбик сразу поползёт вниз: теперь термометр измеряет воздух', correct: true },
+      { text: 'Показания сохранятся: термометр запоминает температуру воды', correct: false },
+      { text: 'Показания вырастут: без воды резервуар нагреется сильнее', correct: false },
+      { text: 'Столбик упадёт до нуля', correct: false },
+    ],
+    right: 'Лабораторный термометр ничего не «запоминает»: на воздухе он сразу вступает в новый теплообмен. Читать нужно, не вынимая из воды. «Запоминает» только медицинский градусник — у него в капилляре специальное сужение.',
+    wrong: 'Обычный термометр показания не хранит: вынул — столбик пополз к температуре воздуха. Поэтому читаем, не вынимая из воды.',
+  };
+
+  /* 3. Живой замер: дождись равновесия и запиши */
+  const target = level === 'hard' ? ri(24, 43) + 0.5 : ri(26, 44);
+  const tStart = ri(15, 20);
+  const stepLive = {
+    type: 'reading',
+    title: 'Твой замер',
+    text: 'Термометр только что опустили в тёплую воду. Дождись теплового равновесия — и запиши показания. Цена деления — 1 °C.',
+    render(host) {
+      host.innerHTML = liveThermoSVG();
+      animateLive(host, tStart, target);
+    },
+    answer: target,
+    tolerance: level === 'hard' ? 0.3 : 0.4,
+    unit: '°C',
+    hints: [
+      'Не спеши! Если столбик ещё ползёт — это не ответ. Дождись надписи «столбик остановился» и читай по шкале.',
+      `Считай от ближайшей подписи: столбик выше отметки ${Math.floor(target / 10) * 10} — досчитай деления по 1 °C.`,
+    ],
+    right: `✓ Верно: ${fmt(target)} °C. Ты дождался равновесия — это и есть правильное измерение.`,
+  };
+
+  /* 4. Сравнение двух стаканов */
+  const tA = ri(28, 46);
+  const diff = ri(4, 12);
+  const tB = tA - diff;
+  const stepCompare = {
+    type: 'choice',
+    title: 'Сравни',
+    text: 'В двух стаканах измерили температуру воды (равновесие в обоих наступило). В каком стакане вода холоднее и на сколько?',
+    render(host) { host.innerHTML = compareSVG(tA, tB); },
+    options: [
+      { text: `В стакане Б, на ${fmt(diff)} °C`, correct: true },
+      { text: `В стакане А, на ${fmt(diff)} °C`, correct: false },
+      { text: `В стакане Б, на ${fmt(diff + 2)} °C`, correct: false },
+      { text: 'Температуры одинаковые', correct: false },
+    ],
+    right: `${fmt(tA)} − ${fmt(tB)} = ${fmt(diff)} °C. Холоднее там, где столбик ниже, — в стакане Б.`,
+    wrong: `Смотри на показания: А — ${fmt(tA)} °C, Б — ${fmt(tB)} °C. Холоднее в Б, разница ${fmt(tA)} − ${fmt(tB)} = ${fmt(diff)} °C.`,
+  };
+
+  /* 5. Ловушка: резервуар упёрся в дно кастрюли на плите */
+  const stepBottom = {
+    type: 'choice',
+    title: 'Ловушка',
+    text: 'Кастрюля стоит на плите, а резервуар термометра упёрся в её дно. Почему показания будут неверными?',
+    render(host) { host.innerHTML = sceneSVG(beakerScene({ frac: 0.96, bulbOut: false, flame: true, tilt: 0, label: 'резервуар на дне, снизу — огонь' })); },
+    options: [
+      { text: 'Дно греется от огня и горячее воды — термометр измерит дно, показания завышены', correct: true },
+      { text: 'Показания верны: дно и вода всегда одинаковой температуры', correct: false },
+      { text: 'Показания занижены: дно всегда холоднее воды', correct: false },
+      { text: 'Столбик вообще перестанет двигаться', correct: false },
+    ],
+    right: 'Дно получает жар прямо от плиты, оно горячее воды. Резервуар не должен касаться дна и стенок — измеряем воду, а не посуду.',
+    wrong: 'Дно на плите горячее воды — прижатый к нему резервуар покажет температуру дна, а не воды. Показания будут завышены.',
+  };
+
+  /* 6. Ловушка: резервуар наполовину в воздухе */
+  const stepHalf = {
+    type: 'choice',
+    title: 'Ловушка',
+    text: 'Термометр опустили так, что резервуар наполовину торчит из воды. Что он покажет после остановки столбика?',
+    render(host) { host.innerHTML = sceneSVG(beakerScene({ frac: 0.45, bulbOut: true, label: 'резервуар наполовину в воздухе' }), 460, -120, 450); },
+    options: [
+      { text: 'Что-то среднее между температурой воды и воздуха — такому замеру верить нельзя', correct: true },
+      { text: 'Точную температуру воды: нижняя половина резервуара же в воде', correct: false },
+      { text: 'Точную температуру воздуха', correct: false },
+      { text: 'Сумму температур воды и воздуха', correct: false },
+    ],
+    right: 'Резервуар обменивается теплом и с водой, и с воздухом сразу — равновесие установится где-то посередине. Погружай резервуар полностью.',
+    wrong: 'Половина резервуара греется водой, половина — воздухом. Термометр покажет нечто среднее, а не температуру воды. Резервуар погружают целиком.',
+  };
+
+  /* 7. Разминка: что погружаем */
+  const stepDip = {
+    type: 'choice',
+    title: 'Разминка',
+    text: 'Какую часть термометра нужно погрузить в воду, чтобы измерить её температуру?',
+    render(host) { host.innerHTML = sceneSVG(beakerScene({ frac: 0.55 })); },
+    options: [
+      { text: 'Резервуар с жидкостью — целиком', correct: true },
+      { text: 'Только самый кончик резервуара', correct: false },
+      { text: 'Всю шкалу до верха', correct: false },
+      { text: 'Неважно: термометр измеряет на расстоянии', correct: false },
+    ],
+    right: 'Датчик термометра — резервуар. Он должен быть полностью в воде (и не касаться дна и стенок). Топить всю шкалу не нужно — по ней читают.',
+    wrong: 'Тепло принимает резервуар с жидкостью — он и должен быть целиком в воде, не касаясь дна. Шкала остаётся снаружи, по ней читаем.',
+  };
+
+  if (level === 'easy')   return [stepDip, stepRising, stepLive, stepPullOut];
+  if (level === 'medium') return [stepRising, stepPullOut, stepBottom, stepLive, stepCompare];
+  return [stepRising, stepBottom, stepHalf, stepLive, stepCompare];
+}
+
+/* =================== ЗАПУСК =================== */
+runPractice({
+  practiceId: 'equilibrium',
+  storageKey: 'thermometer-progress',
+  homeHref: '../demo/',
+  title: 'Измерь правильно',
+  subtitle: 'Термометр легко обмануть: не дождаться равновесия, вынуть из воды, упереть в дно. Разбери сценки — и проведи свой честный замер.',
+  levels: {
+    easy:   { label: 'Разминка',    desc: 'Основные правила и один живой замер.', xp: 30 },
+    medium: { label: 'Уверенно',    desc: 'Плюс ловушка с кастрюлей и сравнение стаканов.', xp: 50 },
+    hard:   { label: 'Экспертиза',  desc: 'Все ловушки, а в замере — половинки градуса.', xp: 80 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

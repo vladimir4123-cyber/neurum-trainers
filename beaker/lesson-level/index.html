@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Как правильно считывать · Мензурка</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👁️</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .px-wrap{ width: 100%; max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .px-wrap svg{ width: 100%; height: auto; display: block; }
+  .px-read{
+    display: flex; align-items: baseline; gap: 10px; margin-top: 6px;
+    font-family: var(--font-display); font-weight: 500;
+  }
+  .px-read__lbl{ font-size: 17px; color: var(--fg-2); font-family: var(--font-sans); }
+  .px-read__val{ font-size: 34px; color: var(--danger); font-variant-numeric: tabular-nums; transition: color 150ms; }
+  .px-read__val.ok{ color: var(--success); }
+  .px-slider{ width: 100%; max-width: 420px; margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .px-slider input{ width: 100%; accent-color: var(--purple-1); }
+  .px-slider__marks{ display: flex; justify-content: space-between; font-size: 14px; color: var(--fg-3); }
+  .canvas-hint{ margin: 10px 0 0; text-align: center; font-size: 17px; color: var(--fg-2); text-wrap: pretty; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ---------- Плоская мензурка (стиль §8) ---------- */
+const fmtV = v => String(Math.round(v * 100) / 100).replace('.', ',');
+function beakerBody({ max, label, minor, level = 0 }) {
+  const yZero = 284, yTop = 66;
+  const price = label / minor;
+  const y = v => yZero - (v / max) * (yZero - yTop);
+  let ticks = '';
+  const n = Math.round(max / price);
+  for (let i = 0; i <= n; i++) {
+    const v = i * price;
+    const major = Math.round(v * 100) % Math.round(label * 100) === 0;
+    const len = major ? 20 : 12;
+    const yy = y(v).toFixed(1);
+    ticks += `<line x1="69" y1="${yy}" x2="${69 + len}" y2="${yy}" stroke="#5D6472" stroke-width="${major ? 2.4 : 1.5}" stroke-linecap="round"/>`;
+    if (major) ticks += `<text x="${69 + len + 5}" y="${yy}" dominant-baseline="central" font-family="var(--font-display), sans-serif" font-weight="500" font-size="14" fill="#3E434C">${fmtV(v)}</text>`;
+  }
+  const yL = y(level);
+  const liquid = level > 0 ? `
+    <path d="M69 ${(yL - 4).toFixed(1)} Q110 ${(yL + 4).toFixed(1)} 151 ${(yL - 4).toFixed(1)} L151 283 Q151 299 135 299 L85 299 Q69 299 69 283 Z" fill="#BFDCF9"/>
+    <path d="M69 ${(yL - 4).toFixed(1)} Q110 ${(yL + 4).toFixed(1)} 151 ${(yL - 4).toFixed(1)}" fill="none" stroke="#5D9BE0" stroke-width="2.6" stroke-linecap="round"/>` : '';
+  return `
+    <path d="M66 36 L66 284 Q66 302 84 302 L136 302 Q154 302 154 284 L154 36" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+    <path d="M66 36 L57 28" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+    <path d="M154 36 L160 31" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+    ${liquid}
+    ${ticks}`;
+}
+
+const eyeSVG = (open = true) => `
+  <path d="M-24 0 Q0 -22 24 0 Q0 22 -24 0 Z" fill="#fff" stroke="#2B2B33" stroke-width="3"/>
+  <circle cx="0" cy="0" r="9" fill="#2F80ED"/>
+  <circle cx="0" cy="0" r="4" fill="#2B2B33"/>
+  <circle cx="3" cy="-3" r="1.6" fill="#fff"/>`;
+
+/* =================== ШАГИ =================== */
+const STEPS = [
+  {
+    phase: 'theory', type: 'info', visual: 'meniscus', big: true,
+    title: 'Мениск: у воды кривая «спина»',
+    text: 'Вода цепляется за стенки, поэтому её поверхность в мензурке не плоская, а вогнутая. Эта кривая поверхность — <b>мениск</b>. Показание снимаем <b>по нижнему краю мениска</b>.',
+  },
+  {
+    phase: 'theory', type: 'interact', id: 'parallax', visual: 'parallax',
+    title: 'Наклони взгляд — показание «поплывёт»',
+    text: 'В мензурке ровно <b>60 мл</b>. Двигай глаз ползунком и смотри, что «видит» наблюдатель. Найди положение, где показание честное.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'mistakes', big: true,
+    title: 'Типичные ошибки взгляда',
+    text: 'Смотришь <b>сверху</b> — показание кажется <b>больше</b>. Смотришь <b>снизу</b> — <b>меньше</b>. Это параллакс. Правильно одно: <b>глаз на уровне жидкости</b>, взгляд горизонтальный.',
+  },
+
+  { phase: 'check', type: 'splash', title: 'Проверь себя', text: 'Два вопроса про честное считывание.' },
+
+  {
+    phase: 'check', type: 'question',
+    title: 'По какому краю мениска снимать показание?',
+    text: 'Поверхность воды в мензурке вогнутая: у стенок выше, в середине ниже.',
+    options: [
+      { id: 'a', text: 'По верхнему краю, у стенок', correct: false },
+      { id: 'b', text: 'По нижнему краю мениска',    correct: true },
+      { id: 'c', text: 'Посередине между краями',     correct: false },
+      { id: 'd', text: 'Без разницы — края совпадают', correct: false },
+    ],
+    right: 'Верно! Для воды показание снимают по нижнему краю мениска — по самой низкой точке поверхности.',
+    wrong: 'У стенок вода «подползает» вверх и обманывает. Честный уровень — нижний край мениска, в середине.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Ученик смотрит на шкалу сверху вниз',
+    text: 'Мензурка стоит на столе, а ученик глядит на уровень воды сверху. Каким получится показание?',
+    options: [
+      { id: 'a', text: 'Больше истинного',  correct: true },
+      { id: 'b', text: 'Меньше истинного',  correct: false },
+      { id: 'c', text: 'Точным — как всегда', correct: false },
+      { id: 'd', text: 'Нулевым',            correct: false },
+    ],
+    right: 'Именно: при взгляде сверху луч зрения пересекает шкалу выше уровня — показание завышено.',
+    wrong: 'Взгляд сверху завышает показание: луч зрения приходит на шкалу выше настоящего уровня. Глаз держим на уровне жидкости.',
+  },
+];
+
+/* ---------- геометрия сцены параллакса ---------- */
+const PX = {
+  max: 100, label: 20, minor: 4, level: 60,
+  tx: 300, ty: 10,               // translate мензурки
+  ex: 140,                        // x глаза
+};
+PX.yLevel = PX.ty + 284 - (PX.level / PX.max) * 218;   // y мениска в сцене
+PX.mid = PX.tx + 110;                                   // центр мензурки
+PX.wall = PX.tx + 66;                                   // стенка со шкалой (ближняя к глазу)
+PX.k = (PX.wall - PX.ex) / (PX.mid - PX.ex);            // доля пути до стенки
+const apparentAt = offsetPx => {
+  const yA = (PX.yLevel - offsetPx) + offsetPx * PX.k;  // где луч пересекает шкалу
+  return (PX.ty + 284 - yA) / 218 * PX.max;             // в мл
+};
+
+function parallaxScene(offsetPx) {
+  const eyeY = PX.yLevel - offsetPx;
+  const yA = eyeY + (PX.yLevel - eyeY) * PX.k;
+  const app = apparentAt(offsetPx);
+  const ok = Math.abs(app - PX.level) < 0.75;
+  const mark = ok ? '#07BE7E' : '#E5484D';
+  return `
+    <g transform="translate(${PX.tx},${PX.ty})">${beakerBody(PX)}</g>
+    <line x1="${PX.ex}" y1="${eyeY.toFixed(1)}" x2="${PX.mid}" y2="${PX.yLevel.toFixed(1)}"
+          stroke="${mark}" stroke-width="2.4" stroke-dasharray="6 6" stroke-linecap="round"/>
+    <circle cx="${PX.wall}" cy="${yA.toFixed(1)}" r="6" fill="${mark}"/>
+    <g transform="translate(${PX.ex},${eyeY.toFixed(1)})">${eyeSVG()}</g>
+    <text x="${PX.ex}" y="${(eyeY - 34).toFixed(1)}" text-anchor="middle" font-family="var(--font-sans), sans-serif" font-size="15" fill="#6B7180">глаз</text>`;
+}
+
+/* =================== ВИЗУАЛЫ =================== */
+const visuals = {
+  meniscus() {
+    /* Крупный фрагмент: стенки + вогнутая поверхность, два края подписаны */
+    return `
+      <svg viewBox="0 0 620 340" xmlns="http://www.w3.org/2000/svg">
+        <path d="M170 40 L170 300 M450 40 L450 300" stroke="#C9CEDA" stroke-width="6" stroke-linecap="round"/>
+        <path d="M173 130 Q310 176 447 130 L447 298 L173 298 Z" fill="#BFDCF9"/>
+        <path d="M173 130 Q310 176 447 130" fill="none" stroke="#5D9BE0" stroke-width="4" stroke-linecap="round"/>
+        <!-- верхний край: красный крест -->
+        <path d="M120 130 L166 130" stroke="#E5484D" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 6"/>
+        <text x="112" y="122" text-anchor="end" font-family="var(--font-sans), sans-serif" font-size="17" fill="#E5484D">верхний край ✕</text>
+        <!-- нижний край: зелёная отметка, пульсирует -->
+        <line x1="310" y1="153" x2="480" y2="153" stroke="#07BE7E" stroke-width="2.5" stroke-dasharray="1 6"/>
+        <circle cx="310" cy="153" r="8" fill="#07BE7E">
+          <animate attributeName="r" values="6;10;6" dur="1.8s" repeatCount="indefinite"/>
+        </circle>
+        <text x="488" y="146" font-family="var(--font-sans), sans-serif" font-size="17" fill="#07BE7E">нижний край ✓</text>
+        <text x="488" y="168" font-family="var(--font-sans), sans-serif" font-size="15" fill="#6B7180">читай здесь</text>
+        <text x="310" y="250" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="24" fill="#3E7BB8">мениск</text>
+      </svg>`;
+  },
+
+  parallax() {
+    return `
+      <div class="px-wrap">
+        <svg viewBox="0 0 620 350" id="pxScene" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="px-read"><span class="px-read__lbl">Наблюдатель видит:</span> <span class="px-read__val" id="pxVal">—</span></div>
+        <div class="px-slider">
+          <input type="range" id="pxSlider" min="-45" max="45" step="1" value="35">
+          <div class="px-slider__marks"><span>глаз ниже</span><span>на уровне</span><span>глаз выше</span></div>
+        </div>
+        <div class="canvas-hint" id="pxHint">Сейчас глаз выше уровня — показание врёт. Выравнивай!</div>
+      </div>`;
+  },
+
+  mistakes() {
+    const scene = (x, offset, label, color, note) => {
+      const yL = 150;
+      const eyeY = yL - offset;
+      const wall = -44, mid = 0;
+      const ex = -120;
+      const k = (wall - ex) / (mid - ex);
+      const yA = eyeY + (yL - eyeY) * k;
+      return `
+        <g transform="translate(${x},30)">
+          <path d="M-44 20 L-44 220 Q-44 234 -30 234 L30 234 Q44 234 44 220 L44 20" fill="#F4F8FE" stroke="#C9CEDA" stroke-width="3" stroke-linecap="round"/>
+          <path d="M-41 ${yL - 3} Q0 ${yL + 4} 41 ${yL - 3} L41 219 Q41 231 29 231 L-29 231 Q-41 231 -41 219 Z" fill="#BFDCF9"/>
+          <g stroke="#5D6472" stroke-width="1.6" stroke-linecap="round">
+            <line x1="-41" y1="200" x2="-27" y2="200"/><line x1="-41" y1="175" x2="-31" y2="175"/>
+            <line x1="-41" y1="150" x2="-27" y2="150"/><line x1="-41" y1="125" x2="-31" y2="125"/>
+            <line x1="-41" y1="100" x2="-27" y2="100"/>
+          </g>
+          <line x1="${ex}" y1="${eyeY}" x2="${mid}" y2="${yL}" stroke="${color}" stroke-width="2.2" stroke-dasharray="5 5"/>
+          <circle cx="${wall}" cy="${yA.toFixed(1)}" r="5" fill="${color}"/>
+          <g transform="translate(${ex},${eyeY}) scale(0.8)">${eyeSVG()}</g>
+          <text x="-40" y="272" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="19" fill="${color}">${label}</text>
+          <text x="-40" y="296" text-anchor="middle" font-family="var(--font-sans), sans-serif" font-size="14.5" fill="#6B7180">${note}</text>
+        </g>`;
+    };
+    return `
+      <svg viewBox="0 0 660 340" xmlns="http://www.w3.org/2000/svg">
+        ${scene(180, 70,  'сверху ✕', '#E5484D', 'показание больше')}
+        ${scene(392, 0,   'на уровне ✓', '#07BE7E', 'показание честное')}
+        ${scene(604, -70, 'снизу ✕', '#E5484D', 'показание меньше')}
+      </svg>`;
+  },
+};
+
+/* =================== ЗАПУСК =================== */
+runLesson({
+  lessonId: 'level',
+  storageKey: 'beaker-progress',
+  homeHref: '../demo/',
+  steps: STEPS,
+  visuals,
+  onInteract(step, ctx) {
+    if (step.id !== 'parallax') return;
+    const scene = document.getElementById('pxScene');
+    const slider = document.getElementById('pxSlider');
+    const val = document.getElementById('pxVal');
+    const hint = document.getElementById('pxHint');
+    if (!scene || !slider) return;
+    let solved = false;
+    const draw = () => {
+      const offsetPx = parseFloat(slider.value) * 2;
+      scene.innerHTML = parallaxScene(offsetPx);
+      const app = apparentAt(offsetPx);
+      const ok = Math.abs(app - PX.level) < 0.75;
+      val.textContent = fmtV(Math.round(app)) + ' мл';
+      val.classList.toggle('ok', ok);
+      if (ok) {
+        hint.innerHTML = '<b>Глаз на уровне жидкости</b> — ровно 60 мл. Так и снимают показания.';
+        if (!solved) { solved = true; ctx.done(); }
+      } else {
+        const dir = app > PX.level ? 'выше уровня — показание завышено' : 'ниже уровня — показание занижено';
+        hint.textContent = `Глаз ${dir}. Двигай ползунок к середине.`;
+      }
+    };
+    slider.addEventListener('input', draw);
+    draw();
+  },
+});
+</script>
+
+</body>
+</html>

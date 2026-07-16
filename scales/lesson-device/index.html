@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Как устроены весы · Рычажные весы</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 640px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel svg{ width: 100%; height: auto; display: block; }
+  .canvas-hint{ margin: 14px 0 0; text-align: center; font-size: 17px; color: var(--fg-2); text-wrap: pretty; }
+  .canvas-hint b{ color: var(--success); font-weight: 500; }
+  .lab-btns{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 14px; }
+  .lab-btn{
+    font-family: var(--font-sans); font-size: 16px; font-weight: 500;
+    color: #fff; background: var(--fg-1); border: 0; border-radius: 12px;
+    padding: 12px 20px; cursor: pointer;
+    transition: transform 120ms var(--ease-standard), opacity 150ms var(--ease-standard);
+  }
+  .lab-btn:hover{ opacity: .88; }
+  .lab-btn:active{ transform: scale(0.96); }
+  .lab-btn--ghost{
+    color: var(--fg-1); background: #fff;
+    box-shadow: inset 0 0 0 1px rgba(35,35,35,.14);
+  }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ============ Живые рычажные весы (плоский стиль) ============ */
+const PV = { x: 320, y: 128 }, ARM = 200, HANG = 84;
+
+function scalesSVG(id) {
+  const ticks = [-14, -7, 0, 7, 14].map(d => {
+    const a = (90 + d) * Math.PI / 180;
+    const r1 = 140, r2 = d === 0 ? 158 : 152;
+    return `<line x1="${(PV.x + Math.cos(a) * r1).toFixed(1)}" y1="${(PV.y + Math.sin(a) * r1).toFixed(1)}"
+                  x2="${(PV.x + Math.cos(a) * r2).toFixed(1)}" y2="${(PV.y + Math.sin(a) * r2).toFixed(1)}"
+                  stroke="${d === 0 ? '#6240FF' : '#B3B9C6'}" stroke-width="${d === 0 ? 4 : 3}" stroke-linecap="round"/>`;
+  }).join('');
+  const pan = side => `
+    <g id="${id}${side}" transform="translate(${side === 'PanL' ? PV.x - ARM : PV.x + ARM} ${PV.y})">
+      <circle cx="0" cy="0" r="5" fill="#4A2FD9"/>
+      <path d="M0 0 L-50 ${HANG - 10} M0 0 L50 ${HANG - 10}" stroke="#8F95A3" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <ellipse cx="0" cy="${HANG - 6}" rx="64" ry="10" fill="#C9CEDA" stroke="#A9AFBE" stroke-width="1.6"/>
+      <g id="${id}${side}Items" transform="translate(0 ${HANG - 8})"></g>
+      <path d="M-64 ${HANG - 6} a64 10 0 0 0 128 0 z" fill="#B3B9C6"/>
+    </g>`;
+  return `
+  <svg viewBox="0 0 640 430" xmlns="http://www.w3.org/2000/svg" id="${id}">
+    <rect x="240" y="372" width="160" height="16" rx="8" fill="#C9CEDA"/>
+    <rect x="252" y="372" width="136" height="6" rx="3" fill="#DFE3EC"/>
+    <rect x="312" y="${PV.y}" width="16" height="${372 - PV.y}" rx="6" fill="#C9CEDA"/>
+    <rect x="316" y="${PV.y}" width="5" height="${372 - PV.y}" rx="2.5" fill="#DFE3EC"/>
+    ${ticks}
+    <g id="${id}Beam">
+      <rect x="${PV.x - ARM - 8}" y="${PV.y - 7}" width="${(ARM + 8) * 2}" height="14" rx="7" fill="#6240FF"/>
+      <rect x="${PV.x - ARM - 8}" y="${PV.y - 7}" width="${(ARM + 8) * 2}" height="5" rx="2.5" fill="#8B6FFF"/>
+      <path d="M${PV.x} ${PV.y + 7} L${PV.x} ${PV.y + 118} L${PV.x - 5} ${PV.y + 118} L${PV.x} ${PV.y + 134} L${PV.x + 5} ${PV.y + 118} L${PV.x} ${PV.y + 118}" fill="#E5484D" stroke="#E5484D" stroke-width="3.5" stroke-linejoin="round"/>
+    </g>
+    ${pan('PanL')}
+    ${pan('PanR')}
+    <circle cx="${PV.x}" cy="${PV.y}" r="9" fill="#4A2FD9"/>
+    <circle cx="${PV.x}" cy="${PV.y}" r="3.5" fill="#EEF0FF"/>
+  </svg>`;
+}
+
+/* Пружинная анимация наклона: setDiff(разность масс, г) */
+function makeBalance(svg, id) {
+  const beamG = svg.querySelector('#' + id + 'Beam');
+  const panL = svg.querySelector('#' + id + 'PanL');
+  const panR = svg.querySelector('#' + id + 'PanR');
+  let a = 0, v = 0, target = 0, running = false;
+  function apply() {
+    const rad = a * Math.PI / 180;
+    beamG.setAttribute('transform', `rotate(${a.toFixed(3)} ${PV.x} ${PV.y})`);
+    const dx = ARM * Math.cos(rad), dy = ARM * Math.sin(rad);
+    panL.setAttribute('transform', `translate(${(PV.x - dx).toFixed(2)} ${(PV.y - dy).toFixed(2)})`);
+    panR.setAttribute('transform', `translate(${(PV.x + dx).toFixed(2)} ${(PV.y + dy).toFixed(2)})`);
+  }
+  function frame() {
+    if (!svg.isConnected) return;
+    v = v * 0.86 + (target - a) * 0.05;
+    a += v;
+    apply();
+    if (Math.abs(v) > 0.0004 || Math.abs(target - a) > 0.002) requestAnimationFrame(frame);
+    else running = false;
+  }
+  return {
+    setDiff(d) {
+      target = 13 * Math.tanh(d / 55);
+      if (!running) { running = true; requestAnimationFrame(frame); }
+    },
+  };
+}
+
+/* =================== ШАГИ ТЕМЫ =================== */
+const STEPS = [
+  {
+    phase: 'theory', type: 'info', visual: 'anatomy', big: true,
+    title: 'Из чего состоят весы',
+    text: 'Рычажные весы просты: на опоре качается <b>коромысло</b>, на его концах висят две <b>чашки</b>, а вниз смотрит <b>стрелка-указатель</b>. Когда стрелка стоит точно напротив средней отметки — весы <b>в равновесии</b>.',
+  },
+  {
+    phase: 'theory', type: 'interact', id: 'lab', visual: 'lab',
+    title: 'Положи грузы на чашки',
+    text: 'Все грузы одинаковые — по <b>50 г</b>. Клади их на чашки и смотри, как <b>коромысло наклоняется</b> в сторону большей массы. Сможешь добиться равновесия?',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'lever',
+    title: 'Почему равные массы уравновешиваются',
+    text: 'Коромысло — это <b>рычаг с равными плечами</b>: чашки висят на одинаковом расстоянии от опоры. Равные массы давят на плечи с равной силой, ни одно не «перетягивает» — коромысло замирает горизонтально, стрелка на нуле.',
+  },
+
+  { phase: 'check', type: 'splash', title: 'Проверь себя', text: 'Два вопроса про устройство — и переходим к правилам взвешивания.' },
+
+  {
+    phase: 'check', type: 'question',
+    title: 'Куда наклонится коромысло?',
+    text: 'На левую чашку положили 100 г, на правую — 50 г. Что произойдёт?',
+    options: [
+      { id: 'a', text: 'Опустится левая чашка — там масса больше',  correct: true  },
+      { id: 'b', text: 'Опустится правая чашка',                    correct: false },
+      { id: 'c', text: 'Коромысло останется горизонтальным',        correct: false },
+      { id: 'd', text: 'Обе чашки поднимутся вверх',                correct: false },
+    ],
+    right: 'Верно! Коромысло наклоняется в сторону большей массы: 100 г перевешивают 50 г.',
+    wrong: 'Коромысло всегда наклоняется в сторону большей массы. Слева 100 г, справа 50 г — опустится левая чашка.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Стрелка на нуле',
+    text: 'Стрелка-указатель остановилась точно напротив средней отметки шкалы. Что это значит?',
+    options: [
+      { id: 'a', text: 'Массы на чашках равны — весы в равновесии', correct: true  },
+      { id: 'b', text: 'Левая чашка тяжелее правой',                correct: false },
+      { id: 'c', text: 'Весы сломались',                            correct: false },
+      { id: 'd', text: 'Обе чашки пустые — иначе так не бывает',    correct: false },
+    ],
+    right: 'Именно! Стрелка на средней отметке — сигнал равновесия: массы на чашках одинаковы (даже если обе по 100 г).',
+    wrong: 'Стрелка напротив средней отметки означает равновесие: массы на чашках равны. Чашки при этом могут быть и полными.',
+  },
+];
+
+/* =================== ВИЗУАЛЫ =================== */
+const visuals = {
+  /* Схема с подписями частей; коромысло мягко качается (SMIL) */
+  anatomy() {
+    const sway = (vals, cx, cy) => `<animateTransform attributeName="transform" type="rotate" additive="sum"
+      values="${vals}" dur="5s" repeatCount="indefinite" calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1"/>`;
+    const pan = x => `
+      <g transform="translate(${x} 128)">
+        <circle cx="0" cy="0" r="5" fill="#4A2FD9"/>
+        <path d="M0 0 L-50 74 M0 0 L50 74" stroke="#8F95A3" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <ellipse cx="0" cy="78" rx="64" ry="10" fill="#C9CEDA" stroke="#A9AFBE" stroke-width="1.6"/>
+        ${sway('4 0 0; -4 0 0; 4 0 0')}
+      </g>`;
+    return `
+      <svg viewBox="0 0 640 430" xmlns="http://www.w3.org/2000/svg">
+        <rect x="240" y="372" width="160" height="16" rx="8" fill="#C9CEDA"/>
+        <rect x="312" y="128" width="16" height="244" rx="6" fill="#C9CEDA"/>
+        <g stroke="#B3B9C6" stroke-width="3" stroke-linecap="round">
+          <line x1="286" y1="264" x2="290" y2="276"/>
+          <line x1="354" y1="264" x2="350" y2="276"/>
+        </g>
+        <line x1="320" y1="268" x2="320" y2="286" stroke="#6240FF" stroke-width="4" stroke-linecap="round"/>
+        <g>
+          <rect x="112" y="121" width="416" height="14" rx="7" fill="#6240FF"/>
+          <path d="M320 135 L320 246 L315 246 L320 262 L325 246 L320 246" fill="#E5484D" stroke="#E5484D" stroke-width="3.5" stroke-linejoin="round"/>
+          ${pan(120)}
+          ${pan(520)}
+          <animateTransform attributeName="transform" type="rotate"
+            values="-4 320 128; 4 320 128; -4 320 128" dur="5s" repeatCount="indefinite"
+            calcMode="spline" keySplines=".45 0 .55 1; .45 0 .55 1"/>
+        </g>
+        <circle cx="320" cy="128" r="9" fill="#4A2FD9"/>
+        <circle cx="320" cy="128" r="3.5" fill="#EEF0FF"/>
+        <!-- подписи -->
+        <g font-family="var(--font-display), sans-serif" font-weight="500" font-size="22" fill="#232323">
+          <text x="320" y="62" text-anchor="middle">коромысло</text>
+          <text x="90" y="290" text-anchor="middle">чашки</text>
+          <text x="474" y="250" text-anchor="start">стрелка-указатель</text>
+          <text x="474" y="330" text-anchor="start">шкала с отметкой</text>
+        </g>
+        <g stroke="#B0B4BE" stroke-width="2" fill="none" stroke-dasharray="4 4">
+          <path d="M320 72 L320 106"/>
+          <path d="M90 268 L90 224 Q90 210 106 210 L112 208"/>
+          <path d="M466 242 L336 210"/>
+          <path d="M466 322 L352 288"/>
+        </g>
+      </svg>`;
+  },
+
+  /* Интерактив: живые весы + кнопки грузов */
+  lab() {
+    return `
+      <div class="canvas-panel">${scalesSVG('labScales')}</div>
+      <div class="lab-btns">
+        <button class="lab-btn" id="addL">+ 50 г слева</button>
+        <button class="lab-btn" id="addR">+ 50 г справа</button>
+        <button class="lab-btn lab-btn--ghost" id="resetLab">Сбросить</button>
+      </div>
+      <p class="canvas-hint" id="labHint">Чашки пустые — весы в равновесии. Положи первый груз!</p>`;
+  },
+
+  /* Рычаг с равными плечами */
+  lever() {
+    return `
+      <svg viewBox="0 0 620 330" xmlns="http://www.w3.org/2000/svg">
+        <path d="M310 150 L282 214 L338 214 Z" fill="#C9CEDA" stroke="#A9AFBE" stroke-width="2"/>
+        <rect x="250" y="214" width="120" height="14" rx="7" fill="#C9CEDA"/>
+        <rect x="90" y="136" width="440" height="14" rx="7" fill="#6240FF"/>
+        <circle cx="310" cy="143" r="8" fill="#4A2FD9"/>
+        <!-- скобки равных плеч -->
+        <g stroke="#232323" stroke-width="2.5" fill="none">
+          <path d="M98 118 L98 104 L306 104 L306 118"/>
+          <path d="M314 118 L314 104 L522 104 L522 118"/>
+        </g>
+        <g font-family="var(--font-display), sans-serif" font-weight="500" font-size="21" fill="#232323" text-anchor="middle">
+          <text x="202" y="88">плечо</text>
+          <text x="418" y="88">плечо</text>
+        </g>
+        <!-- равные силы -->
+        <g>
+          <line x1="100" y1="162" x2="100" y2="226" stroke="#E5484D" stroke-width="6" stroke-linecap="round"/>
+          <path d="M91 226 L100 248 L109 226 Z" fill="#E5484D"/>
+          <line x1="520" y1="162" x2="520" y2="226" stroke="#E5484D" stroke-width="6" stroke-linecap="round"/>
+          <path d="M511 226 L520 248 L529 226 Z" fill="#E5484D"/>
+          <animate attributeName="opacity" values="1;.5;1" dur="2s" repeatCount="indefinite"/>
+        </g>
+        <g font-family="var(--font-display), sans-serif" font-weight="500" font-size="24" fill="#E5484D" text-anchor="middle">
+          <text x="100" y="286">100 г</text>
+          <text x="520" y="286">100 г</text>
+        </g>
+        <text x="310" y="304" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="26" fill="#07BE7E">равные массы — равновесие</text>
+      </svg>`;
+  },
+};
+
+/* =================== ЗАПУСК =================== */
+runLesson({
+  lessonId: 'device',
+  storageKey: 'scales-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-rules/',
+  steps: STEPS,
+  visuals,
+  onInteract(step, ctx) {
+    if (step.id !== 'lab') return;
+    const svg = document.getElementById('labScales');
+    const bal = makeBalance(svg, 'labScales');
+    const itemsL = svg.querySelector('#labScalesPanLItems');
+    const itemsR = svg.querySelector('#labScalesPanRItems');
+    const hint = document.getElementById('labHint');
+    let nL = 0, nR = 0, touched = false, balancedShown = false;
+
+    const cube = `
+      <rect x="-17" y="-34" width="34" height="34" rx="5" fill="#8B6FFF" stroke="#5B3FD6" stroke-width="2"/>
+      <text x="0" y="-16" text-anchor="middle" dominant-baseline="central" font-family="var(--font-display), sans-serif" font-weight="500" font-size="12" fill="#2E1E86">50</text>`;
+    function stack(n) {
+      let out = '';
+      for (let i = 0; i < n; i++) {
+        const row = Math.floor(i / 3), col = i % 3;
+        out += `<g transform="translate(${(col - 1) * 38} ${-row * 36})">${cube}</g>`;
+      }
+      return out;
+    }
+    function update() {
+      itemsL.innerHTML = stack(nL);
+      itemsR.innerHTML = stack(nR);
+      bal.setDiff((nR - nL) * 50);
+      if (!touched) return;
+      if (nL === nR && nL > 0) {
+        hint.innerHTML = `<b>Равновесие!</b> Слева ${nL * 50} г и справа ${nR * 50} г — стрелка на нуле.`;
+        if (!balancedShown) { balancedShown = true; }
+      } else if (nL === nR) {
+        hint.textContent = 'Чашки пустые — весы снова в равновесии.';
+      } else {
+        const side = nL > nR ? 'левой' : 'правой';
+        hint.textContent = `На ${side} чашке масса больше — коромысло наклонилось в её сторону.`;
+      }
+    }
+    document.getElementById('addL').addEventListener('click', () => {
+      if (nL >= 6) return;
+      nL++; touched = true; ctx.done(); update();
+    });
+    document.getElementById('addR').addEventListener('click', () => {
+      if (nR >= 6) return;
+      nR++; touched = true; ctx.done(); update();
+    });
+    document.getElementById('resetLab').addEventListener('click', () => {
+      nL = 0; nR = 0; update();
+      hint.textContent = 'Чашки пустые — весы в равновесии. Положи первый груз!';
+    });
+    update();
+  },
+});
+</script>
+
+</body>
+</html>

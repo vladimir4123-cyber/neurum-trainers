@@ -1,0 +1,60 @@
+<svg viewBox="0 0 320 240" xmlns="http://www.w3.org/2000/svg">
+  <!-- Скорость и графики движения: плоский стиль §8 (машинка + восходящий график x(t)) -->
+  <!-- Тень-подложка -->
+  <ellipse cx="160" cy="222" rx="120" ry="10" fill="#EEF0FF"/>
+
+  <!-- Оси графика -->
+  <g stroke="#C9CEDA" stroke-width="3" stroke-linecap="round">
+    <line x1="56" y1="24" x2="56" y2="176"/>
+    <line x1="56" y1="176" x2="284" y2="176"/>
+  </g>
+  <!-- Сетка -->
+  <g stroke="#E4E7F2" stroke-width="1.5">
+    <line x1="56" y1="140" x2="284" y2="140"/>
+    <line x1="56" y1="104" x2="284" y2="104"/>
+    <line x1="56" y1="68"  x2="284" y2="68"/>
+    <line x1="104" y1="176" x2="104" y2="28"/>
+    <line x1="152" y1="176" x2="152" y2="28"/>
+    <line x1="200" y1="176" x2="200" y2="28"/>
+    <line x1="248" y1="176" x2="248" y2="28"/>
+  </g>
+  <!-- Подписи осей -->
+  <g font-family="'Aeonik Pro', 'Inter', sans-serif" font-size="15" font-weight="500" fill="#6B7180">
+    <text x="40" y="26">x</text>
+    <text x="276" y="196">t</text>
+  </g>
+
+  <!-- Восходящий график: разгон → полочка → круче -->
+  <path d="M56 176 L104 140 L152 140 L200 92 L248 44"
+        fill="none" stroke="#6240FF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Точка на графике -->
+  <circle cx="248" cy="44" r="7" fill="#6240FF"/>
+  <circle cx="248" cy="44" r="3" fill="#EEF0FF"/>
+
+  <!-- Дорога -->
+  <rect x="36" y="196" width="248" height="14" rx="7" fill="#DDE1EC"/>
+  <g stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round">
+    <line x1="60"  y1="203" x2="76"  y2="203"/>
+    <line x1="100" y1="203" x2="116" y2="203"/>
+    <line x1="140" y1="203" x2="156" y2="203"/>
+    <line x1="180" y1="203" x2="196" y2="203"/>
+    <line x1="220" y1="203" x2="236" y2="203"/>
+  </g>
+
+  <!-- Машинка (плоская, тонкие края темнее того же цвета) -->
+  <g transform="translate(196,168)">
+    <path d="M6 22 Q6 12 16 12 L22 12 Q28 0 42 0 L58 0 Q70 0 76 12 L84 12 Q92 12 92 22 L92 28 Q92 32 88 32 L10 32 Q6 32 6 28 Z"
+          fill="#E5484D" stroke="#B2373B" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M30 12 Q34 4 42 4 L54 4 L54 12 Z" fill="#F4F8FE" stroke="#B2373B" stroke-width="2"/>
+    <path d="M58 4 Q68 4 72 12 L58 12 Z" fill="#F4F8FE" stroke="#B2373B" stroke-width="2"/>
+    <circle cx="26" cy="32" r="9" fill="#3E434C"/>
+    <circle cx="26" cy="32" r="4" fill="#C9CEDA"/>
+    <circle cx="72" cy="32" r="9" fill="#3E434C"/>
+    <circle cx="72" cy="32" r="4" fill="#C9CEDA"/>
+  </g>
+  <!-- Штрихи скорости за машинкой -->
+  <g stroke="#B0B4BE" stroke-width="3" stroke-linecap="round">
+    <line x1="176" y1="180" x2="192" y2="180"/>
+    <line x1="168" y1="190" x2="188" y2="190"/>
+  </g>
+</svg>

@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Что такое скорость · Скорость и графики движения</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<style>
+  /* панель+подсказка+кнопки визуала — колонкой */
+  .step-visual{ flex-direction: column; }
+  .canvas-panel{
+    width: 100%; max-width: 620px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 14px;
+  }
+  .canvas-panel svg{ width: 100%; height: auto; display: block; }
+  .canvas-hint{
+    margin: 14px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+  .mini-actions{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  /* Кнопки внутри урока — ЧЁРНЫЕ/белые. Фиолетовая — только «Дальше». */
+  .mini-play-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border: 0; border-radius: var(--radius-md);
+    background: var(--fg-1); color: #fff; cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .mini-play-btn:hover:not(:disabled){ background: #3a3a3f; }
+  .mini-play-btn:active:not(:disabled){ transform: scale(0.96); }
+  .mini-play-btn:disabled{ opacity: .55; cursor: default; }
+  .chip-btn{
+    padding: 12px 18px; border: 1px solid var(--purple-4); border-radius: var(--radius-md);
+    background: var(--white); color: var(--fg-2); cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .chip-btn:hover{ background: var(--purple-4); }
+  .chip-btn:active{ transform: scale(0.96); }
+  .chip-btn.is-on{ background: var(--fg-1); color: #fff; border-color: var(--fg-1); }
+
+  /* приборные карточки: секундомер + одометр */
+  .dash-row{ display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+  .dash-card{
+    background: #fff; border-radius: var(--radius-xl);
+    box-shadow: 0 4px 14px rgba(24,12,34,.07);
+    padding: 12px 22px; min-width: 150px; text-align: center;
+  }
+  .dash-card__val{
+    font-family: var(--font-display); font-weight: 500; font-size: 30px;
+    color: var(--fg-1); font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  .dash-card__val small{ font-size: 17px; color: var(--fg-3); font-weight: 500; }
+  .dash-card__lbl{ font-size: 13px; color: var(--fg-3); margin-top: 2px; }
+
+  /* строка ответа */
+  .ans-row{ display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+  .ans-eq{ font-family: var(--font-display); font-size: 21px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+  .ans-input{
+    width: 96px; font-family: var(--font-display); font-size: 24px; font-weight: 500;
+    color: var(--fg-1); text-align: center; font-variant-numeric: tabular-nums;
+    border: 2px solid var(--purple-4); border-radius: 12px; padding: 7px 8px;
+    outline: none; transition: border-color 120ms var(--ease-standard);
+  }
+  .ans-input:focus{ border-color: var(--purple-1); }
+  .ans-input:disabled{ opacity: .5; }
+  .ans-unit{ font-family: var(--font-display); font-size: 19px; color: var(--fg-3); }
+  .ans-fb{ margin-top: 10px; min-height: 22px; text-align: center; font-size: 15.5px; text-wrap: pretty; }
+  .ans-fb.ok{ color: var(--success); font-weight: 500; }
+  .ans-fb.err{ color: var(--danger); }
+
+  /* конвертер */
+  .conv-eq{
+    margin-top: 16px; text-align: center;
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(22px, 4.4vw, 32px); color: var(--fg-1);
+    font-variant-numeric: tabular-nums; min-height: 44px;
+  }
+  .conv-eq b{ color: var(--purple-1); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '../../assets/lesson/lesson-engine.js?v=4';
+
+/* ============================================================
+   ТЕМА 1 «Что такое скорость» (Пёрышкин §14–15, повторение к ОГЭ).
+   Интерактив: машинка проезжает мерный участок, секундомер и
+   одометр живые — ученик сам считает v = s / t.
+   ============================================================ */
+
+const fmt1 = v => (Math.round(v * 10) / 10).toFixed(1).replace('.', ',');
+const parseNum = s => parseFloat(String(s).replace(',', '.').trim());
+
+/* ---------- дорога с мерными столбиками (SVG) ---------- */
+const ROAD = { x0: 46, x1: 610, y: 108 };
+function roadSVG(S) {
+  const marks = [];
+  for (let m = 0; m <= S; m += 20) {
+    const px = ROAD.x0 + (m / S) * (ROAD.x1 - ROAD.x0);
+    marks.push(`
+      <line x1="${px}" y1="96" x2="${px}" y2="120" stroke="#B0B4BE" stroke-width="3" stroke-linecap="round"/>
+      <text x="${px}" y="142" text-anchor="middle" font-family="var(--font-display), sans-serif"
+            font-size="16" font-weight="500" fill="#6B7180">${m}</text>`);
+  }
+  return `
+    <svg viewBox="0 0 640 158" xmlns="http://www.w3.org/2000/svg">
+      <rect x="24" y="100" width="600" height="16" rx="8" fill="#DDE1EC"/>
+      <g stroke="#fff" stroke-width="2.5" stroke-linecap="round">
+        ${[70,150,230,310,390,470,550].map(x => `<line x1="${x}" y1="108" x2="${x + 26}" y2="108"/>`).join('')}
+      </g>
+      ${marks.join('')}
+      <text x="627" y="142" font-family="var(--font-display), sans-serif" font-size="15" fill="#9AA0AA">м</text>
+      <g id="carG" transform="translate(${ROAD.x0},0)">
+        <g transform="translate(-33,58)">
+          <path d="M4 26 Q4 16 14 16 L20 16 Q26 4 40 4 L54 4 Q66 4 72 16 L78 16 Q86 16 86 26 L86 33 Q86 37 82 37 L8 37 Q4 37 4 33 Z"
+                fill="#E5484D" stroke="#B2373B" stroke-width="2.5" stroke-linejoin="round"/>
+          <path d="M28 16 Q32 8 40 8 L50 8 L50 16 Z" fill="#F4F8FE" stroke="#B2373B" stroke-width="1.8"/>
+          <path d="M54 8 Q64 8 68 16 L54 16 Z" fill="#F4F8FE" stroke="#B2373B" stroke-width="1.8"/>
+          <circle cx="24" cy="37" r="8" fill="#3E434C"/><circle cx="24" cy="37" r="3.4" fill="#C9CEDA"/>
+          <circle cx="66" cy="37" r="8" fill="#3E434C"/><circle cx="66" cy="37" r="3.4" fill="#C9CEDA"/>
+        </g>
+      </g>
+    </svg>`;
+}
+
+/* ============================================================
+   ИНТЕРАКТИВ 1: измерь скорость сам
+   ============================================================ */
+function startMeasure(root, done) {
+  /* Честные пресеты: v = s / t без остатка */
+  const presets = [
+    { s: 100, t: 5 },   // 20 м/с
+    { s: 100, t: 4 },   // 25 м/с
+    { s: 80,  t: 5 },   // 16 м/с
+    { s: 80,  t: 4 },   // 20 м/с
+  ];
+  const P = presets[Math.floor(Math.random() * presets.length)];
+  const V = P.s / P.t;
+
+  const svgHost = root.querySelector('#msRoad');
+  svgHost.innerHTML = roadSVG(P.s);
+  const car = svgHost.querySelector('#carG');
+  const timeEl = root.querySelector('#msTime');
+  const distEl = root.querySelector('#msDist');
+  const startBtn = root.querySelector('#msStart');
+  const resetBtn = root.querySelector('#msReset');
+  const hint = root.querySelector('#msHint');
+  const ansRow = root.querySelector('#msAnsRow');
+  const input = root.querySelector('#msInput');
+  const check = root.querySelector('#msCheck');
+  const fb = root.querySelector('#msFb');
+
+  let running = false, finished = false, t = 0, last = null;
+
+  function setCar(m) {
+    const px = ROAD.x0 + (Math.min(m, P.s) / P.s) * (ROAD.x1 - ROAD.x0);
+    car.setAttribute('transform', `translate(${px},0)`);
+  }
+  function frame(now) {
+    if (!svgHost.isConnected) return;               // шаг сменился — глушим цикл
+    if (running) {
+      if (last != null) t += (now - last) / 1000;
+      last = now;
+      if (t >= P.t) { t = P.t; finish(); }
+      const m = V * t;
+      setCar(m);
+      timeEl.innerHTML = fmt1(t) + ' <small>с</small>';
+      distEl.innerHTML = Math.round(Math.min(m, P.s)) + ' <small>м</small>';
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  function finish() {
+    running = false; finished = true;
+    timeEl.innerHTML = fmt1(P.t) + ' <small>с</small>';
+    distEl.innerHTML = P.s + ' <small>м</small>';
+    hint.innerHTML = `Проехали <b>${P.s} м</b> за <b>${fmt1(P.t)} с</b>. Раздели путь на время — какова скорость?`;
+    ansRow.hidden = false;
+    input.disabled = false; check.disabled = false;
+    input.focus();
+  }
+
+  startBtn.addEventListener('click', () => {
+    if (running || finished) return;
+    running = true; last = null;
+    startBtn.disabled = true;
+    hint.textContent = 'Следи за секундомером и одометром…';
+  });
+  resetBtn.addEventListener('click', () => {
+    running = false; finished = false; t = 0; last = null;
+    startBtn.disabled = false;
+    setCar(0);
+    timeEl.innerHTML = '0,0 <small>с</small>';
+    distEl.innerHTML = '0 <small>м</small>';
+    ansRow.hidden = true;
+    input.value = ''; input.disabled = true; check.disabled = true;
+    fb.className = 'ans-fb'; fb.textContent = '';
+    hint.innerHTML = 'Нажми <b>Старт</b> — машинка проедет мерный участок.';
+  });
+
+  const submit = () => {
+    if (input.disabled) return;
+    const v = parseNum(input.value);
+    if (isNaN(v)) { fb.className = 'ans-fb err'; fb.textContent = 'Впиши число — сколько метров в секунду.'; return; }
+    if (Math.abs(v - V) < 1e-9) {
+      fb.className = 'ans-fb ok';
+      fb.textContent = `✓ Верно! v = ${P.s} м : ${P.t} с = ${V} м/с`;
+      input.disabled = true; check.disabled = true;
+      done();
+    } else {
+      fb.className = 'ans-fb err';
+      fb.textContent = `Не совсем. Скорость = путь : время, то есть ${P.s} : ${P.t}. Попробуй ещё раз.`;
+      input.select();
+    }
+  };
+  check.addEventListener('click', submit);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+}
+
+/* ============================================================
+   ИНТЕРАКТИВ 2: конвертер км/ч → м/с
+   ============================================================ */
+function startConvert(root, done) {
+  const eq = root.querySelector('#convEq');
+  const chips = [...root.querySelectorAll('.chip-btn[data-kmh]')];
+  let clicked = 0;
+  chips.forEach(ch => ch.addEventListener('click', () => {
+    chips.forEach(c => c.classList.toggle('is-on', c === ch));
+    const kmh = parseInt(ch.dataset.kmh, 10);
+    const ms = kmh / 3.6;                       // 36→10, 54→15, 72→20, 90→25, 108→30
+    eq.innerHTML = `${kmh} км/ч&nbsp; = &nbsp;${kmh} : 3,6&nbsp; = &nbsp;<b>${ms} м/с</b>`;
+    eq.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'translateY(0)' }],
+      { duration: 260, easing: 'ease-out' });
+    clicked++;
+    if (clicked >= 2) done();
+  }));
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'interact', id: 'measure', visual: 'measure',
+    title: 'Измерь скорость сам',
+    text: 'Перед тобой мерный участок дороги, секундомер и одометр. Запусти машинку, дождись финиша и посчитай, сколько метров она проезжает за одну секунду.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'formula', big: true,
+    title: 'Скорость — это путь за единицу времени',
+    text: 'Чтобы найти скорость, надо путь разделить на время: <b>v = s / t</b>. Если машинка проехала 100 м за 5 с — каждую секунду она проезжала по 20 м. Скорость показывает, как быстро тело «съедает» дорогу.',
+  },
+  {
+    phase: 'theory', type: 'interact', id: 'convert', visual: 'convert',
+    title: 'м/с и км/ч — две единицы одной скорости',
+    text: 'В физике скорость меряют в <b>метрах в секунду</b>, а на спидометре — в километрах в час. Перевести просто: км/ч делим на 3,6 — получаем м/с. Потыкай в знакомые скорости и посмотри, во что они превращаются.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'why36', big: true,
+    title: 'Откуда взялось число 3,6',
+    text: 'В одном километре — 1000 м, в одном часе — 3600 с. Значит, 72 км/ч = 72 000 м / 3600 с = <b>20 м/с</b>. Делить на 3600 и умножать на 1000 — то же самое, что просто <b>разделить на 3,6</b>.',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Два вопроса — и тема твоя.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос',
+    text: 'Автомобиль едет со скоростью 72 км/ч. Сколько это в метрах в секунду?',
+    options: [
+      { id: 'a', text: '7,2 м/с — просто убрать нолик', correct: false },
+      { id: 'b', text: '20 м/с — разделить на 3,6', correct: true },
+      { id: 'c', text: '259 м/с — умножить на 3,6', correct: false },
+    ],
+    right: '72 : 3,6 = 20 м/с. Каждую секунду машина проезжает 20 метров — пятиэтажка с хвостиком!',
+    wrong: 'Км/ч переводим в м/с делением на 3,6: ведь в километре 1000 м, а в часе 3600 с. 72 : 3,6 = 20 м/с.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос',
+    text: 'Спринтер пробежал 100 м за 10 с. Какова его средняя скорость?',
+    options: [
+      { id: 'a', text: '1000 м/с — путь умножить на время', correct: false },
+      { id: 'b', text: '0,1 м/с — время разделить на путь', correct: false },
+      { id: 'c', text: '10 м/с — путь разделить на время', correct: true },
+    ],
+    right: 'v = s / t = 100 м : 10 с = 10 м/с. Это 36 км/ч — быстрее велосипедиста!',
+    wrong: 'Скорость — это всегда путь, делённый на время: 100 : 10 = 10 м/с.',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  measure: () => `
+    <div class="canvas-panel"><div id="msRoad"></div></div>
+    <div class="dash-row">
+      <div class="dash-card">
+        <div class="dash-card__val" id="msTime">0,0 <small>с</small></div>
+        <div class="dash-card__lbl">секундомер</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-card__val" id="msDist">0 <small>м</small></div>
+        <div class="dash-card__lbl">одометр (путь)</div>
+      </div>
+    </div>
+    <div class="mini-actions">
+      <button class="mini-play-btn" id="msStart">▶ Старт</button>
+      <button class="chip-btn" id="msReset">↺ Сначала</button>
+    </div>
+    <p class="canvas-hint" id="msHint">Нажми <b>Старт</b> — машинка проедет мерный участок.</p>
+    <div class="ans-row" id="msAnsRow" hidden>
+      <span class="ans-eq">v = s / t =</span>
+      <input class="ans-input" id="msInput" inputmode="decimal" placeholder="?" disabled autocomplete="off">
+      <span class="ans-unit">м/с</span>
+      <button class="mini-play-btn" id="msCheck" disabled>Проверить</button>
+    </div>
+    <div class="ans-fb" id="msFb"></div>`,
+  formula: () => `
+    <svg viewBox="0 0 260 150" xmlns="http://www.w3.org/2000/svg">
+      <rect x="14" y="96" width="232" height="10" rx="5" fill="#DDE1EC"/>
+      <g stroke="#B0B4BE" stroke-width="2.5" stroke-linecap="round">
+        <line x1="26" y1="90" x2="26" y2="112"/>
+        <line x1="234" y1="90" x2="234" y2="112"/>
+      </g>
+      <g fill="none" stroke="#6240FF" stroke-width="3" stroke-linecap="round">
+        <line x1="26" y1="126" x2="228" y2="126"/>
+        <path d="M228 126 l-9 -5 m9 5 l-9 5" stroke-linejoin="round"/>
+      </g>
+      <text x="130" y="145" text-anchor="middle" font-family="var(--font-display), sans-serif"
+            font-size="15" font-weight="500" fill="#6240FF">путь s</text>
+      <g>
+        <path d="M4 20 Q4 12 12 12 L17 12 Q22 2 33 2 L44 2 Q54 2 59 12 L64 12 Q71 12 71 20 L71 26 Q71 29 68 29 L7 29 Q4 29 4 26 Z"
+              fill="#E5484D" stroke="#B2373B" stroke-width="2" stroke-linejoin="round" transform="translate(0,60)"/>
+        <circle cx="20" cy="90" r="6.5" fill="#3E434C"/><circle cx="20" cy="90" r="2.8" fill="#C9CEDA"/>
+        <circle cx="55" cy="90" r="6.5" fill="#3E434C"/><circle cx="55" cy="90" r="2.8" fill="#C9CEDA"/>
+        <animateTransform attributeName="transform" type="translate" values="0,0;162,0;0,0" dur="4s" repeatCount="indefinite"/>
+      </g>
+      <g transform="translate(206,26)">
+        <circle cx="0" cy="0" r="19" fill="#F4F1FF" stroke="#C9CEDA" stroke-width="2.5"/>
+        <rect x="-3.5" y="-25" width="7" height="6" rx="2.5" fill="#C9CEDA"/>
+        <line x1="0" y1="0" x2="0" y2="-12" stroke="#6240FF" stroke-width="3" stroke-linecap="round">
+          <animateTransform attributeName="transform" type="rotate" values="0;360" dur="4s" repeatCount="indefinite"/>
+        </line>
+        <circle r="2.4" fill="#6240FF"/>
+        <text x="0" y="34" text-anchor="middle" font-family="var(--font-display), sans-serif" font-size="14" font-weight="500" fill="#6B7180">время t</text>
+      </g>
+      <text x="92" y="38" font-family="var(--font-display), sans-serif" font-size="30" font-weight="500" fill="#232323">v = s / t</text>
+    </svg>`,
+  convert: () => `
+    <div class="mini-actions" style="margin-top:0;">
+      ${[36, 54, 72, 90, 108].map(k => `<button class="chip-btn" data-kmh="${k}">${k} км/ч</button>`).join('')}
+    </div>
+    <div class="conv-eq" id="convEq">Выбери скорость ↑</div>
+    <p class="canvas-hint">36 км/ч — дворовая машина, 72 — трасса, 108 — «уже штраф». Нажми <b>две</b> разные.</p>`,
+  why36: () => `
+    <svg viewBox="0 0 260 150" xmlns="http://www.w3.org/2000/svg">
+      <g font-family="var(--font-display), sans-serif" font-weight="500">
+        <rect x="14" y="14" width="108" height="44" rx="12" fill="#EEF0FF"/>
+        <text x="68" y="36" text-anchor="middle" font-size="16" fill="#232323">1 км</text>
+        <text x="68" y="52" text-anchor="middle" font-size="13" fill="#6B7180">= 1000 м</text>
+        <rect x="138" y="14" width="108" height="44" rx="12" fill="#EEF0FF"/>
+        <text x="192" y="36" text-anchor="middle" font-size="16" fill="#232323">1 ч</text>
+        <text x="192" y="52" text-anchor="middle" font-size="13" fill="#6B7180">= 3600 с</text>
+        <g>
+          <text x="130" y="102" text-anchor="middle" font-size="24" fill="#232323">72 км/ч = 20 м/с</text>
+          <animate attributeName="opacity" values=".35;1;.35" dur="2.6s" repeatCount="indefinite"/>
+        </g>
+        <text x="130" y="132" text-anchor="middle" font-size="15" fill="#6240FF">км/ч : 3,6 → м/с</text>
+      </g>
+      <g fill="none" stroke="#6240FF" stroke-width="2.5" stroke-linecap="round">
+        <path d="M68 62 Q86 78 112 88"/>
+        <path d="M192 62 Q174 78 148 88"/>
+      </g>
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'measure') startMeasure(ctx.root, ctx.done);
+  if (step.id === 'convert') startConvert(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'speed',
+  storageKey: 'motion-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-graph/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

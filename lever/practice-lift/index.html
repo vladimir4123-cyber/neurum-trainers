@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Подними бегемота · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦛</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="../../assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="../../assets/lesson/practice.css?v=4">
+<style>
+  .scene-panel{
+    width: 100%; max-width: 620px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .scene-panel svg{ width: 100%; height: auto; display: block; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '../../assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Подними бегемота».
+   Задачи на правило рычага: F₁·l₁ = F₂·l₂.
+   Все числа генерируются, ответ считается честно из тех же чисел,
+   что нарисованы на сцене.
+   ============================================================ */
+
+const fmt = v => {
+  const r = Math.round(v * 100) / 100;
+  return String(r).replace('.', ',');
+};
+
+/* ---------- сцена: груз на коротком плече, сила на длинном ---------- */
+function loadPict(kind) {
+  if (kind === 'hippo') return `
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="0,0; 0,-3; 0,0" dur="2.6s" repeatCount="indefinite"/>
+      <ellipse cx="105" cy="142" rx="56" ry="36" fill="#9C8FD9"/>
+      <ellipse cx="52" cy="152" rx="22" ry="16" fill="#8B7DCB"/>
+      <circle cx="45" cy="143" r="3" fill="#4A3F7A"/>
+      <circle cx="59" cy="143" r="3" fill="#4A3F7A"/>
+      <ellipse cx="46" cy="158" rx="4" ry="2.5" fill="#4A3F7A"/>
+      <ellipse cx="58" cy="158" rx="4" ry="2.5" fill="#4A3F7A"/>
+      <rect x="76" y="172" width="12" height="16" rx="5" fill="#8B7DCB"/>
+      <rect x="122" y="172" width="12" height="16" rx="5" fill="#8B7DCB"/>
+      <path d="M156 128 Q168 122 164 136" fill="none" stroke="#8B7DCB" stroke-width="5" stroke-linecap="round"/>
+    </g>`;
+  if (kind === 'boulder') return `
+    <path d="M48 188 Q36 138 76 122 Q118 106 148 132 Q166 154 150 176 Q138 190 106 190 Z"
+          fill="#B6BCC9" stroke="#8F96A6" stroke-width="3.5" stroke-linejoin="round"/>`;
+  /* manhole — крышка люка */
+  return `
+    <g>
+      <ellipse cx="100" cy="178" rx="62" ry="15" fill="#6E7380" stroke="#53575F" stroke-width="3"/>
+      <ellipse cx="100" cy="172" rx="62" ry="15" fill="#8A8F9C" stroke="#6E7380" stroke-width="3"/>
+      <ellipse cx="100" cy="172" rx="44" ry="9" fill="none" stroke="#6E7380" stroke-width="2.5"/>
+      <ellipse cx="100" cy="172" rx="22" ry="4.5" fill="none" stroke="#6E7380" stroke-width="2.5"/>
+    </g>`;
+}
+
+function leverScene(kind, lab, ratio) {
+  const barFill = kind === 'boulder' ? '#D9BC8E' : '#8A8F9C';
+  const barEdge = kind === 'boulder' ? '#B99862' : '#6E7380';
+  /* опора стоит честно: (fx−100)/(545−fx) = l₁/l₂ */
+  const r = ratio || 0.25;
+  const fx = Math.round(Math.max(150, Math.min(270, (100 + 545 * r) / (1 + r))));
+  return `
+    <svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="258" width="640" height="11" rx="5.5" fill="#E3E6F2"/>
+      <path d="M${fx} 201 L${fx - 27} 258 L${fx + 27} 258 Z" fill="#C9CEDA" stroke="#A9AFBE" stroke-width="3" stroke-linejoin="round"/>
+      <rect x="50" y="190" width="520" height="11" rx="5.5" fill="${barFill}" stroke="${barEdge}" stroke-width="2.5"/>
+      <g transform="translate(0,2)">${loadPict(kind)}</g>
+      <!-- сила на длинном плече -->
+      <g stroke="#E5484D" stroke-width="6" stroke-linecap="round" fill="#E5484D">
+        <line x1="545" y1="108" x2="545" y2="158">
+          <animate attributeName="y1" values="108;120;108" dur="2.2s" repeatCount="indefinite"/>
+        </line>
+        <path d="M545 176 l-11 -16 h22 z"/>
+      </g>
+      <text x="545" y="86" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="20" fill="#E5484D">${lab.force}</text>
+      <text x="105" y="66" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="19" fill="#3E434C">${lab.load}</text>
+      <!-- плечи -->
+      <g stroke="#6240FF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 7">
+        <path d="M100 224 L${fx - 8} 224"/>
+        <path d="M${fx + 8} 224 L545 224"/>
+      </g>
+      <g font-family="var(--font-display), sans-serif" font-weight="500" font-size="17" fill="#6240FF">
+        <text x="${Math.round((100 + fx) / 2)}" y="248" text-anchor="middle">${lab.l1}</text>
+        <text x="${Math.round((fx + 545) / 2)}" y="248" text-anchor="middle">${lab.l2}</text>
+      </g>
+      <text x="${fx}" y="288" text-anchor="middle" font-family="var(--font-display), sans-serif" font-weight="500" font-size="14" fill="#6B7180">опора</text>
+    </svg>`;
+}
+
+/* ---------- сюжеты ---------- */
+const PLOTS = {
+  hippo: {
+    tool: 'лом',
+    range: [1500, 4200],
+    story: (F1, l1, l2) => `Бегемот уснул прямо на помосте, который пора чинить. Смотритель подсунул лом: вес бегемота <b>${fmt(F1)} Н</b>, его плечо <b>${fmt(l1)} м</b>, плечо рук — <b>${fmt(l2)} м</b>. Какой минимальной силой можно приподнять соню?`,
+    storyMass: (m, l1, l2) => `Бегемотик-детёныш массой <b>${fmt(m)} кг</b> уснул на помосте (g = 10 Н/кг). Плечо бегемотика <b>${fmt(l1)} м</b>, плечо рук на ломе — <b>${fmt(l2)} м</b>. Какая минимальная сила его приподнимет?`,
+    storyArm: (F1, l1, F2) => `Бегемот весом <b>${fmt(F1)} Н</b> лежит на ломе с плечом <b>${fmt(l1)} м</b>. Смотритель может давить с силой не больше <b>${fmt(F2)} Н</b>. Какое плечо силы ему нужно?`,
+  },
+  boulder: {
+    tool: 'палка',
+    range: [400, 1500],
+    story: (F1, l1, l2) => `Валун весом <b>${fmt(F1)} Н</b> мешает грядке. Под него подсунули крепкую палку: плечо валуна <b>${fmt(l1)} м</b>, плечо рук — <b>${fmt(l2)} м</b>. Какая минимальная сила сдвинет валун?`,
+    storyMass: (m, l1, l2) => `Валун массой <b>${fmt(m)} кг</b> застрял посреди тропинки (g = 10 Н/кг). Палку подсунули так, что плечо валуна <b>${fmt(l1)} м</b>, плечо рук — <b>${fmt(l2)} м</b>. Какая минимальная сила его приподнимет?`,
+    storyArm: (F1, l1, F2) => `Валун весом <b>${fmt(F1)} Н</b> лежит на палке с плечом <b>${fmt(l1)} м</b>. Дачник давит не сильнее <b>${fmt(F2)} Н</b>. Какое плечо силы ему понадобится?`,
+  },
+  manhole: {
+    tool: 'монтировка',
+    range: [100, 600],
+    story: (F1, l1, l2) => `Крышка люка прикипела — тянет на <b>${fmt(F1)} Н</b>. Монтировку завели под край: плечо крышки <b>${fmt(l1)} м</b>, плечо рук — <b>${fmt(l2)} м</b>. Какая минимальная сила поднимет крышку?`,
+    storyMass: (m, l1, l2) => `Крышка люка массой <b>${fmt(m)} кг</b> (g = 10 Н/кг) не поддаётся. Монтировка встала так: плечо крышки <b>${fmt(l1)} м</b>, плечо рук — <b>${fmt(l2)} м</b>. Какая минимальная сила её поднимет?`,
+    storyArm: (F1, l1, F2) => `Крышка люка весом <b>${fmt(F1)} Н</b> поддета монтировкой с плечом крышки <b>${fmt(l1)} м</b>. Рабочий давит не сильнее <b>${fmt(F2)} Н</b>. Какое плечо силы ему нужно?`,
+  },
+};
+
+const pick = (rnd, arr) => arr[Math.floor(rnd() * arr.length)];
+
+/* пары плеч с целым отношением k = l2/l1 (для круглых ответов) */
+const NICE_ARMS = [
+  [0.5, 1], [0.5, 1.5], [0.5, 2], [0.5, 2.5], [0.5, 3],
+  [0.2, 1], [0.2, 1.6], [0.25, 1], [0.25, 2], [0.4, 2], [1, 2], [1, 3],
+];
+
+/* ---------- генераторы задач ---------- */
+function genDirect(rnd, kind, wantRound) {
+  const plot = PLOTS[kind];
+  for (let i = 0; i < 400; i++) {
+    let l1, l2;
+    if (wantRound) {
+      [l1, l2] = pick(rnd, NICE_ARMS);
+    } else {
+      l1 = pick(rnd, [0.3, 0.4, 0.6]);
+      l2 = pick(rnd, [1.6, 1.8, 2.4, 2.5]);
+    }
+    const k = l2 / l1;
+    const F1 = wantRound
+      ? pick(rnd, [50, 100, 150, 200, 250, 300, 400, 500]) * Math.round(k)
+      : pick(rnd, [350, 450, 550, 650, 750, 850, 950, 1500, 2100, 2700, 3300]);
+    if (F1 < plot.range[0] || F1 > plot.range[1]) continue;
+    const raw = F1 * l1 / l2;
+    if (Math.abs(raw * 10 - Math.round(raw * 10)) > 1e-6) continue;  // максимум 1 знак
+    const F2 = Math.round(raw * 10) / 10;                            // срезаем хвост float
+    if (F2 < 20 || F2 > 600) continue;
+    if (wantRound && F2 % 10 !== 0) continue;
+    if (!wantRound && F2 % 10 === 0) continue;                       // некруглое
+    return {
+      scene: leverScene(kind, {
+        load: `F₁ = ${fmt(F1)} Н`, l1: `l₁ = ${fmt(l1)} м`, l2: `l₂ = ${fmt(l2)} м`, force: 'F₂ = ?',
+      }, l1 / l2),
+      text: plot.story(F1, l1, l2),
+      answer: F2, unit: 'Н', tolerance: 0.01,
+      hints: [
+        'Правило рычага: F₁·l₁ = F₂·l₂. Вырази F₂.',
+        `F₂ = F₁·l₁ / l₂ = ${fmt(F1)} · ${fmt(l1)} / ${fmt(l2)}. Посчитай.`,
+      ],
+      right: `✓ Верно! F₂ = ${fmt(F1)} · ${fmt(l1)} / ${fmt(l2)} = ${fmt(F2)} Н — ${plot.tool} превращает ${fmt(F2)} Н в ${fmt(F1)} Н.`,
+    };
+  }
+  return null;
+}
+
+/* составная: сначала вес из массы, потом сила */
+function genMass(rnd, kind) {
+  const plot = PLOTS[kind];
+  for (let i = 0; i < 400; i++) {
+    const [l1, l2] = pick(rnd, NICE_ARMS);
+    const k = Math.round(l2 / l1);
+    const m = pick(rnd, [12, 15, 18, 24, 30, 36, 45, 60, 75, 90, 120, 150, 180, 240, 300]);
+    const F1 = m * 10;
+    if (F1 < plot.range[0] || F1 > plot.range[1]) continue;
+    const raw = F1 * l1 / l2;
+    if (Math.abs(raw * 10 - Math.round(raw * 10)) > 1e-6) continue;
+    const F2 = Math.round(raw * 10) / 10;
+    if (F2 < 15 || F2 > 600) continue;
+    return {
+      scene: leverScene(kind, {
+        load: `m = ${fmt(m)} кг`, l1: `l₁ = ${fmt(l1)} м`, l2: `l₂ = ${fmt(l2)} м`, force: 'F₂ = ?',
+      }, l1 / l2),
+      text: plot.storyMass(m, l1, l2),
+      answer: F2, unit: 'Н', tolerance: 0.01,
+      hints: [
+        `Сначала вес: F₁ = m·g = ${fmt(m)} · 10 = ${fmt(F1)} Н. Дальше — правило рычага.`,
+        `F₂ = F₁·l₁ / l₂ = ${fmt(F1)} · ${fmt(l1)} / ${fmt(l2)}. Посчитай.`,
+      ],
+      right: `✓ Верно! Вес F₁ = ${fmt(m)} · 10 = ${fmt(F1)} Н, а сила F₂ = ${fmt(F1)} · ${fmt(l1)} / ${fmt(l2)} = ${fmt(F2)} Н. Задача в два действия взята!`,
+    };
+  }
+  return null;
+}
+
+/* обратная: найти нужное плечо силы */
+function genArm(rnd, kind) {
+  const plot = PLOTS[kind];
+  for (let i = 0; i < 400; i++) {
+    const l1 = pick(rnd, [0.2, 0.25, 0.3, 0.4, 0.5, 0.6]);
+    const F1 = pick(rnd, [300, 400, 450, 500, 600, 750, 900, 1200, 1800, 2400, 3000, 3600]);
+    if (F1 < plot.range[0] || F1 > plot.range[1]) continue;
+    const F2 = pick(rnd, [100, 120, 150, 200, 250, 300]);
+    const raw = F1 * l1 / F2;
+    if (Math.abs(raw * 10 - Math.round(raw * 10)) > 1e-6) continue; // до дециметра
+    const l2 = Math.round(raw * 10) / 10;
+    if (l2 < 1 || l2 > 3.5 || l2 === l1) continue;
+    return {
+      scene: leverScene(kind, {
+        load: `F₁ = ${fmt(F1)} Н`, l1: `l₁ = ${fmt(l1)} м`, l2: 'l₂ = ?', force: `F₂ = ${fmt(F2)} Н`,
+      }, l1 / l2),
+      text: plot.storyArm(F1, l1, F2),
+      answer: l2, unit: 'м', tolerance: 0.01,
+      hints: [
+        'Та же формула F₁·l₁ = F₂·l₂, но теперь неизвестно плечо. Вырази l₂.',
+        `l₂ = F₁·l₁ / F₂ = ${fmt(F1)} · ${fmt(l1)} / ${fmt(F2)}. Посчитай.`,
+      ],
+      right: `✓ Верно! l₂ = ${fmt(F1)} · ${fmt(l1)} / ${fmt(F2)} = ${fmt(l2)} м — такой длины рычаг и нужен.`,
+    };
+  }
+  return null;
+}
+
+/* ---------- запасные задачи (если генератор не подобрал числа) ---------- */
+function genDirectFixed(kind, F1, l1, l2) {
+  const plot = PLOTS[kind];
+  const F2 = F1 * l1 / l2;
+  return {
+    scene: leverScene(kind, {
+      load: `F₁ = ${fmt(F1)} Н`, l1: `l₁ = ${fmt(l1)} м`, l2: `l₂ = ${fmt(l2)} м`, force: 'F₂ = ?',
+    }, l1 / l2),
+    text: plot.story(F1, l1, l2),
+    answer: F2, unit: 'Н', tolerance: 0.01,
+    hints: [
+      'Правило рычага: F₁·l₁ = F₂·l₂. Вырази F₂.',
+      `F₂ = F₁·l₁ / l₂ = ${fmt(F1)} · ${fmt(l1)} / ${fmt(l2)}. Посчитай.`,
+    ],
+    right: `✓ Верно! F₂ = ${fmt(F1)} · ${fmt(l1)} / ${fmt(l2)} = ${fmt(F2)} Н.`,
+  };
+}
+
+/* ---------- сборка шагов ---------- */
+const KINDS = ['hippo', 'boulder', 'manhole'];
+
+function shuffled(rnd, arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function buildSteps(level, rnd) {
+  const kinds = shuffled(rnd, KINDS);
+  let tasks = [];
+  if (level === 'easy') {
+    tasks = kinds.map(k => genDirect(rnd, k, true) || genDirectFixed('hippo', 2400, 0.5, 2)); // 600 Н
+  } else if (level === 'medium') {
+    tasks = kinds.map(k => genDirect(rnd, k, false) || genDirectFixed('manhole', 350, 0.4, 1.6)); // 87,5 Н
+  } else {
+    tasks = [
+      genArm(rnd, kinds[0]) || genArmFixed(),
+      genArm(rnd, kinds[1]) || genArmFixed(),
+      genMass(rnd, kinds[2]) || genMassFixed(),
+      genMass(rnd, kinds[0]) || genMassFixed(),
+    ];
+  }
+  return tasks.map((t, i) => ({
+    type: 'reading',
+    title: `Задача ${i + 1} из ${tasks.length}`,
+    text: t.text,
+    render: host => { host.innerHTML = `<div class="scene-panel">${t.scene}</div>`; },
+    answer: t.answer,
+    tolerance: t.tolerance,
+    unit: t.unit,
+    hints: t.hints,
+    right: t.right,
+  }));
+}
+
+function genArmFixed() {
+  const plot = PLOTS.manhole;
+  const F1 = 600, l1 = 0.3, F2 = 120, l2 = 1.5;   // 600·0,3 = 120·1,5
+  return {
+    scene: leverScene('manhole', {
+      load: `F₁ = ${fmt(F1)} Н`, l1: `l₁ = ${fmt(l1)} м`, l2: 'l₂ = ?', force: `F₂ = ${fmt(F2)} Н`,
+    }, l1 / l2),
+    text: plot.storyArm(F1, l1, F2),
+    answer: l2, unit: 'м', tolerance: 0.01,
+    hints: [
+      'Та же формула F₁·l₁ = F₂·l₂, но теперь неизвестно плечо. Вырази l₂.',
+      `l₂ = F₁·l₁ / F₂ = ${fmt(F1)} · ${fmt(l1)} / ${fmt(F2)}. Посчитай.`,
+    ],
+    right: `✓ Верно! l₂ = ${fmt(F1)} · ${fmt(l1)} / ${fmt(F2)} = ${fmt(l2)} м.`,
+  };
+}
+function genMassFixed() {
+  const plot = PLOTS.boulder;
+  const m = 90, F1 = 900, l1 = 0.5, l2 = 3, F2 = 150;   // 900·0,5 = 150·3
+  return {
+    scene: leverScene('boulder', {
+      load: `m = ${fmt(m)} кг`, l1: `l₁ = ${fmt(l1)} м`, l2: `l₂ = ${fmt(l2)} м`, force: 'F₂ = ?',
+    }, l1 / l2),
+    text: plot.storyMass(m, l1, l2),
+    answer: F2, unit: 'Н', tolerance: 0.01,
+    hints: [
+      `Сначала вес: F₁ = m·g = ${fmt(m)} · 10 = ${fmt(F1)} Н. Дальше — правило рычага.`,
+      `F₂ = F₁·l₁ / l₂ = ${fmt(F1)} · ${fmt(l1)} / ${fmt(l2)}. Посчитай.`,
+    ],
+    right: `✓ Верно! Вес F₁ = ${fmt(m)} · 10 = ${fmt(F1)} Н, сила F₂ = ${fmt(F1)} · ${fmt(l1)} / ${fmt(l2)} = ${fmt(F2)} Н.`,
+  };
+}
+
+runPractice({
+  practiceId: 'lift',
+  storageKey: 'lever-progress',
+  homeHref: '../demo/',
+  title: 'Подними бегемота',
+  subtitle: 'Бегемот уснул на помосте, валун врос в грядку, крышка люка прикипела. Выручает рычаг — посчитай минимальную силу по правилу F₁·l₁ = F₂·l₂ и впиши ответ.',
+  levels: {
+    easy:   { label: 'Подмастерье', desc: 'Три задачи, числа круглые.', xp: 30 },
+    medium: { label: 'Механик',     desc: 'Три задачи, ответы некруглые — считай точно.', xp: 45 },
+    hard:   { label: 'Архимед',     desc: 'Обратные задачи и задачи в два действия.', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

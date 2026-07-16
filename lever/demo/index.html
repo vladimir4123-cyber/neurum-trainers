@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Рычаг · Урок для класса</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+<link rel="stylesheet" href="../../assets/tokens.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@48,500,1&display=block">
+<style>
+  *{ box-sizing: border-box; }
+  body{
+    margin: 0; font-family: var(--font-sans);
+    background: var(--white); color: var(--fg-1);
+    min-height: 100vh; -webkit-font-smoothing: antialiased;
+  }
+  .ms{ font-family: 'Material Symbols Rounded'; font-variation-settings: 'FILL' 1, 'wght' 500; line-height: 1; }
+
+  /* ============ TOP BAR ============ */
+  .topbar{
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    max-width: 1120px; margin: 0 auto; padding: 18px 24px;
+    background: var(--white);
+  }
+  .home-link{
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 16px; border-radius: 9999px;
+    background: var(--white); color: var(--fg-1);
+    text-decoration: none; font-weight: 500; font-size: 14px;
+    box-shadow: 0 1px 2px rgba(35,35,35,.05), 0 4px 12px rgba(35,35,35,.06), inset 0 0 0 1px rgba(35,35,35,.05);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .home-link:hover{ background: var(--purple-3); }
+  .home-link:active{ transform: scale(0.96); }
+  .share-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: 9999px;
+    background: var(--purple-1); color: #fff;
+    border: 0; cursor: pointer;
+    font-family: var(--font-sans); font-weight: 500; font-size: 14px;
+    box-shadow: 0 4px 12px rgba(101,31,255,.28);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .share-btn .ms{ font-size: 18px; }
+  .share-btn:hover{ background: var(--purple-2); }
+  .share-btn:active{ transform: scale(0.96); }
+  .share-toast{
+    position: fixed; left: 50%; bottom: 24px;
+    transform: translateX(-50%) translateY(20px);
+    padding: 12px 20px; border-radius: 12px;
+    background: var(--fg-1); color: #fff;
+    font-family: var(--font-sans); font-weight: 500; font-size: 15px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.2);
+    opacity: 0; pointer-events: none; z-index: 100;
+    transition: opacity 200ms var(--ease-standard), transform 200ms var(--ease-standard);
+  }
+  .share-toast.is-open{ opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  main.kit{ max-width: 1120px; margin: 0 auto; padding: 0 24px 120px; }
+
+  /* ============ HERO ============ */
+  .hero{
+    width: 100%;
+    background: var(--white);
+    box-shadow: 0 4px 16px rgba(0,0,0,.06);
+  }
+  .hero-inner{
+    max-width: 1120px; margin: 0 auto;
+    padding: 32px 24px;
+    display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 32px; align-items: stretch;
+  }
+  @media (max-width: 860px){ .hero-inner{ grid-template-columns: 1fr; gap: 22px; padding: 24px; } }
+  .hero-preview{
+    width: 100%; aspect-ratio: 4 / 3;
+    border-radius: var(--radius-2xl); overflow: hidden;
+    background: linear-gradient(180deg, #EEF0FF, #FBF8FF);
+    display: grid; place-items: center; padding: 28px;
+  }
+  .hero-preview img{ max-width: 100%; max-height: 100%; object-fit: contain; }
+  .hero-body{ display: flex; flex-direction: column; padding: 12px 0; }
+  .hero h1{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(28px, 3.4vw, 40px); line-height: 1.05;
+    letter-spacing: -0.02em; margin: 0 0 12px; text-wrap: balance;
+  }
+  .hero-value{
+    font-size: var(--t-base); line-height: var(--lh-base); color: var(--fg-2);
+    margin: 0 0 18px; text-wrap: pretty;
+  }
+  .hero-meta{ display: flex; flex-wrap: wrap; gap: 18px; margin: 0 0 22px; }
+  .hero-meta .meta-item{ display: inline-flex; align-items: center; gap: 7px; color: var(--fg-2); font-size: 14px; font-weight: 500; }
+  .hero-meta .meta-item .ms{ font-size: 19px; color: var(--purple-1); }
+  .hero-cta{ display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: auto; }
+  .btn-primary{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 14px 32px;
+    border-radius: var(--radius-md);
+    background: var(--purple-1);
+    color: var(--white); text-decoration: none;
+    font-family: var(--font-sans); font-weight: 500; font-size: 16px;
+    box-shadow: var(--shadow-purple);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .btn-primary .ms{ font-size: 20px; }
+  .btn-primary:hover{ background: var(--purple-2); }
+  .btn-primary:active{ transform: scale(0.96); }
+
+  /* ============ SECTIONS ============ */
+  .sec{ margin-top: 52px; }
+  .sec-head{ margin-bottom: 20px; }
+  .sec-head h2{
+    margin: 0;
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(24px, 3.4vw, 32px); letter-spacing: -0.02em;
+  }
+
+  /* ============ КАРТОЧКА ТЕМЫ ============ */
+  .topic-grid{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  @media (max-width: 780px){ .topic-grid{ grid-template-columns: 1fr; } }
+  .topic{
+    display: grid; grid-template-columns: 168px 1fr; gap: 20px; align-items: center;
+    padding: 22px; border-radius: var(--radius-2xl);
+    background: var(--white); text-decoration: none; color: var(--fg-1);
+    border: 1px solid var(--purple-4);
+    transition: transform 160ms var(--ease-standard), box-shadow 160ms var(--ease-standard);
+  }
+  .topic:hover{ transform: translateY(-4px); box-shadow: 0 8px 28px rgba(0,0,0,.12); }
+  .topic:active{ transform: translateY(-1px) scale(0.99); }
+  @media (max-width: 520px){
+    .topic{ grid-template-columns: 1fr; padding: 20px; }
+    .topic__illus{ order: -1; }
+  }
+  .topic__illus{
+    width: 168px; height: 138px; border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    display: grid; place-items: center; overflow: hidden;
+    padding: 12px;
+  }
+  .topic__illus svg{ width: 100%; height: 100%; }
+  .topic__body{ display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .topic__step{
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 500; color: var(--purple-1);
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .topic__title{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: 22px; line-height: 1.15; letter-spacing: -0.01em; margin: 0;
+    text-wrap: balance;
+  }
+  .topic__desc{ margin: 0; color: var(--fg-2); font-size: 15px; line-height: 1.4; text-wrap: pretty; }
+
+  /* ============ КАРТОЧКА ПРАКТИКИ ============ */
+  .practice-grid{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; max-width: 740px; }
+  @media (max-width: 600px){ .practice-grid{ grid-template-columns: 1fr; } }
+  .practice{
+    display: flex; flex-direction: column; gap: 14px;
+    padding: 20px; border-radius: var(--radius-2xl);
+    background: var(--white); text-decoration: none; color: var(--fg-1);
+    border: 1px solid var(--purple-4);
+    transition: transform 160ms var(--ease-standard), box-shadow 160ms var(--ease-standard);
+  }
+  .practice:hover{ transform: translateY(-4px); box-shadow: 0 8px 28px rgba(0,0,0,.12); }
+  .practice__illus{
+    width: 100%; height: 180px;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    display: grid; place-items: center; overflow: hidden;
+    padding: 10px;
+  }
+  .practice__illus svg{ max-width: 100%; max-height: 100%; }
+  .practice__top{ display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .practice__kind{
+    font-size: 12px; font-weight: 500; color: var(--fg-3);
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .practice__xp{
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 13px; font-weight: 500; color: var(--purple-1);
+    background: var(--purple-4); padding: 5px 10px; border-radius: 9999px;
+  }
+  .practice__xp .ms{ font-size: 15px; }
+  .practice__title{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: 20px; line-height: 1.15; letter-spacing: -0.01em; margin: 0;
+    text-wrap: balance;
+  }
+  .practice__desc{ margin: 0; color: var(--fg-2); font-size: 15px; line-height: 1.4; text-wrap: pretty; flex: 1; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="home-link" href="../../">← Все тренажёры</a>
+  <button class="share-btn" id="shareBtn">
+    <span class="ms">share</span>
+    Поделиться с учениками
+  </button>
+</div>
+<div class="share-toast" id="shareToast">Ссылка скопирована</div>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-preview">
+      <img src="../../assets/images/trainers/lever.svg" alt="Рычаг">
+    </div>
+    <div class="hero-body">
+      <h1>Рычаг</h1>
+      <p class="hero-value">Готовый интерактивный урок для 7 класса по §24–25 Пёрышкина. Покажите классу, как ребёнок перевешивает взрослого на качелях, откройте правило рычага живыми числами и найдите рычаги в ножницах, тачке и даже в собственной руке. Ученики закрепят на игре «Уравновесь качели» и задачах «Подними бегемота».</p>
+      <div class="hero-meta" id="heroMeta"></div>
+      <div class="hero-cta">
+        <a class="btn-primary" id="startBtn" href="../lesson-what/"><span class="ms">play_arrow</span> Провести урок</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<main class="kit">
+
+  <section class="sec">
+    <div class="sec-head"><h2>Темы урока</h2></div>
+    <div class="topic-grid" id="topicGrid"></div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><h2>Практика для учеников</h2></div>
+    <div class="practice-grid" id="practiceGrid"></div>
+  </section>
+
+</main>
+
+<script type="module">
+
+/* Мини-иллюстрации тем — инлайн-SVG в светлой палитре, все анимированные */
+const ILLUS = {
+  seesaw: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <path d="M80 78 L64 112 L96 112 Z" fill="#C9CEDA"/>
+      <g>
+        <animateTransform attributeName="transform" type="rotate" values="-7 80 76; 7 80 76; -7 80 76" dur="3.2s" repeatCount="indefinite"/>
+        <rect x="14" y="72" width="132" height="8" rx="4" fill="#D9BC8E" stroke="#B99862" stroke-width="2"/>
+        <rect x="24" y="46" width="26" height="26" rx="6" fill="#E5484D" stroke="#B4373B" stroke-width="2"/>
+        <circle cx="126" cy="56" r="9" fill="#F3C89E" stroke="#D9A876" stroke-width="2"/>
+        <rect x="119" y="64" width="14" height="10" rx="4" fill="#2F80ED" stroke="#2361B6" stroke-width="1.6"/>
+      </g>
+      <circle cx="80" cy="76" r="5" fill="#6240FF"/>
+    </svg>`,
+  rule: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <path d="M64 66 L52 96 L76 96 Z" fill="#C9CEDA"/>
+      <rect x="8" y="60" width="144" height="7" rx="3.5" fill="#D9BC8E" stroke="#B99862" stroke-width="1.8"/>
+      <circle cx="64" cy="63" r="4.5" fill="#6240FF"/>
+      <g stroke="#E5484D" stroke-width="3.5" stroke-linecap="round" fill="#E5484D">
+        <line x1="20" y1="52" x2="20" y2="28">
+          <animate attributeName="y2" values="28;22;28" dur="2.4s" repeatCount="indefinite"/>
+        </line>
+        <path d="M20 20 l-6 9 h12 z">
+          <animateTransform attributeName="transform" type="translate" values="0,0;0,-6;0,0" dur="2.4s" repeatCount="indefinite"/>
+        </path>
+      </g>
+      <g stroke="#2F80ED" stroke-width="3" stroke-linecap="round" fill="#2F80ED">
+        <line x1="142" y1="72" x2="142" y2="90"/>
+        <path d="M142 98 l-5 -8 h10 z"/>
+      </g>
+      <text x="20" y="118" text-anchor="middle" font-family="'Aeonik Pro','Inter',sans-serif" font-weight="500" font-size="15" fill="#E5484D">F₁</text>
+      <text x="142" y="118" text-anchor="middle" font-family="'Aeonik Pro','Inter',sans-serif" font-weight="500" font-size="15" fill="#2F80ED">F₂</text>
+      <text x="80" y="24" text-anchor="middle" font-family="'Aeonik Pro','Inter',sans-serif" font-weight="500" font-size="16" fill="#6240FF">F₁·l₁ = F₂·l₂</text>
+    </svg>`,
+  tools: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <g stroke-linecap="round">
+        <g>
+          <animateTransform attributeName="transform" type="rotate" values="-6 70 62; 6 70 62; -6 70 62" dur="2.6s" repeatCount="indefinite"/>
+          <path d="M22 30 L118 88" stroke="#8A8F9C" stroke-width="7"/>
+          <circle cx="128" cy="94" r="11" fill="none" stroke="#E5484D" stroke-width="6"/>
+        </g>
+        <g>
+          <animateTransform attributeName="transform" type="rotate" values="6 70 62; -6 70 62; 6 70 62" dur="2.6s" repeatCount="indefinite"/>
+          <path d="M22 94 L118 36" stroke="#9AA0AA" stroke-width="7"/>
+          <circle cx="128" cy="30" r="11" fill="none" stroke="#E5484D" stroke-width="6"/>
+        </g>
+      </g>
+      <circle cx="70" cy="62" r="6.5" fill="#6240FF"/>
+    </svg>`,
+  balance: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <path d="M80 76 L66 110 L94 110 Z" fill="#C9CEDA"/>
+      <g>
+        <animateTransform attributeName="transform" type="rotate" values="8 80 74; 0 80 74; 8 80 74" dur="3s" repeatCount="indefinite"/>
+        <rect x="12" y="70" width="136" height="8" rx="4" fill="#D9BC8E" stroke="#B99862" stroke-width="2"/>
+        <g stroke="#B99862" stroke-width="1.6">
+          <line x1="34" y1="70" x2="34" y2="78"/><line x1="57" y1="70" x2="57" y2="78"/>
+          <line x1="103" y1="70" x2="103" y2="78"/><line x1="126" y1="70" x2="126" y2="78"/>
+        </g>
+        <rect x="22" y="46" width="24" height="24" rx="6" fill="#E5484D" stroke="#B4373B" stroke-width="2"/>
+        <rect x="116" y="48" width="20" height="22" rx="6" fill="#EEF0FF" stroke="#6240FF" stroke-width="2" stroke-dasharray="4 4"/>
+        <text x="126" y="64" text-anchor="middle" font-family="'Aeonik Pro','Inter',sans-serif" font-weight="500" font-size="15" fill="#6240FF">?</text>
+      </g>
+      <circle cx="80" cy="74" r="5" fill="#6240FF"/>
+    </svg>`,
+  hippo: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <g>
+        <animateTransform attributeName="transform" type="translate" values="0,0; 0,-6; 0,0" dur="2.8s" repeatCount="indefinite"/>
+        <ellipse cx="46" cy="58" rx="30" ry="20" fill="#9C8FD9"/>
+        <ellipse cx="20" cy="62" rx="12" ry="9" fill="#8B7DCB"/>
+        <circle cx="16" cy="57" r="2" fill="#4A3F7A"/>
+        <circle cx="24" cy="57" r="2" fill="#4A3F7A"/>
+        <rect x="30" y="74" width="7" height="9" rx="3" fill="#8B7DCB"/>
+        <rect x="56" y="74" width="7" height="9" rx="3" fill="#8B7DCB"/>
+      </g>
+      <path d="M96 92 L84 114 L108 114 Z" fill="#C9CEDA"/>
+      <g>
+        <animateTransform attributeName="transform" type="rotate" values="0 96 90; -7 96 90; 0 96 90" dur="2.8s" repeatCount="indefinite"/>
+        <rect x="30" y="86" width="122" height="7" rx="3.5" fill="#8A8F9C"/>
+      </g>
+      <g stroke="#E5484D" stroke-width="3" stroke-linecap="round" fill="#E5484D">
+        <line x1="146" y1="68" x2="146" y2="80">
+          <animate attributeName="y1" values="68;74;68" dur="2.8s" repeatCount="indefinite"/>
+        </line>
+        <path d="M146 86 l-5 -8 h10 z"/>
+      </g>
+    </svg>`,
+};
+
+const TOPICS = [
+  { title: 'Что такое рычаг',   desc: 'Пересади ребёнка по качелям и поймай момент, когда он перевесит папу.', href: '../lesson-what/',   illus: 'seesaw' },
+  { title: 'Правило рычага',    desc: 'Двигай точку опоры и смотри, как маленькая сила держит большой груз.',  href: '../lesson-rule/',   illus: 'rule' },
+  { title: 'Рычаги вокруг нас', desc: 'Ножницы, тачка, весло — и рычаг, спрятанный в твоей собственной руке.', href: '../lesson-around/', illus: 'tools' },
+];
+
+const PRACTICES = [
+  { title: 'Уравновесь качели', kind: 'игра', xp: '+60 XP', href: '../practice-balance/', illus: 'balance',
+    desc: 'Слева груз уже висит. Выбери гирю, кликни по делению — и проверь равновесие честными моментами.' },
+  { title: 'Подними бегемота', kind: 'задачи', xp: '+60 XP', href: '../practice-lift/', illus: 'hippo',
+    desc: 'Бегемот, валун и крышка люка. Посчитай минимальную силу по правилу рычага и впиши ответ.' },
+];
+
+/* ---------- hero-мета ---------- */
+const heroMeta = [
+  { ic: 'auto_stories', text: `${TOPICS.length} интерактивные темы` },
+  { ic: 'science',      text: 'живые качели и рычаги' },
+  { ic: 'construction', text: `${PRACTICES.length} практики` },
+];
+document.getElementById('heroMeta').innerHTML = heroMeta.map(m =>
+  `<span class="meta-item"><span class="ms">${m.ic}</span> ${m.text}</span>`
+).join('');
+document.getElementById('startBtn').href = TOPICS[0].href;
+
+/* ---------- темы ---------- */
+document.getElementById('topicGrid').innerHTML = TOPICS.map((t, i) => `
+  <a class="topic" href="${t.href}">
+    <div class="topic__illus">${ILLUS[t.illus]}</div>
+    <div class="topic__body">
+      <span class="topic__step">Тема ${i + 1}</span>
+      <h3 class="topic__title">${t.title}</h3>
+      <p class="topic__desc">${t.desc}</p>
+    </div>
+  </a>`).join('');
+
+/* ---------- практика ---------- */
+document.getElementById('practiceGrid').innerHTML = PRACTICES.map(p => `
+  <a class="practice" href="${p.href}">
+    <div class="practice__illus">${ILLUS[p.illus]}</div>
+    <div class="practice__top">
+      <span class="practice__kind">${p.kind}</span>
+      <span class="practice__xp"><span class="ms">bolt</span> ${p.xp}</span>
+    </div>
+    <h3 class="practice__title">${p.title}</h3>
+    <p class="practice__desc">${p.desc}</p>
+  </a>`).join('');
+
+/* ---------- поделиться ---------- */
+const shareBtn = document.getElementById('shareBtn');
+const shareToast = document.getElementById('shareToast');
+let toastTimer;
+function showToast(text){
+  shareToast.textContent = text;
+  shareToast.classList.add('is-open');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => shareToast.classList.remove('is-open'), 2200);
+}
+shareBtn.addEventListener('click', async () => {
+  const url = location.origin + location.pathname;
+  const title = 'Рычаг — интерактивный урок';
+  if (navigator.share) {
+    try { await navigator.share({ title, url }); return; } catch(e) {}
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Ссылка скопирована');
+  } catch(e){
+    showToast('Скопируйте: ' + url);
+  }
+});
+</script>
+
+</body>
+</html>
