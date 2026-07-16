@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Звуковой детектив · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎧</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="/assets/lesson/practice.css?v=4">
+<style>
+  .det-panel{
+    width: 100%; max-width: 520px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 24px 16px; text-align: center;
+  }
+  .mystery-btn{
+    width: 108px; height: 108px; border-radius: 50%;
+    border: 0; cursor: pointer;
+    background: radial-gradient(circle at 38% 32%, #8B6FFF, #6240FF);
+    color: #fff; font-size: 36px;
+    display: inline-flex; align-items: center; justify-content: center;
+    box-shadow: 0 10px 26px rgba(98,64,255,.35);
+    transition: transform 140ms var(--ease-standard), box-shadow 140ms var(--ease-standard);
+  }
+  .mystery-btn:hover{ transform: scale(1.05); }
+  .mystery-btn:active{ transform: scale(0.96); }
+  .mystery-btn.playing{ animation: mysteryPulse 0.5s ease-in-out infinite; }
+  @keyframes mysteryPulse{
+    0%, 100%{ transform: scale(1); box-shadow: 0 10px 26px rgba(232,89,12,.30); }
+    50%{ transform: scale(1.08); box-shadow: 0 12px 38px rgba(232,89,12,.45); }
+  }
+  .mystery-hint{
+    margin: 14px 0 0; font-size: 14px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .det-canvas{ width: 100%; display: block; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '/assets/lesson/practice-engine.js?v=4';
+import { voice } from '/sound/audio.js?v=1';
+
+/* ============================================================
+   ПРАКТИКА «Звуковой детектив».
+   Играет загадочный звук — определи его частоту на слух.
+   Частоты и раунды случайные при каждом запуске. На среднем
+   и сложном уровнях — ловушки: громкость ≠ высота!
+   ============================================================ */
+
+const round10 = v => Math.round(v / 10) * 10;
+const pick = (arr, rnd) => arr[Math.floor(rnd() * arr.length)];
+
+/* ---------- сцена «загадочный звук» (один тон) ---------- */
+function toneScene(host, f) {
+  host.innerHTML = `
+    <div class="det-panel">
+      <button class="mystery-btn" id="mBtn">▶</button>
+      <p class="mystery-hint" id="mHint">Нажми и слушай — можно сколько угодно раз</p>
+    </div>`;
+  const btn = host.querySelector('#mBtn');
+  const hint = host.querySelector('#mHint');
+  let busy = false;
+  btn.addEventListener('click', () => {
+    if (busy) return;
+    busy = true;
+    btn.classList.add('playing');
+    hint.textContent = 'Слушай внимательно...';
+    voice({ freq: f, type: 'triangle', gain: 0.18, dur: 1.4, attack: 0.03, release: 0.25 });
+    setTimeout(() => {
+      busy = false;
+      btn.classList.remove('playing');
+      if (btn.isConnected) hint.textContent = 'Какая это была частота? Можно послушать ещё раз';
+    }, 1500);
+  });
+}
+
+/* ---------- сцена «два звука подряд» (ловушки) ---------- */
+function pairScene(host, mk1, mk2) {
+  host.innerHTML = `
+    <div class="det-panel">
+      <button class="mystery-btn" id="mBtn">▶</button>
+      <p class="mystery-hint" id="mHint">Нажми — прозвучат два звука по очереди</p>
+    </div>`;
+  const btn = host.querySelector('#mBtn');
+  const hint = host.querySelector('#mHint');
+  let busy = false;
+  btn.addEventListener('click', () => {
+    if (busy) return;
+    busy = true;
+    btn.classList.add('playing');
+    hint.textContent = '🔊 Первый звук...';
+    voice({ ...mk1, type: 'triangle', dur: 0.9, attack: 0.03, release: 0.2 });
+    setTimeout(() => { if (btn.isConnected) hint.textContent = '🔊 Второй звук...'; }, 1050);
+    voice({ ...mk2, type: 'triangle', dur: 0.9, attack: 0.03, release: 0.2, when: 1.15 });
+    setTimeout(() => {
+      busy = false;
+      btn.classList.remove('playing');
+      if (btn.isConnected) hint.textContent = 'Можно послушать пару ещё раз';
+    }, 2200);
+  });
+}
+
+/* ---------- генератор раундов ---------- */
+function makeRounds(level, rnd) {
+  const rounds = [];
+  const pool = [130, 180, 220, 330, 440, 600, 750, 900, 1100];
+  const spread = level === 'easy' ? 2.2 : level === 'medium' ? 1.5 : 1.28;
+  const honestN = 3;
+  const traps = level === 'easy' ? 0 : level === 'medium' ? 1 : 2;
+
+  // честные раунды: угадай частоту одного тона
+  const used = new Set();
+  for (let i = 0; i < honestN; i++) {
+    let f;
+    do { f = pick(pool, rnd); } while (used.has(f));
+    used.add(f);
+    const lo = Math.max(80, round10(f / spread));
+    const hi = Math.min(2000, round10(f * spread));
+    const opts = [lo, f, hi];
+    rounds.push({
+      kind: 'tone', f,
+      text: 'Послушай загадочный звук и определи его частоту.',
+      options: opts.map(o => ({ text: `${o} Гц`, correct: o === f })),
+      right: `✓ Точно, это было ${f} Гц! Чем чаще колебания — тем выше звук.`,
+      wrong: `Это было ${f} Гц. Сравни на слух: чем выше писк, тем больше герц.`,
+    });
+  }
+
+  // ловушки: меняется только одно свойство, а спрашиваем про другое
+  const trapKinds = level === 'hard' ? ['pitch', 'loud'] : [rnd() < 0.5 ? 'pitch' : 'loud'];
+  for (let i = 0; i < traps; i++) {
+    const kind = trapKinds[i % trapKinds.length];
+    const f = pick([220, 330, 440, 600], rnd);
+    if (kind === 'pitch') {
+      // одинаковая частота, разная громкость → высота ОДИНАКОВАЯ
+      const loudFirst = rnd() < 0.5;
+      rounds.push({
+        kind: 'pair',
+        mk1: { freq: f, gain: loudFirst ? 0.24 : 0.06 },
+        mk2: { freq: f, gain: loudFirst ? 0.06 : 0.24 },
+        text: 'Прозвучат два звука. Какой из них ВЫШЕ?',
+        options: [
+          { text: 'Первый', correct: false },
+          { text: 'Второй', correct: false },
+          { text: 'Они одинаковой высоты', correct: true },
+        ],
+        right: '✓ Ловушка раскрыта! Менялась только громкость (амплитуда), а частота была одна — высота одинаковая.',
+        wrong: `Ловушка! Оба звука — ${f} Гц. Менялась громкость, а высота — это частота, она не менялась.`,
+      });
+    } else {
+      // одинаковая амплитуда, разная частота → громкость ОДИНАКОВАЯ
+      const f2 = round10(f * 1.8);
+      const highFirst = rnd() < 0.5;
+      rounds.push({
+        kind: 'pair',
+        mk1: { freq: highFirst ? f2 : f, gain: 0.15 },
+        mk2: { freq: highFirst ? f : f2, gain: 0.15 },
+        text: 'Прозвучат два звука. Какой из них ГРОМЧЕ?',
+        options: [
+          { text: 'Первый', correct: false },
+          { text: 'Второй', correct: false },
+          { text: 'Они одинаково громкие', correct: true },
+        ],
+        right: '✓ Ловушка раскрыта! Менялась только частота (высота), а амплитуда была одна — громкость одинаковая.',
+        wrong: 'Ловушка! Менялась частота — один звук выше, другой ниже. А громкость (амплитуда) была одинаковой.',
+      });
+    }
+  }
+
+  // перемешать
+  for (let i = rounds.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [rounds[i], rounds[j]] = [rounds[j], rounds[i]];
+  }
+  return rounds;
+}
+
+/* ---------- сборка шагов ---------- */
+function buildSteps(level, rnd) {
+  const rounds = makeRounds(level, rnd);
+  return rounds.map((r, i) => ({
+    type: 'choice',
+    title: `Раунд ${i + 1} из ${rounds.length}`,
+    text: r.text,
+    render: host => r.kind === 'tone' ? toneScene(host, r.f) : pairScene(host, r.mk1, r.mk2),
+    options: r.options,
+    right: r.right,
+    wrong: r.wrong,
+  }));
+}
+
+runPractice({
+  practiceId: 'detective',
+  storageKey: 'sound-progress',
+  homeHref: '../demo/',
+  title: 'Звуковой детектив',
+  subtitle: 'Я сыграю загадочный звук — а ты определи его на слух. Помни главное: частота — это высота, амплитуда — громкость. И не путай их, когда попадётся ловушка!',
+  levels: {
+    easy:   { label: 'Юный слухач',     desc: 'Три честных раунда, частоты далеко друг от друга.', xp: 30 },
+    medium: { label: 'Настройщик',      desc: 'Четыре раунда: частоты ближе, и одна ловушка.', xp: 40 },
+    hard:   { label: 'Абсолютный слух', desc: 'Пять раундов, две ловушки. Громкость — не высота!', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

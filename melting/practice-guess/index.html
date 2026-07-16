@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Угадай вещество · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕵️</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="/assets/lesson/practice.css?v=4">
+<style>
+  .canvas-panel{
+    width: 100%; max-width: 520px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '/assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Угадай вещество».
+   График нагревания (а на сложном уровне — и остывания!)
+   неизвестного вещества. Полочка = температура плавления,
+   по ней и вычисляем вещество. Раунды случайные.
+   ============================================================ */
+
+const TXT = '#6B7180', AXIS = '#8A8F9C', LINE = '#6240FF', SHELF = '#E8590C';
+
+const SUBST = [
+  { n: 'Лёд',      t: 0,    known: true },
+  { n: 'Парафин',  t: 55,   known: true },
+  { n: 'Олово',    t: 232 },
+  { n: 'Свинец',   t: 327,  known: true },
+  { n: 'Цинк',     t: 420 },
+  { n: 'Алюминий', t: 660 },
+  { n: 'Медь',     t: 1085 },
+  { n: 'Железо',   t: 1539, known: true },
+  { n: 'Вольфрам', t: 3422 },
+];
+
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+
+/* конфиг осей под вещество */
+function makeCfg(s, cooling) {
+  const d = s.t <= 60 ? 30 : s.t <= 500 ? 120 : 500;
+  const step = s.t <= 60 ? 20 : s.t <= 500 ? 100 : 500;
+  const lo = s.t - d, hi = s.t + d;
+  const yMin = Math.floor(lo / step) * step;
+  const yMax = Math.ceil(hi / step) * step;
+  const ticks = [];
+  for (let v = yMin; v <= yMax; v += step) ticks.push(v);
+  return {
+    melt: s.t, cooling: !!cooling,
+    start: cooling ? hi : lo, end: cooling ? lo : hi,
+    yMin, yMax, ticks
+  };
+}
+
+/* T(x): рост (или спад) → полочка 0.35..0.65 → рост (спад) */
+function tAt(x, cfg) {
+  if (x < 0.35) return cfg.start + (cfg.melt - cfg.start) * (x / 0.35);
+  if (x < 0.65) return cfg.melt;
+  return cfg.melt + (cfg.end - cfg.melt) * ((x - 0.65) / 0.35);
+}
+
+function drawGraph(ctx, w, h, cfg, animProg) {
+  const left = 92, right = 20, top = 22, bottom = 50;
+  const L = left, R = w - right, T = top, B = h - bottom;
+  const gx = v => L + v * (R - L);
+  const gy = v => B - ((v - cfg.yMin) / (cfg.yMax - cfg.yMin)) * (B - T);
+  ctx.font = '20px -apple-system, sans-serif';
+  ctx.textAlign = 'right';
+  cfg.ticks.forEach(v => {
+    const y = gy(v);
+    ctx.strokeStyle = '#E4E7F0';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(R, y); ctx.stroke();
+    ctx.fillStyle = AXIS;
+    ctx.fillText(String(v), L - 8, y + 7);
+  });
+  ctx.textAlign = 'center';
+  ctx.strokeStyle = AXIS;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(L, T); ctx.lineTo(L, B); ctx.lineTo(R, B); ctx.stroke();
+  ctx.fillStyle = TXT;
+  ctx.fillText('время →', (L + R) / 2, h - 6);
+  ctx.save();
+  ctx.translate(18, (T + B) / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('t, °C', 0, 0);
+  ctx.restore();
+  ctx.textAlign = 'start';
+
+  // кривая; полочка — оранжевым
+  const steps = 120;
+  let prev = null;
+  for (let i = 1; i <= steps; i++) {
+    const x = i / steps;
+    if (x > animProg) break;
+    const x0 = (i - 1) / steps;
+    const p0 = prev || { px: gx(x0), py: gy(tAt(x0, cfg)) };
+    const p1 = { px: gx(x), py: gy(tAt(x, cfg)) };
+    const onShelf = x0 >= 0.35 && x <= 0.66;
+    ctx.beginPath();
+    ctx.strokeStyle = onShelf ? SHELF : LINE;
+    ctx.lineWidth = onShelf ? 5 : 4;
+    ctx.lineCap = 'round';
+    ctx.moveTo(p0.px, p0.py);
+    ctx.lineTo(p1.px, p1.py);
+    ctx.stroke();
+    prev = p1;
+  }
+  if (animProg > 0 && animProg < 1) {
+    const px = gx(animProg), py = gy(tAt(animProg, cfg));
+    ctx.beginPath();
+    ctx.arc(px, py, 7, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = LINE;
+    ctx.lineWidth = 3;
+    ctx.fill();
+    ctx.stroke();
+  }
+  // знак вопроса
+  ctx.font = '700 26px -apple-system, sans-serif';
+  ctx.fillStyle = 'rgba(98,64,255,0.5)';
+  ctx.textAlign = 'right';
+  ctx.fillText('?', R - 4, T + 26);
+  ctx.textAlign = 'start';
+}
+
+/* живая сцена раунда */
+function startScene(host, cfg) {
+  host.innerHTML = `<div class="canvas-panel"><canvas id="gCanvas" height="200"></canvas></div>`;
+  const canvas = host.querySelector('#gCanvas');
+  const ctx = canvas.getContext('2d');
+  const t0 = performance.now() / 1000;
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 200);
+    ctx.clearRect(0, 0, w, h);
+    const anim = Math.min(1, (t - t0) / 1.6);
+    drawGraph(ctx, w, h, cfg, anim);
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ---------- генератор раундов ---------- */
+function pickShuffle(arr, rnd) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* два ближайших по температуре плавления «обманщика» */
+function closeDistractors(target, pool, rnd) {
+  const others = pool.filter(s => s.n !== target.n)
+    .sort((a, b) => Math.abs(a.t - target.t) - Math.abs(b.t - target.t));
+  const near = others.slice(0, 4);
+  return pickShuffle(near, rnd).slice(0, 2);
+}
+
+function makeRounds(level, rnd) {
+  const known = SUBST.filter(s => s.known);
+  let targets, pool, coolN;
+  if (level === 'easy') {
+    targets = pickShuffle(known, rnd).slice(0, 3);
+    pool = known;
+    coolN = 0;
+  } else if (level === 'medium') {
+    targets = pickShuffle(SUBST.filter(s => s.n !== 'Вольфрам'), rnd).slice(0, 4);
+    pool = SUBST;
+    coolN = 0;
+  } else {
+    targets = pickShuffle(SUBST.filter(s => s.n !== 'Вольфрам'), rnd).slice(0, 5);
+    pool = SUBST;
+    coolN = 2;
+  }
+  return targets.map((s, i) => {
+    const cooling = i < coolN;           // ловушки — первыми, потом перемешаем
+    const distract = level === 'easy'
+      ? pickShuffle(pool.filter(x => x.n !== s.n), rnd).slice(0, 2)
+      : closeDistractors(s, pool, rnd);
+    return { subst: s, cfg: makeCfg(s, cooling), cooling, options: pickShuffle([s, ...distract], rnd) };
+  }).sort(() => rnd() - 0.5);
+}
+
+/* ---------- сборка шагов ---------- */
+function buildSteps(level, rnd) {
+  const rounds = makeRounds(level, rnd);
+  return rounds.map((r, i) => {
+    const s = r.subst;
+    const explain = r.cooling
+      ? `График идёт вниз — вещество остывало. Но полочка та же: кристаллизация идёт при ${s.t} °C, как и плавление. Это ${s.n.toLowerCase()}.`
+      : `Полочка на высоте ${s.t} °C — это ${s.n.toLowerCase()}. Высота полочки = температура плавления.`;
+    return {
+      type: 'choice',
+      title: `Раунд ${i + 1} из ${rounds.length}`,
+      text: r.cooling
+        ? 'Внимание: этому веществу дали остыть. Найди полочку, прочитай её высоту — и определи вещество.'
+        : 'Неизвестное вещество нагревали и записывали температуру. Найди полочку, прочитай её высоту — и определи вещество.',
+      render: host => startScene(host, r.cfg),
+      options: r.options.map(o => ({
+        text: `${o.n} (t пл = ${o.t} °C)`,
+        correct: o.n === s.n,
+      })),
+      right: '✓ ' + explain,
+      wrong: explain + ' Сверяй полочку с осью температуры!',
+    };
+  });
+}
+
+runPractice({
+  practiceId: 'guess',
+  storageKey: 'melting-progress',
+  homeHref: '../demo/',
+  title: 'Угадай вещество',
+  subtitle: 'Перед тобой график неизвестного вещества. Полочка — его паспорт: прочитай её высоту по оси температуры и вычисли, что это.',
+  levels: {
+    easy:   { label: 'Стажёр',    desc: 'Три раунда со знакомой четвёркой: лёд, парафин, свинец, железо.', xp: 30 },
+    medium: { label: 'Лаборант',  desc: 'Четыре раунда, вся таблица — и варианты подобраны похожими.', xp: 45 },
+    hard:   { label: 'Металлург', desc: 'Пять раундов, среди графиков есть остывание. Не дай себя запутать!', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

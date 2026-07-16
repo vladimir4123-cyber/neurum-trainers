@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Что такое сила и как её поймать · Динамометр</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪝</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .dyno-panel{
+    width: max-content; max-width: 100%;
+    margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 18px 34px;
+  }
+  .dyno-panel svg{ height: 420px; width: auto; display: block; }
+  .law-line{
+    margin: 14px 0 0; text-align: center;
+    font-size: 16px; color: var(--fg-2); text-wrap: pretty;
+    font-variant-numeric: tabular-nums;
+  }
+  .law-line b{ color: var(--purple-1); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '/assets/lesson/lesson-engine.js?v=4';
+import { dynoSVG, fmt } from '../dyno-parts.js';
+
+const SPEC5 = { max: 5, numStep: 1, minor: 5 };  // предел 5 Н, цена 0,2 Н
+const SPEC2 = { max: 2, numStep: 1, minor: 5 };  // предел 2 Н, цена 0,2 Н
+
+/* =================== ШАГИ ТЕМЫ =================== */
+const STEPS = [
+  /* ---------- ТЕОРИЯ ---------- */
+  {
+    type: 'intro', phase: 'theory', visual: 'dynoIntro',
+    title: 'Сила — это когда тянут или толкают',
+    text: 'Пнуть мяч, тащить санки, поднять рюкзак — везде работает <b>сила</b>. Чтобы силу измерить, придумали прибор — <b>динамометр</b>. Его сердце — пружина: чем сильнее тянут, тем больше она растягивается.',
+  },
+  {
+    type: 'reveal', phase: 'theory', visual: 'dynoParts',
+    title: 'Из чего состоит прибор',
+    text: 'За <b>кольцо</b> динамометр держат или вешают на штатив. На <b>крючок</b> цепляют груз. <b>Пружина</b> растягивается, <b>указатель</b> ползёт по <b>шкале</b> — и показывает силу.',
+  },
+  {
+    type: 'interact', phase: 'theory', visual: 'dynoSlider',
+    title: 'Подвесь грузики',
+    text: 'Каждый грузик — 100 г, Земля тянет его с силой примерно <b>1 ньютон</b>. Добавляй грузики и смотри, как отвечает пружина.',
+    check: 'weights',
+  },
+  {
+    type: 'reveal', phase: 'theory', visual: 'dynoApple',
+    title: 'Ньютон — единица силы',
+    text: 'Единицу силы назвали в честь <b>Исаака Ньютона</b> — того самого, с яблоком. И красивое совпадение: <b>1 Н</b> — это примерно вес одного яблока (100 г).',
+  },
+
+  /* ---------- SPLASH ---------- */
+  {
+    type: 'splash', phase: 'transition',
+    title: 'Проверь себя!',
+    text: 'С прибором познакомились — закрепим парой вопросов.',
+  },
+
+  /* ---------- ПРАКТИКА ---------- */
+  {
+    type: 'question', phase: 'practice',
+    title: 'Что измеряет динамометр?',
+    text: 'У каждого прибора своя работа. Какая — у динамометра?',
+    options: [
+      { id: 'a', text: 'Силу',        correct: true },
+      { id: 'b', text: 'Массу',       correct: false },
+      { id: 'c', text: 'Скорость',    correct: false },
+      { id: 'd', text: 'Температуру', correct: false },
+    ],
+    right: 'Верно! Динамометр измеряет силу — в ньютонах.',
+    wrong: 'Динамометр измеряет именно силу. «Динамис» по-гречески — сила.',
+  },
+  {
+    type: 'question', phase: 'practice',
+    title: '1 ньютон — это примерно…',
+    text: 'Прикинем силу на глаз: с какой силой Земля тянет знакомый предмет?',
+    options: [
+      { id: 'a', text: 'Вес яблока (100 г)',  correct: true },
+      { id: 'b', text: 'Вес ведра воды',      correct: false },
+      { id: 'c', text: 'Вес пёрышка',         correct: false },
+      { id: 'd', text: 'Вес школьной парты',  correct: false },
+    ],
+    right: 'Именно! 1 Н — вес яблока массой около 100 г.',
+    wrong: '1 Н — это немного: столько весит яблоко массой около 100 г.',
+  },
+];
+
+/* =================== ВИЗУАЛЫ ТЕМЫ =================== */
+const visuals = {
+  dynoIntro() {
+    return `<div class="dyno-panel">${dynoSVG({ spec: SPEC5, value: 2, weights: 2, h: 700 })}</div>`;
+  },
+  dynoParts() {
+    return `<div class="dyno-panel">${dynoSVG({ spec: SPEC5, value: 2.5, labels: true, h: 580 })}</div>`;
+  },
+  dynoSlider() {
+    return `
+      <div class="dyno-panel" id="dynoHost">${dynoSVG({ spec: SPEC5, value: 0, h: 720 })}</div>
+      <p class="law-line" id="lawLine">Крючок пуст — указатель на нуле.</p>
+      <div class="big-slider">
+        <div class="big-slider__val"><span id="mVal">0</span> г</div>
+        <input type="range" id="mSlider" min="0" max="500" step="100" value="0" class="big-slider__input">
+        <div class="big-slider__hint">Грузики по 100 г</div>
+      </div>`;
+  },
+  dynoApple() {
+    return `<div class="dyno-panel">${dynoSVG({ spec: SPEC2, value: 1, item: '🍎', h: 660 })}</div>`;
+  },
+};
+
+/* =================== ЗАПУСК =================== */
+runLesson({
+  lessonId: 'force',
+  storageKey: 'dynamometer-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-price/',
+  steps: STEPS,
+  visuals,
+  onInteract(step, ctx) {
+    if (step.check === 'weights') {
+      const host = document.getElementById('dynoHost');
+      const slider = document.getElementById('mSlider');
+      const mVal = document.getElementById('mVal');
+      const law = document.getElementById('lawLine');
+      let moved = false;
+      slider.addEventListener('input', () => {
+        const m = +slider.value;          // масса грузов, г
+        const F = m / 100;                // сила тяжести, Н (g = 10 Н/кг)
+        mVal.textContent = m;
+        host.innerHTML = dynoSVG({ spec: SPEC5, value: F, weights: m / 100, h: 720 });
+        law.innerHTML = m === 0
+          ? 'Крючок пуст — указатель на нуле.'
+          : `F = ${fmt(m / 1000)} кг × 10 Н/кг = <b>${fmt(F)} Н</b>`;
+        if (!moved && m > 0) { moved = true; ctx.done(); }
+      });
+    }
+  },
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Как снять показания · Амперметр</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .ammeter-svg{ width: 100%; height: auto; display: block; }
+  .am-wrap{ width: 100%; max-width: 430px; margin: 0 auto; }
+  .read-opts{ margin-top: 20px; max-width: 460px; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '/assets/lesson/lesson-engine.js?v=4';
+import { ammeterSVG, animateAmmeterNeedle } from '../ammeter.js';
+
+const fmt = v => String(Math.round(v * 100) / 100).replace('.', ',');
+
+/* =================== ШАГИ ТЕМЫ =================== */
+const STEPS = [
+  /* ---------- ТЕОРИЯ ---------- */
+  {
+    type: 'intro', phase: 'theory', visual: 'schemaSeries',
+    title: 'Включаем последовательно',
+    text: 'Амперметр измеряет ток, который течёт <b>через него самого</b>. Поэтому его включают <b>последовательно</b> — в разрыв цепи, чтобы весь ток прошёл сквозь прибор. На схеме амперметр — <b>кружок с буквой A</b>.',
+  },
+  {
+    type: 'reveal', phase: 'theory', visual: 'schemaWrong',
+    title: 'Главная ошибка',
+    text: 'Включить амперметр <b>параллельно</b>, как вольтметр, нельзя: получится <b>короткое замыкание</b> — огромный ток хлынет через прибор, и он сгорит. Это ключевое отличие от вольтметра!',
+  },
+  {
+    type: 'reveal', phase: 'theory', visual: 'polarity',
+    title: 'Плюс — к плюсу',
+    text: 'Клемму <b>«+»</b> амперметра соединяют с проводом от «+» источника, «−» — с «−». Перепутаете — стрелка пойдёт в обратную сторону, за ноль, и прибор можно сломать.',
+  },
+  {
+    type: 'interact', phase: 'theory', visual: 'readTask', check: 'read',
+    title: 'Снимите показание',
+    text: 'Цена деления этой шкалы — <b>0,2 А</b>. Посчитайте, на каком делении остановилась стрелка, и выберите показание.',
+  },
+
+  /* ---------- SPLASH ---------- */
+  {
+    type: 'splash', phase: 'transition',
+    title: 'Проверь себя!',
+    text: 'Правила подключения — то, что спрашивают всегда. Закрепим.',
+  },
+
+  /* ---------- ПРАКТИКА ---------- */
+  {
+    type: 'question', phase: 'practice',
+    title: 'Как включают амперметр в цепь?',
+    text: 'Вспомните, какой ток должен пройти через прибор.',
+    options: [
+      { id: 'a', text: 'Последовательно, в разрыв цепи', correct: true },
+      { id: 'b', text: 'Параллельно участку',            correct: false },
+      { id: 'c', text: 'Всё равно как',                  correct: false },
+      { id: 'd', text: 'Только к «+» источника',         correct: false },
+    ],
+    right: 'Верно! Только последовательно — весь ток цепи должен пройти через амперметр.',
+    wrong: 'Последовательно, в разрыв цепи. Параллельно включают вольтметр — и это опасно перепутать.',
+  },
+  {
+    type: 'question', phase: 'practice',
+    title: 'Чем грозит параллельное включение амперметра?',
+    text: 'Представьте: амперметр подключили рядом с лампой, как вольтметр.',
+    options: [
+      { id: 'a', text: 'Коротким замыканием — прибор может сгореть', correct: true },
+      { id: 'b', text: 'Ничем, так тоже можно',                      correct: false },
+      { id: 'c', text: 'Стрелка покажет вдвое меньше',               correct: false },
+      { id: 'd', text: 'Ток в цепи исчезнет',                        correct: false },
+    ],
+    right: 'Именно! Через амперметр ток идёт почти без сопротивления — параллельно это короткое замыкание.',
+    wrong: 'Это короткое замыкание: почти весь ток хлынет через прибор, и он сгорит.',
+  },
+];
+
+/* =================== ВИЗУАЛЫ ТЕМЫ =================== */
+let readK = 7;   // номер деления для шага чтения (задаётся в readTask)
+
+const visuals = {
+  schemaSeries() {
+    return `
+      <svg viewBox="0 0 440 300" class="circuit-svg">
+        <rect x="60" y="60" width="320" height="190" fill="none" stroke="#2B2B33" stroke-width="3" rx="2"/>
+        <!-- бегущий ток -->
+        <g fill="#FFD769" stroke="#2B2B33" stroke-width="1">
+          <circle r="4.5"><animateMotion dur="4s" repeatCount="indefinite" path="M60 155 L60 60 L380 60 L380 250 L60 250 L60 155"/></circle>
+          <circle r="4.5"><animateMotion dur="4s" begin="1.3s" repeatCount="indefinite" path="M60 155 L60 60 L380 60 L380 250 L60 250 L60 155"/></circle>
+          <circle r="4.5"><animateMotion dur="4s" begin="2.6s" repeatCount="indefinite" path="M60 155 L60 60 L380 60 L380 250 L60 250 L60 155"/></circle>
+        </g>
+        <!-- батарейка на левом проводе -->
+        <rect x="40" y="128" width="40" height="54" fill="var(--white, #fff)"/>
+        <g stroke="#2B2B33" stroke-width="3" stroke-linecap="round">
+          <line x1="44" y1="138" x2="76" y2="138"/>
+          <line x1="52" y1="148" x2="68" y2="148"/>
+          <line x1="44" y1="158" x2="76" y2="158"/>
+          <line x1="52" y1="168" x2="68" y2="168"/>
+        </g>
+        <text x="26" y="144" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" font-size="16" fill="#5A5D66">+</text>
+        <text x="60" y="204" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" fill="#5A5D66">источник</text>
+        <!-- лампа на правом проводе -->
+        <circle cx="380" cy="155" r="24" fill="#FFF6DC" stroke="#2B2B33" stroke-width="3"/>
+        <line x1="363" y1="138" x2="397" y2="172" stroke="#2B2B33" stroke-width="2.5"/>
+        <line x1="397" y1="138" x2="363" y2="172" stroke="#2B2B33" stroke-width="2.5"/>
+        <text x="380" y="204" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" fill="#5A5D66">лампа</text>
+        <!-- амперметр в верхнем проводе -->
+        <circle cx="220" cy="60" r="30" fill="#fff" stroke="#6240FF" stroke-width="3.5"/>
+        <text x="220" y="71" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-weight="700" font-size="30" fill="#6240FF">A</text>
+        <circle cx="190" cy="60" r="5" fill="#E5484D"/>
+        <circle cx="250" cy="60" r="5" fill="#2B2B33"/>
+        <text x="220" y="112" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="500" font-size="15" fill="#6240FF">в разрыв цепи — последовательно</text>
+      </svg>`;
+  },
+  schemaWrong() {
+    return `
+      <svg viewBox="0 0 440 300" class="circuit-svg">
+        <rect x="60" y="60" width="320" height="190" fill="none" stroke="#2B2B33" stroke-width="3" rx="2"/>
+        <!-- батарейка -->
+        <rect x="40" y="128" width="40" height="54" fill="var(--white, #fff)"/>
+        <g stroke="#2B2B33" stroke-width="3" stroke-linecap="round">
+          <line x1="44" y1="138" x2="76" y2="138"/>
+          <line x1="52" y1="148" x2="68" y2="148"/>
+          <line x1="44" y1="158" x2="76" y2="158"/>
+          <line x1="52" y1="168" x2="68" y2="168"/>
+        </g>
+        <!-- лампа (погасла) -->
+        <circle cx="380" cy="155" r="24" fill="#F2F2F7" stroke="#9AA0AA" stroke-width="3"/>
+        <line x1="363" y1="138" x2="397" y2="172" stroke="#9AA0AA" stroke-width="2.5"/>
+        <line x1="397" y1="138" x2="363" y2="172" stroke="#9AA0AA" stroke-width="2.5"/>
+        <!-- амперметр ПАРАЛЛЕЛЬНО лампе — ошибка -->
+        <path d="M300 60 L300 125 M300 185 L300 250" stroke="#E5484D" stroke-width="3" fill="none" stroke-dasharray="6 5"/>
+        <circle cx="300" cy="155" r="30" fill="#fff" stroke="#E5484D" stroke-width="3.5"/>
+        <text x="300" y="166" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-weight="700" font-size="30" fill="#E5484D">A</text>
+        <!-- искра -->
+        <path d="M330 118 L318 138 L328 138 L314 160 L336 136 L326 136 Z" fill="#F5B93B" stroke="#E8590C" stroke-width="2" stroke-linejoin="round">
+          <animate attributeName="opacity" values="1;.2;1" dur=".5s" repeatCount="indefinite"/>
+        </path>
+        <text x="300" y="288" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="500" font-size="15" fill="#E5484D">короткое замыкание!</text>
+      </svg>`;
+  },
+  polarity() {
+    return `
+      <div class="am-wrap">${ammeterSVG({ max: 3, numStep: 1, minor: 10, value: -0.18 })}</div>
+      <div class="polarity-label">Полярность перепутана — стрелку увело влево, за ноль.</div>`;
+  },
+  readTask() {
+    // случайное деление 3..12, не на подписанном числе
+    do { readK = 3 + Math.floor(Math.random() * 10); } while (readK % 5 === 0);
+    const v = Math.round(readK * 0.2 * 100) / 100;
+    const opts = [v];
+    const d1 = Math.round((readK + 2) * 0.2 * 100) / 100;
+    const d2 = Math.round(readK * 0.1 * 100) / 100;
+    opts.push(d1 <= 3 ? d1 : Math.round((readK - 2) * 0.2 * 100) / 100);
+    opts.push(opts.includes(d2) ? Math.round((readK - 1) * 0.2 * 100) / 100 : d2);
+    for (let i = opts.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [opts[i], opts[j]] = [opts[j], opts[i]];
+    }
+    return `
+      <div class="am-wrap" id="amHost">${ammeterSVG({ max: 3, numStep: 1, minor: 5, value: 0 })}</div>
+      <div class="options read-opts">
+        ${opts.map(o => `<button class="opt-btn" data-v="${o}">${fmt(o)} А</button>`).join('')}
+      </div>`;
+  },
+};
+
+/* =================== ЗАПУСК =================== */
+runLesson({
+  lessonId: 'reading',
+  storageKey: 'ampermeter-progress',
+  homeHref: '../demo/',
+  steps: STEPS,
+  visuals,
+  onInteract(step, ctx) {
+    if (step.check === 'read') {
+      const host = document.getElementById('amHost');
+      const answer = Math.round(readK * 0.2 * 100) / 100;
+      animateAmmeterNeedle(host, answer, 3, 900);
+      document.querySelectorAll('.read-opts .opt-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (parseFloat(btn.dataset.v) === answer) {
+            btn.classList.add('correct');
+            document.querySelectorAll('.read-opts .opt-btn').forEach(b => { b.disabled = true; });
+            ctx.done();
+          } else {
+            btn.classList.add('wrong');
+            btn.disabled = true;
+          }
+        });
+      });
+    }
+  },
+});
+</script>
+
+</body>
+</html>

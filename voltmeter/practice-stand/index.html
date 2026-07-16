@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Электро-стенд · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="/assets/lesson/practice.css?v=4">
+<style>
+  /* ---------- HUD в шапке ---------- */
+  .hud{
+    display: flex; align-items: center; gap: 14px; flex: none;
+    font-family: var(--font-display); font-size: 16px; font-weight: 500;
+    color: var(--fg-1); font-variant-numeric: tabular-nums;
+  }
+  .hud-score{ display: inline-flex; align-items: center; gap: 5px; }
+  .hud-score .ms{ font-size: 18px; color: var(--purple-1); }
+  .hud-streak{ color: #E8590C; }
+  .hud-hearts{ letter-spacing: 2px; font-size: 15px; }
+
+  /* ---------- выбор уровня ---------- */
+  .lv-grid{
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px; width: 100%; max-width: 720px;
+  }
+  @media (max-width: 640px){ .lv-grid{ grid-template-columns: 1fr; } }
+  .lv-card{
+    position: relative; display: flex; flex-direction: column; gap: 8px;
+    padding: 22px 20px; border-radius: var(--radius-2xl); text-align: left;
+    background: var(--white); border: 1px solid var(--purple-4);
+    cursor: pointer; font-family: var(--font-sans);
+    transition: transform 160ms var(--ease-standard), box-shadow 160ms var(--ease-standard);
+  }
+  .lv-card:hover:not(.locked){ transform: translateY(-4px); box-shadow: 0 8px 28px rgba(0,0,0,.12); }
+  .lv-card:active:not(.locked){ transform: translateY(-1px) scale(0.98); }
+  .lv-card.locked{ cursor: default; opacity: .55; }
+  .lv-num{
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--purple-1); color: #fff;
+    font-family: var(--font-display); font-size: 17px; font-weight: 500;
+  }
+  .lv-card.locked .lv-num{ background: var(--fg-3); }
+  .lv-card.done .lv-num{ background: var(--success); }
+  .lv-name{ font-family: var(--font-display); font-weight: 500; font-size: 21px; color: var(--fg-1); }
+  .lv-desc{ font-size: 14.5px; line-height: 1.4; color: var(--fg-2); text-wrap: pretty; }
+  .lv-skill{
+    align-self: flex-start; margin-top: 4px;
+    padding: 5px 12px; border-radius: 9999px;
+    background: var(--purple-4); color: var(--purple-1); font-size: 13px; font-weight: 500;
+  }
+  .lv-card.locked .lv-skill{ background: #F1F2F6; color: var(--fg-3); }
+
+  /* ---------- сцена стенда ---------- */
+  .stand{ width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 4px; }
+  .meter-frame{
+    width: 100%; height: 300px; border: 0; border-radius: var(--radius-xl);
+    background: transparent; pointer-events: none;
+  }
+  .bench{
+    display: grid; grid-template-columns: 1fr 1.2fr 1fr; align-items: end;
+    gap: 8px; padding: 6px 12px 0;
+  }
+  .bench-item{ display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .bench-item svg{ width: 100%; max-width: 150px; height: auto; }
+  .bench-label{ font-size: 14px; color: var(--fg-3); }
+
+  /* реостат */
+  .rheo-box{
+    width: 100%; padding: 18px 18px 14px; border-radius: var(--radius-xl);
+    background: var(--white); border: 1px solid var(--purple-4);
+    display: flex; flex-direction: column; gap: 10px; align-items: center;
+  }
+  .rheo-box.off{ opacity: .45; pointer-events: none; }
+  .rheo-title{ font-size: 15px; color: var(--fg-2); }
+  input[type=range].rheo{
+    width: 100%; height: 34px; -webkit-appearance: none; background: transparent; cursor: grab;
+  }
+  input[type=range].rheo:active{ cursor: grabbing; }
+  input[type=range].rheo::-webkit-slider-runnable-track{
+    height: 10px; border-radius: 5px;
+    background: linear-gradient(90deg, var(--purple-1), var(--purple-4));
+  }
+  input[type=range].rheo::-webkit-slider-thumb{
+    -webkit-appearance: none; width: 30px; height: 30px; margin-top: -10px;
+    border-radius: 50%; background: #fff; border: 3px solid var(--purple-1);
+    box-shadow: 0 2px 8px rgba(0,0,0,.18);
+  }
+  input[type=range].rheo::-moz-range-track{
+    height: 10px; border-radius: 5px;
+    background: linear-gradient(90deg, var(--purple-1), var(--purple-4));
+  }
+  input[type=range].rheo::-moz-range-thumb{
+    width: 26px; height: 26px; border-radius: 50%;
+    background: #fff; border: 3px solid var(--purple-1);
+    box-shadow: 0 2px 8px rgba(0,0,0,.18);
+  }
+
+  /* цель раунда */
+  .goal{
+    align-self: center;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: 9999px;
+    background: #FFF8E6; border: 1.5px solid #F5C518;
+    font-size: 16.5px; color: var(--fg-1);
+  }
+  .goal b{ font-weight: 500; font-variant-numeric: tabular-nums; }
+
+  /* предупреждение о перегреве */
+  .stand.hot .meter-frame{ animation: hotShake .18s linear infinite; }
+  @keyframes hotShake{ 0%,100%{ transform: translateX(0);} 50%{ transform: translateX(2px);} }
+  .hot-warn{
+    align-self: center; display: none; align-items: center; gap: 6px;
+    font-size: 15px; color: var(--danger); font-weight: 500;
+  }
+  .stand.hot .hot-warn{ display: inline-flex; }
+
+  /* вспышка при перегорании */
+  .flash{
+    position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 60;
+  }
+  .flash.on{ animation: flashAnim .5s ease-out; }
+  @keyframes flashAnim{ 0%{ opacity: .9; } 100%{ opacity: 0; } }
+
+  /* дым над сгоревшей лампой */
+  .smoke{ animation: smokeUp 1.6s ease-out infinite; transform-box: fill-box; }
+  .smoke.s2{ animation-delay: .5s; }
+  .smoke.s3{ animation-delay: 1s; }
+  @keyframes smokeUp{
+    0%{ transform: translateY(0) scale(.6); opacity: .55; }
+    100%{ transform: translateY(-46px) scale(1.4); opacity: 0; }
+  }
+
+  /* всплывающие очки */
+  .pts-pop{
+    position: fixed; left: 50%; top: 34%;
+    transform: translateX(-50%);
+    font-family: var(--font-display); font-weight: 500; font-size: 44px;
+    color: var(--purple-1); pointer-events: none; z-index: 70; opacity: 0;
+  }
+  .pts-pop.on{ animation: ptsUp 1s ease-out; }
+  @keyframes ptsUp{
+    0%{ opacity: 0; transform: translate(-50%, 12px) scale(.8); }
+    25%{ opacity: 1; transform: translate(-50%, 0) scale(1.06); }
+    100%{ opacity: 0; transform: translate(-50%, -36px) scale(1); }
+  }
+
+  .p-fb{ font-size: 17px; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="hud" id="hud"></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">5</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+<div class="flash" id="flash"></div>
+<div class="pts-pop" id="ptsPop"></div>
+
+<script type="module">
+import { SHARED_DEFS, batterySVG, lampSVG } from '/assets/lesson/voltmeter-parts.js';
+
+/* ============================================================
+   ЭЛЕКТРО-СТЕНД: живая цепь батарейка → реостат → лампа
+   с настоящим 3D-вольтметром. Уровень = новая механика:
+     1. «Глаз-алмаз»   — быстрое чтение шкалы (серия раундов).
+     2. «Попади в цель» — реостатом выставить заданное U,
+                          не спалив лампу (жизни, риск).
+     3. «Вслепую»       — 🔒 скоро (закон Ома без шкалы).
+     4. «Аварийный вызов» — 🔒 скоро (поиск неисправности).
+   Очки за точность, бонус за серию. Всё рандомизировано.
+   ============================================================ */
+
+const $ = id => document.getElementById(id);
+const stage = $('stage'), bottom = $('bottom'), hud = $('hud');
+const fmt = v => String(Math.round(v * 100) / 100).replace('.', ',');
+const parseNum = s => parseFloat(String(s).replace(',', '.').trim());
+const RL = 6;                       // сопротивление лампы, Ом
+const ROUNDS = 5;
+
+const state = { score: 0, streak: 0, hearts: 3, done: { 1: false, 2: false } };
+
+/* ---------- связь с 3D-вольтметром ---------- */
+function setNeedle(v) {
+  const f = $('meter');
+  if (f && f.contentWindow)
+    f.contentWindow.postMessage({ type: 'voltmeter:setNeedle', value: v, max: 6 }, '*');
+}
+
+/* ---------- HUD ---------- */
+function drawHUD(opts = {}) {
+  let h = `<span class="hud-score"><span class="ms">bolt</span>${state.score}</span>`;
+  if (opts.streak && state.streak > 1) h += `<span class="hud-streak">🔥×${state.streak}</span>`;
+  if (opts.hearts) h += `<span class="hud-hearts">${'❤️'.repeat(state.hearts)}${'🤍'.repeat(3 - state.hearts)}</span>`;
+  hud.innerHTML = h;
+}
+function setProgress(round) {
+  $('progressFill').style.width = (round / ROUNDS) * 100 + '%';
+  $('stepNow').textContent = Math.min(round + 1, ROUNDS);
+  $('stepTotal').textContent = ROUNDS;
+}
+function popPts(text) {
+  const p = $('ptsPop');
+  p.textContent = text;
+  p.classList.remove('on'); void p.offsetWidth; p.classList.add('on');
+}
+function flash() {
+  const f = $('flash');
+  f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
+}
+
+/* ---------- сцена стенда ---------- */
+function standHTML({ battLabel, showRheo, goal }) {
+  return `
+    <div class="stand" id="stand">
+      <iframe class="meter-frame" id="meter" src="../?embed=1&value=0&max=6" title="Вольтметр"></iframe>
+      <span class="hot-warn">🔥 Лампа перегревается — сбавь напряжение!</span>
+      ${goal ? `<span class="goal">🎯 Цель: на лампе <b>${goal}</b></span>` : ''}
+      <div class="bench">
+        <div class="bench-item">
+          <svg viewBox="-70 -125 140 265">${SHARED_DEFS}${batterySVG(battLabel)}</svg>
+          <span class="bench-label">батарейка</span>
+        </div>
+        <div class="bench-item">
+          <div class="rheo-box ${showRheo ? '' : 'off'}">
+            <span class="rheo-title">Реостат — тяни ползунок</span>
+            <input type="range" class="rheo" id="rheo" min="0" max="18" step="0.1" value="18">
+          </div>
+        </div>
+        <div class="bench-item">
+          <div id="lampHost" style="width:100%"><svg viewBox="-75 -170 150 330">${SHARED_DEFS}${lampSVG(0)}</svg></div>
+          <span class="bench-label">лампа</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+let lampTimer = 0;
+function drawLamp(t, burnt = false) {
+  clearTimeout(lampTimer);
+  lampTimer = setTimeout(() => {
+    const host = $('lampHost');
+    if (!host) return;
+    const extra = burnt ? `
+      <g>
+        <circle class="smoke"    cx="-8" cy="-110" r="10" fill="#9AA0AA"/>
+        <circle class="smoke s2" cx="6"  cy="-114" r="8"  fill="#B8BDC7"/>
+        <circle class="smoke s3" cx="-2" cy="-118" r="7"  fill="#CDD2DB"/>
+        <line x1="-11" y1="-46" x2="-2" y2="-38" stroke="#4a4d54" stroke-width="1.6"/>
+      </g>` : '';
+    host.innerHTML = `<svg viewBox="-75 -170 150 330">${SHARED_DEFS}${lampSVG(burnt ? 0 : t)}${extra}</svg>`;
+  }, 60);
+}
+
+/* ============================================================
+   ЭКРАН ВЫБОРА УРОВНЯ
+   ============================================================ */
+const LEVELS = [
+  { n: 1, name: 'Глаз-алмаз',       skill: 'читаю шкалу',
+    desc: 'Стрелка прыгает на новое значение — считывай быстро и точно. Серия из 5 раундов, бонус за серию без промахов.' },
+  { n: 2, name: 'Попади в цель',    skill: 'управляю напряжением',
+    desc: 'Крути реостат и выставь на лампе заданное напряжение по стрелке. Перетянешь — лампа сгорит! Три лампы на уровень.' },
+  { n: 3, name: 'Вслепую',          skill: 'закон Ома', locked: true,
+    desc: 'Шкала заклеена. Вычисли напряжение по закону Ома и выставь реостат по расчёту. Скоро!' },
+  { n: 4, name: 'Аварийный вызов',  skill: 'ищу неисправность', locked: true,
+    desc: 'В гирлянде что-то сгорело. Найди неисправность вольтметром за минимум замеров. Скоро!' },
+];
+
+function renderLevels() {
+  document.querySelector('.step-counter').style.visibility = 'hidden';
+  $('progressFill').style.width = '0%';
+  hud.innerHTML = '';
+  stage.innerHTML = `
+    <div class="p-wrap">
+      <h1 class="p-title">Электро-стенд</h1>
+      <p class="p-lead">Живая цепь: батарейка, реостат, лампа и настоящий вольтметр.
+        Каждый уровень открывает новый навык — и новые рычаги.</p>
+      <div class="lv-grid">
+        ${LEVELS.map(l => `
+          <button class="lv-card ${l.locked ? 'locked' : ''} ${state.done[l.n] ? 'done' : ''}" data-lv="${l.n}" ${l.locked ? 'disabled' : ''}>
+            <span class="lv-num">${state.done[l.n] ? '✓' : l.n}</span>
+            <span class="lv-name">${l.locked ? '🔒 ' : ''}${l.name}</span>
+            <span class="lv-desc">${l.desc}</span>
+            <span class="lv-skill">${l.skill}</span>
+          </button>`).join('')}
+      </div>
+    </div>`;
+  bottom.innerHTML = `<button class="btn-back" id="pExit">← К темам</button>`;
+  $('pExit').onclick = () => { location.href = '../demo/'; };
+  stage.querySelectorAll('.lv-card:not(.locked)').forEach(b =>
+    b.addEventListener('click', () => (+b.dataset.lv === 1 ? startL1() : startL2())));
+}
+
+/* ============================================================
+   УРОВЕНЬ 1 «Глаз-алмаз» — серия чтений шкалы
+   ============================================================ */
+function startL1() {
+  document.querySelector('.step-counter').style.visibility = '';
+  state.score = 0; state.streak = 0;
+  const pool = [];
+  for (let v = 0.5; v <= 6; v += 0.5) pool.push(Math.round(v * 10) / 10);
+  pool.sort(() => Math.random() - 0.5);
+  const values = pool.slice(0, ROUNDS);
+  let round = 0;
+
+  const playRound = () => {
+    const v = values[round];
+    setProgress(round);
+    drawHUD({ streak: true });
+    stage.innerHTML = `
+      <div class="p-wrap">
+        <h1 class="p-title">Что показывает вольтметр?</h1>
+        ${standHTML({ battLabel: '? В', showRheo: false })}
+        <div class="p-meas">
+          <input class="p-input" id="ans" inputmode="decimal" placeholder="?" autocomplete="off">
+          <span class="p-unit">В</span>
+          <button class="p-check" id="check">Проверить</button>
+        </div>
+        <div class="p-fb" id="fb"></div>
+      </div>`;
+    bottom.innerHTML = `<button class="btn-back" id="pExit">← Выйти</button>`;
+    $('pExit').onclick = renderLevels;
+
+    // стрелка едет на значение, лампа подхватывает
+    const frame = $('meter');
+    frame.addEventListener('load', () => setTimeout(() => setNeedle(v), 300), { once: true });
+    setTimeout(() => setNeedle(v), 700);
+    drawLamp(v / 6);
+
+    let tries = 0;
+    const submit = () => {
+      const inp = $('ans');
+      if (inp.disabled) return;
+      const g = parseNum(inp.value);
+      const fb = $('fb');
+      if (isNaN(g)) { fb.className = 'p-fb err'; fb.textContent = 'Впиши число.'; return; }
+      if (Math.abs(g - v) <= 0.26) {
+        tries === 0 ? state.streak++ : (state.streak = 0);
+        const bonus = tries === 0 && state.streak > 1 ? 25 * (state.streak - 1) : 0;
+        const pts = (tries === 0 ? 100 : 50) + bonus;
+        state.score += pts;
+        popPts(`+${pts}${bonus ? ' 🔥' : ''}`);
+        drawHUD({ streak: true });
+        fb.className = 'p-fb ok';
+        fb.textContent = `✓ Точно, ${fmt(v)} В!`;
+        inp.disabled = true;
+        setTimeout(nextRound, 900);
+      } else {
+        tries++;
+        state.streak = 0; drawHUD({ streak: true });
+        fb.className = 'p-fb ' + (tries >= 2 ? 'hint' : 'err');
+        fb.innerHTML = tries >= 2
+          ? `Стрелка на <b>${fmt(v)} В</b>. Едем дальше!`
+          : 'Мимо. Вспомни: цена деления — 0,5 В. Ещё раз!';
+        if (tries >= 2) { inp.disabled = true; setTimeout(nextRound, 1400); }
+        else inp.select();
+      }
+    };
+    $('check').onclick = submit;
+    $('ans').addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+    $('ans').focus();
+  };
+
+  const nextRound = () => {
+    round++;
+    if (round < ROUNDS) playRound();
+    else finale(1, 500);
+  };
+  playRound();
+}
+
+/* ============================================================
+   УРОВЕНЬ 2 «Попади в цель» — реостат, цель, риск сжечь лампу
+   ============================================================ */
+function startL2() {
+  document.querySelector('.step-counter').style.visibility = '';
+  state.score = 0; state.hearts = 3;
+  let round = 0;
+
+  const makeRound = rnd => {
+    const V = [4.5, 5, 5.5, 6][Math.floor(rnd() * 4)];
+    const lo = Math.ceil((V / 4 + 0.4) * 2) / 2;
+    const hi = Math.floor((V - 1) * 2) / 2;
+    const targets = [];
+    for (let t = lo; t <= hi; t += 0.5) targets.push(Math.round(t * 10) / 10);
+    const target = targets[Math.floor(rnd() * targets.length)];
+    return { V, target, rated: target + 0.7 };
+  };
+
+  const playRound = () => {
+    const { V, target, rated } = makeRound(Math.random);
+    setProgress(round);
+    drawHUD({ hearts: true });
+    stage.innerHTML = `
+      <div class="p-wrap">
+        <h1 class="p-title">Попади в цель</h1>
+        ${standHTML({ battLabel: fmt(V) + ' В', showRheo: true, goal: `<b>${fmt(target)} В</b> (не выше ${fmt(rated)} В!)` })}
+        <div class="p-fb" id="fb"></div>
+      </div>`;
+    bottom.innerHTML = `
+      <button class="btn-back" id="pExit">← Выйти</button>
+      <button class="btn-continue" id="lock">⚡ Зафиксировать</button>`;
+    $('pExit').onclick = renderLevels;
+
+    const U = R => V * RL / (R + RL);
+    let curU = U(18), hotSince = 0, hotTimer = 0, burnt = false, done = false;
+
+    const applyU = () => {
+      setNeedle(curU);
+      drawLamp(Math.min(curU / 6, 1), burnt);
+      const stand = $('stand');
+      if (!stand) return;
+      if (!burnt && curU > rated) {
+        stand.classList.add('hot');
+        if (!hotSince) {
+          hotSince = performance.now();
+          hotTimer = setTimeout(burn, 900);
+        }
+      } else {
+        stand.classList.remove('hot');
+        hotSince = 0; clearTimeout(hotTimer);
+      }
+    };
+
+    const burn = () => {
+      if (done || burnt) return;
+      burnt = true;
+      flash();
+      drawLamp(0, true);
+      $('stand').classList.remove('hot');
+      state.hearts--;
+      drawHUD({ hearts: true });
+      const fb = $('fb');
+      fb.className = 'p-fb err';
+      fb.innerHTML = 'Хлоп! Лампа перегорела — держал(а) выше нормы слишком долго.';
+      $('lock').disabled = true;
+      if (state.hearts <= 0) { setTimeout(() => failScreen(), 1200); return; }
+      setTimeout(() => {
+        burnt = false;
+        $('rheo').value = 18; curU = U(18);
+        applyU();
+        fb.className = 'p-fb hint';
+        fb.textContent = 'Новая лампа вкручена. Аккуратнее: следи за стрелкой.';
+        $('lock').disabled = false;
+      }, 1500);
+    };
+
+    const rheo = $('rheo');
+    rheo.addEventListener('input', () => { if (!burnt && !done) { curU = U(+rheo.value); applyU(); } });
+
+    const frame = $('meter');
+    frame.addEventListener('load', () => setTimeout(applyU, 300), { once: true });
+    setTimeout(applyU, 700);
+
+    $('lock').onclick = () => {
+      if (burnt || done) return;
+      done = true;
+      clearTimeout(hotTimer);
+      const diff = Math.abs(curU - target);
+      let pts = 0, msg = '';
+      if (diff <= 0.15) { pts = 150; msg = '🎯 В яблочко!'; }
+      else if (diff <= 0.35) { pts = 100; msg = 'Отлично!'; }
+      else if (diff <= 0.6)  { pts = 50;  msg = 'Близко.'; }
+      else { pts = 0; msg = 'Мимо.'; }
+      state.score += pts;
+      if (pts) popPts(`+${pts}`);
+      drawHUD({ hearts: true });
+      const fb = $('fb');
+      fb.className = 'p-fb ' + (pts >= 100 ? 'ok' : pts ? 'hint' : 'err');
+      fb.innerHTML = `${msg} Ты выставил(а) <b>${fmt(Math.round(curU * 100) / 100)} В</b>, цель — ${fmt(target)} В.`;
+      $('lock').disabled = true;
+      setTimeout(() => {
+        round++;
+        if (round < ROUNDS) playRound();
+        else finale(2, 750);
+      }, 1400);
+    };
+  };
+
+  const failScreen = () => {
+    stage.innerHTML = `
+      <div class="p-wrap">
+        <div class="p-medal">💨</div>
+        <h1 class="p-title">Все лампы сгорели!</h1>
+        <p class="p-lead">Так бывает: перетянул реостат — и хлоп. Возьми новую коробку ламп
+          и попробуй ещё раз: подкрадывайся к цели медленно, следи за стрелкой.</p>
+        <div class="p-stats">
+          <div class="p-stat"><div class="p-stat__val">${state.score}</div><div class="p-stat__lbl">очков</div></div>
+        </div>
+      </div>`;
+    bottom.innerHTML = `
+      <button class="btn-back" id="pExit">← К уровням</button>
+      <button class="btn-continue" id="again">Ещё раз</button>`;
+    $('pExit').onclick = renderLevels;
+    $('again').onclick = startL2;
+  };
+
+  playRound();
+}
+
+/* ============================================================
+   ФИНАЛ УРОВНЯ
+   ============================================================ */
+function finale(lv, maxPts) {
+  state.done[lv] = true;
+  $('progressFill').style.width = '100%';
+  fireConfetti();
+  const pct = state.score / maxPts;
+  const medal = pct >= 0.8 ? '🥇' : pct >= 0.5 ? '🥈' : '🥉';
+  const nextLv = LEVELS.find(l => l.n === lv + 1);
+  stage.innerHTML = `
+    <div class="p-wrap">
+      <div class="p-medal">${medal}</div>
+      <h1 class="p-title">Уровень пройден!</h1>
+      <p class="p-lead">${pct >= 0.8 ? 'Мастерски — почти максимум очков!'
+        : pct >= 0.5 ? 'Хорошо! Отточи навык — и будет золото.'
+        : 'Навык пойман. Ещё заход — и очков будет заметно больше.'}</p>
+      <div class="p-stats">
+        <div class="p-stat"><div class="p-stat__val">${state.score}</div><div class="p-stat__lbl">из ${maxPts} очков</div></div>
+        <div class="p-stat"><div class="p-stat__val">${LEVELS[lv - 1].name}</div><div class="p-stat__lbl">уровень ${lv}</div></div>
+      </div>
+      ${nextLv && !nextLv.locked ? `<p class="p-lead">Открыт уровень ${nextLv.n}: <b>${nextLv.name}</b> — новый рычаг: реостат!</p>` : ''}
+    </div>`;
+  bottom.innerHTML = `
+    <button class="btn-back" id="pExit">← К уровням</button>
+    <button class="btn-continue" id="go">${nextLv && !nextLv.locked ? 'Уровень ' + nextLv.n + ' →' : 'Ещё раз'}</button>`;
+  $('pExit').onclick = renderLevels;
+  $('go').onclick = () => {
+    if (nextLv && !nextLv.locked) (nextLv.n === 2 ? startL2() : renderLevels());
+    else (lv === 1 ? startL1() : startL2());
+  };
+}
+
+function fireConfetti() {
+  const box = document.createElement('div');
+  box.className = 'confetti';
+  const colors = ['#6240FF', '#CDFE00', '#FFD769', '#07BE7E', '#FF6B9D', '#149ECA'];
+  for (let i = 0; i < 70; i++) {
+    const p = document.createElement('span');
+    p.style.left = Math.random() * 100 + '%';
+    p.style.background = colors[i % colors.length];
+    p.style.animationDuration = (2.4 + Math.random() * 1.8) + 's';
+    p.style.animationDelay = (Math.random() * 0.5) + 's';
+    box.appendChild(p);
+  }
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 5000);
+}
+
+/* ---------- старт ---------- */
+renderLevels();
+</script>
+
+</body>
+</html>

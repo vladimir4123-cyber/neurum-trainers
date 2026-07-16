@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Управляй волной · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="/assets/lesson/practice.css?v=4">
+<style>
+  .canvas-panel{
+    width: 100%; max-width: 560px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; touch-action: none; }
+  .canvas-panel svg{ width: 100%; display: block; }
+
+  .ctl{ width: 100%; max-width: 560px; margin: 14px auto 0; text-align: left; }
+  .ctl-label{ display: flex; justify-content: space-between; font-size: 14px; color: var(--fg-2); margin-bottom: 8px; }
+  .ctl-label b{ color: var(--purple-1); font-weight: 500; font-variant-numeric: tabular-nums; }
+  input[type="range"]{
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 6px; border-radius: 3px;
+    background: linear-gradient(90deg, #D9D2FF, #EEF0FF); outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance: none;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #8B6FFF, #6240FF);
+    cursor: pointer; box-shadow: 0 2px 8px rgba(98,64,255,.35);
+  }
+  .ctl.orange input[type="range"]::-webkit-slider-thumb{
+    background: radial-gradient(circle at 35% 35%, #FF9A62, #E8590C);
+    box-shadow: 0 2px 8px rgba(232,89,12,.35);
+  }
+  .ctl.orange .ctl-label b{ color: #E8590C; }
+
+  .mini-actions{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  .mini-play-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border: 0; border-radius: var(--radius-md);
+    background: var(--purple-1); color: #fff; cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    box-shadow: var(--shadow-purple);
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .mini-play-btn:hover{ background: var(--purple-2); }
+  .mini-play-btn:active{ transform: scale(0.96); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">3</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '/assets/lesson/practice-engine.js?v=4';
+import { voice, stopAll } from '/sound/audio.js?v=1';
+
+/* ============================================================
+   ПРАКТИКА «Управляй волной».
+   Виртуальная лаборатория: настрой волну под задание — писк
+   комара, шёпот, биения. Цели рандомизируются при каждом
+   запуске. На сложном уровне — бонус-задачи: период T = 1/f
+   и длина волны λ = v/f (физика 9 класса, скорость звука 340 м/с).
+   ============================================================ */
+
+const round10 = v => Math.round(v / 10) * 10;
+const pick = (arr, rnd) => arr[Math.floor(rnd() * arr.length)];
+
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+
+/* ---------- отрисовка волн (светлая тема) ---------- */
+function drawWaves(ctx, w, h, t, comps) {
+  ctx.clearRect(0, 0, w, h);
+  ctx.beginPath();
+  ctx.strokeStyle = '#C9CEDA';
+  ctx.lineWidth = 1.5;
+  ctx.moveTo(0, h / 2);
+  ctx.lineTo(w, h / 2);
+  ctx.stroke();
+
+  const ampPx = h * 0.4;
+  const yOf = (comp, xn) => Math.sin(2 * Math.PI * (comp.f / 110) * xn - t * comp.f * 0.016) * comp.a;
+
+  if (comps.length > 1) {
+    // отдельные волны — пунктиром
+    const cols = ['rgba(98,64,255,0.5)', 'rgba(232,89,12,0.6)'];
+    comps.forEach((comp, i) => {
+      ctx.beginPath();
+      ctx.strokeStyle = cols[i % cols.length];
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([5, 5]);
+      for (let x = 0; x <= w; x += 3) {
+        const y = h / 2 + yOf(comp, x / w) * ampPx * 0.5;
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+    // сумма — сплошным синим
+    ctx.beginPath();
+    ctx.strokeStyle = '#2F80ED';
+    ctx.lineWidth = 3;
+    for (let x = 0; x <= w; x += 2) {
+      const xn = x / w;
+      const y = h / 2 + comps.reduce((s, c) => s + yOf(c, xn), 0) * ampPx * 0.5;
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.strokeStyle = '#6240FF';
+    ctx.lineWidth = 3;
+    for (let x = 0; x <= w; x += 2) {
+      const y = h / 2 + yOf(comps[0], x / w) * ampPx;
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+}
+
+/* ---------- универсальная сцена: канвас + слайдеры + звук ----------
+   cfg = {
+     sliders: [{ label, min, max, val, fmt, orange? }],
+     comps(vals)  → [{f, a}] — что рисовать,
+     tones(vals)  → [{freq, gain}] — что звучит (по кнопке ▶),
+     onInput(vals) — проверка цели,
+   } */
+function mkScene(host, cfg) {
+  host.innerHTML = `
+    <div class="canvas-panel"><canvas id="wCanvas" height="170"></canvas></div>
+    ${cfg.sliders.map((s, i) => `
+      <div class="ctl${s.orange ? ' orange' : ''}">
+        <div class="ctl-label"><span>${s.label}</span><b id="sVal${i}">${s.fmt(s.val)}</b></div>
+        <input type="range" id="sl${i}" min="${s.min}" max="${s.max}" value="${s.val}" step="1">
+      </div>`).join('')}
+    <div class="mini-actions"><button class="mini-play-btn" id="playBtn">▶ Послушать</button></div>`;
+
+  const canvas = host.querySelector('#wCanvas');
+  const ctx = canvas.getContext('2d');
+  const sliders = cfg.sliders.map((_, i) => host.querySelector('#sl' + i));
+  const valEls = cfg.sliders.map((_, i) => host.querySelector('#sVal' + i));
+  const playBtn = host.querySelector('#playBtn');
+  const vals = () => sliders.map(s => +s.value);
+  let voices = null;
+
+  playBtn.addEventListener('click', () => {
+    if (voices) {
+      voices.forEach(v => v.stop());
+      voices = null;
+      playBtn.textContent = '▶ Послушать';
+      return;
+    }
+    voices = cfg.tones(vals()).map(tn => voice({ freq: tn.freq, type: 'sine', gain: tn.gain }));
+    playBtn.textContent = '■ Остановить';
+  });
+
+  sliders.forEach((s, i) => s.addEventListener('input', () => {
+    valEls[i].textContent = cfg.sliders[i].fmt(+s.value);
+    if (voices) {
+      const tns = cfg.tones(vals());
+      voices.forEach((v, k) => { if (tns[k]) { v.setFreq(tns[k].freq); v.setGain(tns[k].gain); } });
+    }
+    cfg.onInput(vals());
+  }));
+
+  function draw(t) {
+    if (!canvas.isConnected) { stopAll(); return; }
+    const { w, h } = fit(canvas, 170);
+    drawWaves(ctx, w, h, t, cfg.comps(vals()));
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+const fmtHz = v => v + ' Гц';
+const fmtPct = v => v + '%';
+
+/* ============================================================
+   ГЕНЕРАТОРЫ ЗАДАНИЙ
+   ============================================================ */
+
+/* --- цель по частоте --- */
+const FREQ_TARGETS = [
+  { f: 600,  name: 'писк комара 🦟' },
+  { f: 130,  name: 'гул шмеля 🐝' },
+  { f: 440,  name: 'нота «ля» — по ней настраивают оркестр 🎵' },
+  { f: 880,  name: 'нота «ля» на октаву выше 🎶' },
+  { f: 1000, name: 'сигнал точного времени на радио 📻' },
+];
+
+function freqTask(rnd, tol, used) {
+  let tg;
+  do { tg = pick(FREQ_TARGETS, rnd); } while (used.has(tg.f));
+  used.add(tg.f);
+  const start = tg.f > 500 ? 80 + Math.floor(rnd() * 120) : 1500 + Math.floor(rnd() * 400);
+  let solved = false;
+  return {
+    type: 'action',
+    title: 'Настрой частоту',
+    text: `Создай звук: ${tg.name}. Установи частоту ${tg.f} Гц (допуск ±${tol}) — и проверь себя на слух кнопкой ▶.`,
+    render: (host, ctx) => mkScene(host, {
+      sliders: [{ label: 'Частота (высота звука)', min: 80, max: 2000, val: start, fmt: fmtHz }],
+      comps: v => [{ f: v[0], a: 0.8 }],
+      tones: v => [{ freq: v[0], gain: 0.15 }],
+      onInput: v => {
+        if (solved) return;
+        if (Math.abs(v[0] - tg.f) <= tol) {
+          solved = true;
+          ctx.fb(`✓ Есть! ${v[0]} Гц — это ${tg.name}. Слышишь высоту?`, 'ok');
+          ctx.done();
+        }
+      },
+    }),
+  };
+}
+
+/* --- цель по амплитуде --- */
+function ampTask(rnd) {
+  const whisper = rnd() < 0.5;
+  let solved = false;
+  return {
+    type: 'action',
+    title: whisper ? 'Сделай шёпот' : 'Сделай крик',
+    text: whisper
+      ? 'Высота не меняется — меняй только размах. Опусти амплитуду до 20% или ниже: получится шёпот 🤫.'
+      : 'Высота не меняется — меняй только размах. Подними амплитуду до 85% или выше: получится крик 📢.',
+    render: (host, ctx) => mkScene(host, {
+      sliders: [{ label: 'Амплитуда (громкость)', min: 5, max: 100, val: 50, fmt: fmtPct }],
+      comps: v => [{ f: 300, a: v[0] / 100 }],
+      tones: v => [{ freq: 300, gain: (v[0] / 100) * 0.25 }],
+      onInput: v => {
+        if (solved) return;
+        if (whisper ? v[0] <= 20 : v[0] >= 85) {
+          solved = true;
+          ctx.fb(whisper
+            ? '✓ Шёпот готов! Маленькая амплитуда — тихий звук, а высота осталась прежней.'
+            : '✓ Вот это крик! Большая амплитуда — громкий звук, а высота осталась прежней.', 'ok');
+          ctx.done();
+        }
+      },
+    }),
+  };
+}
+
+/* --- комбо: частота + громкость сразу --- */
+function comboTask(rnd, tol) {
+  const tg = rnd() < 0.5
+    ? { f: 130, name: 'ГРОМКИЙ гул шмеля', amp: 'loud' }
+    : { f: 600, name: 'ТИХИЙ писк комара', amp: 'quiet' };
+  let solved = false;
+  return {
+    type: 'action',
+    title: 'Двойная настройка',
+    text: `Теперь два рычага сразу. Создай ${tg.name}: частота ${tg.f} Гц (±${tol}) и амплитуда ${tg.amp === 'loud' ? 'не ниже 75%' : 'не выше 25%'}.`,
+    render: (host, ctx) => mkScene(host, {
+      sliders: [
+        { label: 'Частота (высота звука)', min: 80, max: 2000, val: 440, fmt: fmtHz },
+        { label: 'Амплитуда (громкость)', min: 5, max: 100, val: 50, fmt: fmtPct, orange: true },
+      ],
+      comps: v => [{ f: v[0], a: v[1] / 100 }],
+      tones: v => [{ freq: v[0], gain: (v[1] / 100) * 0.25 }],
+      onInput: v => {
+        if (solved) return;
+        const fOk = Math.abs(v[0] - tg.f) <= tol;
+        const aOk = tg.amp === 'loud' ? v[1] >= 75 : v[1] <= 25;
+        if (fOk && aOk) {
+          solved = true;
+          ctx.fb('✓ Идеально! Ты управляешь высотой и громкостью независимо — как звукорежиссёр.', 'ok');
+          ctx.done();
+        }
+      },
+    }),
+  };
+}
+
+/* --- биения (сложный уровень) --- */
+function beatsTask(rnd) {
+  const base = 300 + Math.floor(rnd() * 20) * 10;   // 300–490 Гц
+  let solved = false;
+  return {
+    type: 'action',
+    title: 'Поймай биения',
+    text: `Когда две частоты ПОЧТИ совпадают, громкость «плывёт»: вуа-вуа-вуа. Так настраивают гитары! Сдвинь вторую волну так, чтобы разница с первой (${base} Гц) была от 3 до 10 Гц, и обязательно нажми ▶.`,
+    render: (host, ctx) => mkScene(host, {
+      sliders: [
+        { label: 'Частота волны 1', min: base, max: base, val: base, fmt: fmtHz },
+        { label: 'Частота волны 2', min: base - 60, max: base + 60, val: base + 40, fmt: fmtHz, orange: true },
+      ],
+      comps: v => [{ f: v[0], a: 0.7 }, { f: v[1], a: 0.7 }],
+      tones: v => [{ freq: v[0], gain: 0.14 }, { freq: v[1], gain: 0.14 }],
+      onInput: v => {
+        if (solved) return;
+        const d = Math.abs(v[0] - v[1]);
+        if (d >= 3 && d <= 10) {
+          solved = true;
+          ctx.fb(`✓ Биения! Разница ${d} Гц — громкость «плывёт» ${d} раз в секунду. Нажми ▶ и услышь вуа-вуа-вуа.`, 'ok');
+          ctx.done();
+        }
+      },
+    }),
+  };
+}
+
+/* --- вопросы на понимание (числа случайные) --- */
+function conceptTask(rnd) {
+  const variants = [
+    () => {
+      const a = round10(150 + rnd() * 150), b = a * 4;
+      return {
+        text: `Частоту звука увеличили с ${a} Гц до ${b} Гц, амплитуду не тронули. Что мы услышим?`,
+        options: [
+          { text: 'Звук стал выше, громкость прежняя', correct: true },
+          { text: 'Звук стал громче, высота прежняя', correct: false },
+          { text: 'Звук стал ниже и тише', correct: false },
+        ],
+        right: '✓ Частота отвечает за высоту. Громкость задаёт амплитуда — её не трогали.',
+        wrong: 'Частота — это высота звука. Амплитуда не менялась, значит, громкость прежняя.',
+      };
+    },
+    () => {
+      const a = round10(200 + rnd() * 300);
+      return {
+        text: `Амплитуду звука ${a} Гц увеличили вдвое, частоту не тронули. Что мы услышим?`,
+        options: [
+          { text: 'Звук стал громче, высота прежняя', correct: true },
+          { text: 'Звук стал выше, громкость прежняя', correct: false },
+          { text: 'Звук исчез — волны погасились', correct: false },
+        ],
+        right: '✓ Амплитуда — это громкость. Частота не менялась — высота та же.',
+        wrong: 'Амплитуда отвечает за громкость. Высота (частота) осталась прежней.',
+      };
+    },
+  ];
+  const q = pick(variants, rnd)();
+  return {
+    type: 'choice',
+    title: 'Вопрос на понимание',
+    text: q.text,
+    render: host => { host.innerHTML = '<div style="font-size:56px; text-align:center;">🎚️</div>'; },
+    options: q.options,
+    right: q.right,
+    wrong: q.wrong,
+  };
+}
+
+/* --- бонус: период T = 1/f --- */
+function periodTask(rnd) {
+  const f = pick([200, 250, 400, 500, 800], rnd);
+  const T = 1000 / f;
+  return {
+    type: 'reading',
+    title: 'Бонус: период волны',
+    text: `Ты выставил частоту ${f} Гц — столько колебаний в секунду. Период T — время ОДНОГО колебания: T = 1/f. Сколько миллисекунд длится одно колебание?`,
+    render: host => {
+      host.innerHTML = `
+        <div class="canvas-panel">
+          <svg viewBox="0 0 560 150" xmlns="http://www.w3.org/2000/svg">
+            <line x1="20" y1="75" x2="540" y2="75" stroke="#C9CEDA" stroke-width="2"/>
+            <path d="M20 75 q32.5 -52 65 0 t65 0 t65 0 t65 0 t65 0 t65 0 t65 0 t65 0" fill="none" stroke="#6240FF" stroke-width="3"/>
+            <g stroke="#E8590C" stroke-width="2">
+              <line x1="150" y1="20" x2="150" y2="130"/>
+              <line x1="280" y1="20" x2="280" y2="130"/>
+              <line x1="150" y1="126" x2="280" y2="126"/>
+            </g>
+            <text x="215" y="146" text-anchor="middle" font-family="system-ui" font-weight="600" font-size="15" fill="#E8590C">T = ? мс</text>
+            <text x="80" y="36" font-family="system-ui" font-weight="600" font-size="15" fill="#6B7180">f = ${f} Гц</text>
+          </svg>
+        </div>`;
+    },
+    answer: T,
+    tolerance: 0.05,
+    unit: 'мс',
+    hints: [
+      'Период — величина, обратная частоте: T = 1/f секунды. Но ответ нужен в миллисекундах.',
+      `Считай так: T = 1000 / ${f} мс. Раздели — и получишь ответ.`,
+    ],
+    right: `✓ Верно! T = 1000/${f} = ${String(T).replace('.', ',')} мс. Чем выше частота, тем короче период.`,
+  };
+}
+
+/* --- бонус: длина волны λ = v/f --- */
+function lambdaTask(rnd) {
+  const f = pick([170, 340, 680], rnd);
+  const L = 340 / f;
+  return {
+    type: 'reading',
+    title: 'Бонус: длина волны',
+    text: `Звук летит в воздухе со скоростью v = 340 м/с. Длина волны — расстояние между соседними сжатиями: λ = v/f. Какова длина волны звука ${f} Гц (в метрах)?`,
+    render: host => {
+      host.innerHTML = `
+        <div class="canvas-panel">
+          <svg viewBox="0 0 560 150" xmlns="http://www.w3.org/2000/svg">
+            <line x1="20" y1="75" x2="540" y2="75" stroke="#C9CEDA" stroke-width="2"/>
+            <path d="M20 75 q45 -56 90 0 t90 0 t90 0 t90 0 t90 0 t90 0" fill="none" stroke="#6240FF" stroke-width="3"/>
+            <g stroke="#E8590C" stroke-width="2">
+              <line x1="110" y1="20" x2="110" y2="130"/>
+              <line x1="290" y1="20" x2="290" y2="130"/>
+              <line x1="110" y1="126" x2="290" y2="126"/>
+            </g>
+            <text x="200" y="146" text-anchor="middle" font-family="system-ui" font-weight="600" font-size="15" fill="#E8590C">λ = ? м</text>
+            <text x="440" y="36" font-family="system-ui" font-weight="600" font-size="15" fill="#6B7180">v = 340 м/с</text>
+          </svg>
+        </div>`;
+    },
+    answer: L,
+    tolerance: 0.01,
+    unit: 'м',
+    hints: [
+      'Длина волны: λ = v / f. Скорость звука дана — 340 м/с.',
+      `Считай: λ = 340 / ${f}. Раздели — и впиши ответ в метрах.`,
+    ],
+    right: `✓ Точно! λ = 340/${f} = ${String(L).replace('.', ',')} м. Низкие звуки — длинные волны, высокие — короткие.`,
+  };
+}
+
+/* ============================================================
+   СБОРКА УРОВНЕЙ
+   ============================================================ */
+function buildSteps(level, rnd) {
+  const used = new Set();
+  if (level === 'easy') {
+    return [freqTask(rnd, 40, used), ampTask(rnd), conceptTask(rnd)];
+  }
+  if (level === 'medium') {
+    return [freqTask(rnd, 25, used), ampTask(rnd), comboTask(rnd, 25), conceptTask(rnd)];
+  }
+  return [freqTask(rnd, 15, used), comboTask(rnd, 15), beatsTask(rnd), periodTask(rnd), lambdaTask(rnd)];
+}
+
+runPractice({
+  practiceId: 'wave',
+  storageKey: 'sound-progress',
+  homeHref: '../demo/',
+  title: 'Управляй волной',
+  subtitle: 'Виртуальная лаборатория звука: два ползунка — частота и амплитуда. Настрой волну под каждое задание и проверяй себя на слух.',
+  levels: {
+    easy:   { label: 'Лаборант',       desc: 'Три задания: попади в частоту и громкость.', xp: 30 },
+    medium: { label: 'Звукорежиссёр',  desc: 'Четыре задания, допуски жёстче, двойная настройка.', xp: 40 },
+    hard:   { label: 'Акустик',        desc: 'Биения + бонус-задачи: период и длина волны.', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

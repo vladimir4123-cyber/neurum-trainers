@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Магниты вокруг нас · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧲</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="/assets/lesson/practice.css?v=4">
+<style>
+  .canvas-panel{
+    width: 100%; max-width: 520px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; }
+  .task-icon{ font-size: 64px; line-height: 1; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">5</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '/assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Магниты вокруг нас» — задачи-ситуации из монолита
+   magnetism/legacy.html + бонусные. Задачи с картинками
+   рандомизируются (какой полюс где — каждый раз новое),
+   пул выбирается случайно.
+   ============================================================ */
+
+const POLE_N = '#E5484D', POLE_S = '#2F80ED', TXT = '#6B7180';
+
+/* ---------- рисовалки ---------- */
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+function lerpAngle(cur, target, k) {
+  let d = target - cur;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return cur + d * k;
+}
+function rrectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function fieldAt(px, py, m) {
+  const ca = Math.cos(m.angle), sa = Math.sin(m.angle);
+  const nx = m.x + ca * m.half, ny = m.y + sa * m.half;
+  const sx = m.x - ca * m.half, sy = m.y - sa * m.half;
+  const dxn = px - nx, dyn = py - ny;
+  const dxs = px - sx, dys = py - sy;
+  const rn = Math.max(Math.hypot(dxn, dyn), 4);
+  const rs = Math.max(Math.hypot(dxs, dys), 4);
+  const in3 = 1 / (rn * rn * rn), is3 = 1 / (rs * rs * rs);
+  return { bx: dxn * in3 - dxs * is3, by: dyn * in3 - dys * is3 };
+}
+function drawMagnet(ctx, x, y, ang, len, wid, o = {}) {
+  const colN = o.colN || POLE_N, colS = o.colS || POLE_S;
+  const r = Math.min(9, wid * 0.28);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(ang);
+  rrectPath(ctx, -len / 2, -wid / 2, len, wid, r);
+  ctx.fillStyle = colS;
+  ctx.fill();
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, -wid / 2 - 2, len / 2 + 2, wid + 4);
+  ctx.clip();
+  rrectPath(ctx, -len / 2, -wid / 2, len, wid, r);
+  ctx.fillStyle = colN;
+  ctx.fill();
+  ctx.restore();
+  rrectPath(ctx, -len / 2, -wid / 2, len, wid, r);
+  ctx.strokeStyle = 'rgba(35,35,35,0.35)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, -wid / 2);
+  ctx.lineTo(0, wid / 2);
+  ctx.strokeStyle = 'rgba(35,35,35,0.25)';
+  ctx.stroke();
+  ctx.restore();
+  if (o.labels !== false) {
+    const ca = Math.cos(ang), sa = Math.sin(ang);
+    ctx.font = `800 ${Math.round(wid * 0.5)}px -apple-system, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(o.labelN || 'N', x + ca * len * 0.28, y + sa * len * 0.28);
+    ctx.fillText(o.labelS || 'S', x - ca * len * 0.28, y - sa * len * 0.28);
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'start';
+  }
+}
+function drawCompass(ctx, x, y, r, ang, o = {}) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fill();
+  ctx.strokeStyle = o.ring || '#C9CEDA';
+  ctx.lineWidth = o.ringW || 1.8;
+  ctx.stroke();
+  const nx = Math.cos(ang), ny = Math.sin(ang);
+  const px = -ny, py = nx;
+  const L = r * 0.76, Wd = r * 0.22;
+  ctx.beginPath();
+  ctx.moveTo(x + nx * L, y + ny * L);
+  ctx.lineTo(x + px * Wd, y + py * Wd);
+  ctx.lineTo(x - px * Wd, y - py * Wd);
+  ctx.closePath();
+  ctx.fillStyle = POLE_N;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x - nx * L, y - ny * L);
+  ctx.lineTo(x + px * Wd, y + py * Wd);
+  ctx.lineTo(x - px * Wd, y - py * Wd);
+  ctx.closePath();
+  ctx.fillStyle = '#9AA0AA';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y, Math.max(1.4, r * 0.12), 0, Math.PI * 2);
+  ctx.fillStyle = TXT;
+  ctx.fill();
+}
+
+/* ---------- сцена: серый магнит А/Б в кольце компасов ---------- */
+function startPolesScene(host, aIsN) {
+  host.innerHTML = `<div class="canvas-panel"><canvas id="tCanvas" height="200"></canvas></div>`;
+  const canvas = host.querySelector('#tCanvas');
+  const ctx = canvas.getContext('2d');
+  const needles = [];
+  function draw() {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 200);
+    ctx.clearRect(0, 0, w, h);
+    const len = w * 0.22, wid = Math.min(h * 0.26, len * 0.42);
+    // А — слева. aIsN=true → полюс N под меткой А (angle=π)
+    const mag = { x: w / 2, y: h / 2, angle: aIsN ? Math.PI : 0, half: len * 0.46 };
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const px = w / 2 + Math.cos(a) * w * 0.30;
+      const py = h / 2 + Math.sin(a) * h * 0.36;
+      const f = fieldAt(px, py, mag);
+      const target = Math.atan2(f.by, f.bx);
+      if (needles[i] === undefined) needles[i] = Math.random() * Math.PI * 2;
+      needles[i] = lerpAngle(needles[i], target, 0.08);
+      drawCompass(ctx, px, py, Math.min(h * 0.09, w * 0.032), needles[i]);
+    }
+    drawMagnet(ctx, mag.x, mag.y, mag.angle, len, wid, {
+      colN: '#B9BFD0', colS: '#B9BFD0',
+      labelN: aIsN ? 'А' : 'Б',
+      labelS: aIsN ? 'Б' : 'А',
+    });
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+}
+
+/* ---------- сцена: магнит и точка X справа ---------- */
+function startPointXScene(host, nRight) {
+  host.innerHTML = `<div class="canvas-panel"><canvas id="tCanvas" height="180"></canvas></div>`;
+  const canvas = host.querySelector('#tCanvas');
+  const ctx = canvas.getContext('2d');
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 180);
+    ctx.clearRect(0, 0, w, h);
+    const len = w * 0.26, wid = Math.min(h * 0.28, len * 0.42);
+    const mx = w * 0.34, my = h / 2;
+    drawMagnet(ctx, mx, my, nRight ? 0 : Math.PI, len, wid);
+    const xX = mx + len / 2 + w * 0.20, xY = my;
+    const pulse = 1 + Math.sin(t * 4) * 0.15;
+    ctx.beginPath();
+    ctx.arc(xX, xY, h * 0.09 * pulse, 0, Math.PI * 2);
+    ctx.strokeStyle = '#F5B93B';
+    ctx.setLineDash([5, 5]);
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = `800 ${Math.round(h * 0.11)}px -apple-system, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#D9962E';
+    ctx.fillText('X', xX, xY);
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'start';
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ---------- пул задач ---------- */
+function buildPool(rnd) {
+  const aIsN = rnd() < 0.5;
+  const nRight = rnd() < 0.5;
+  return [
+    {
+      text: 'Вокруг магнита поставили компасы (красный конец стрелки — её «север»). Полюса магнита подписаны просто А и Б. Какой из них — северный N?',
+      render: host => startPolesScene(host, aIsN),
+      options: [
+        { text: 'А — северный', correct: aIsN },
+        { text: 'Б — северный', correct: !aIsN },
+        { text: 'По компасам это определить нельзя', correct: false },
+      ],
+      right: `✓ Да! Линии поля выходят из северного полюса: красные концы стрелок «разбегаются» от ${aIsN ? 'А' : 'Б'} — значит, ${aIsN ? 'А' : 'Б'} и есть N.`,
+      wrong: `Смотри на красные концы стрелок: они направлены ОТ полюса ${aIsN ? 'А' : 'Б'}. Поле выходит из N — значит, ${aIsN ? 'А' : 'Б'} северный.`,
+    },
+    {
+      text: `Компас поставили в точку X — справа от магнита, рядом с его ${nRight ? 'северным (N)' : 'южным (S)'} полюсом. Куда повернётся красный конец стрелки?`,
+      render: host => startPointXScene(host, nRight),
+      options: [
+        { text: 'Вправо — от магнита', correct: nRight },
+        { text: 'Влево — к магниту', correct: !nRight },
+        { text: 'Стрелка будет крутиться без остановки', correct: false },
+      ],
+      right: nRight
+        ? '✓ Верно! В точке X поле направлено от полюса N наружу — красный конец стрелки смотрит вправо.'
+        : '✓ Верно! Линии поля входят в полюс S: в точке X поле направлено К магниту, красный конец смотрит влево.',
+      wrong: nRight
+        ? 'Поле выходит из N: в точке X оно направлено наружу, вправо. Туда и повернётся красный конец стрелки.'
+        : 'Поле входит в S: в точке X оно направлено к магниту, влево. Туда и повернётся красный конец стрелки.',
+    },
+    {
+      icon: '🪚',
+      text: 'Магнит распилили ровно пополам — поперёк, между полюсами. Что получится?',
+      options: [
+        { text: 'Отдельный полюс N и отдельный полюс S', correct: false },
+        { text: 'Две железки без магнетизма', correct: false },
+        { text: 'Один магнит вдвое слабее, у второй половинки полюсов не будет', correct: false },
+        { text: 'Два магнита поменьше, у каждого — свои N и S', correct: true },
+      ],
+      right: '✓ Именно! Полюса нельзя разделить: каждый кусочек магнита — снова полноценный магнит с двумя полюсами.',
+      wrong: 'Разделить N и S невозможно! Каждая половинка станет полноценным магнитом со своими двумя полюсами.',
+    },
+    {
+      icon: '🫙',
+      text: 'На стекло, под которым лежит магнит, насыпали железные опилки. Почему они ложатся ровными дугами от полюса к полюсу?',
+      options: [
+        { text: 'Каждая опилка намагничивается и, как мини-компас, поворачивается вдоль поля', correct: true },
+        { text: 'Опилки скатываются к полюсам под собственным весом', correct: false },
+        { text: 'Опилки электризуются и отталкиваются друг от друга', correct: false },
+        { text: 'Опилки выстраиваются по кратчайшей прямой между полюсами', correct: false },
+      ],
+      right: '✓ Точно! Опилка в поле сама становится крошечным магнитом и разворачивается вдоль линии поля.',
+      wrong: 'Дело в магнетизме: каждая опилка намагничивается и поворачивается вдоль поля, как стрелка компаса.',
+    },
+    {
+      icon: '🧑‍🔬',
+      text: '1820 год, лекция Эрстеда. Рядом с проводом лежит компас. По проводу пускают ток. Что увидят студенты?',
+      options: [
+        { text: 'Ничего: электричество и магнетизм не связаны', correct: false },
+        { text: 'Стрелка отклонится — вокруг провода с током возникает магнитное поле', correct: true },
+        { text: 'Компас притянется и прилипнет к проводу', correct: false },
+        { text: 'Стрелка развернётся строго на 180° и застынет', correct: false },
+      ],
+      right: '✓ Да! Так Эрстед открыл электромагнетизм — связь тока и магнетизма. С этого началась вся электротехника.',
+      wrong: 'Стрелка отклонилась! Эрстед обнаружил: вокруг провода с током есть магнитное поле. Открытие 1820 года связало электричество и магнетизм.',
+    },
+  ];
+}
+
+/* бонус-задачи для сложного уровня */
+const HARD_TASKS = [
+  {
+    icon: '🔥',
+    text: 'Стальной магнит нагрели докрасна, а потом остудили. Что стало с его магнитными свойствами?',
+    options: [
+      { text: 'Ничего: температура на магнетизм не влияет', correct: false },
+      { text: 'Он размагнитился: тепловое движение «растрясло» упорядоченные мини-магнитики внутри', correct: true },
+      { text: 'Он стал сильнее: нагрев «зарядил» магнит энергией', correct: false },
+      { text: 'У него поменялись местами полюса: N стал S, а S — N', correct: false },
+    ],
+    right: '✓ Верно! Внутри магнита порядок: мини-магнитики смотрят в одну сторону. Сильный нагрев разрушает этот порядок — магнит размагничивается.',
+    wrong: 'Сильный нагрев размагничивает: тепловое движение сбивает упорядоченные «мини-магнитики» внутри, и их поля перестают складываться.',
+  },
+  {
+    icon: '🚢',
+    text: 'На корабле со стальным корпусом магнитный компас заметно «врёт». Почему?',
+    options: [
+      { text: 'Стальной корпус намагничивается и искажает магнитное поле вокруг компаса', correct: true },
+      { text: 'Морская вода экранирует магнитное поле Земли', correct: false },
+      { text: 'Качка сбивает стрелку, и она не успевает успокоиться', correct: false },
+      { text: 'Электромоторы судна полностью размагничивают стрелку компаса', correct: false },
+    ],
+    right: '✓ Именно! Сталь корпуса сама становится магнитом и добавляет к полю Земли своё. Эту ошибку — девиацию — моряки специально измеряют и учитывают.',
+    wrong: 'Вода и качка ни при чём: стальной корпус намагничивается и добавляет к полю Земли своё поле. Ошибку компаса моряки называют девиацией и учитывают в расчётах.',
+  },
+];
+
+function pickRandom(arr, n, rnd) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a.slice(0, n);
+}
+
+function buildSteps(level, rnd) {
+  const tasks = buildPool(rnd);
+  let pool;
+  if (level === 'easy') pool = pickRandom(tasks, 3, rnd);
+  else if (level === 'medium') pool = pickRandom(tasks, 5, rnd);
+  else pool = [...pickRandom(tasks, 5, rnd), ...pickRandom(HARD_TASKS, 2, rnd)];
+
+  return pool.map((t, i) => ({
+    type: 'choice',
+    title: `Задача ${i + 1} из ${pool.length}`,
+    text: t.text,
+    render: t.render || (host => { host.innerHTML = `<div class="task-icon">${t.icon}</div>`; }),
+    options: t.options.map(o => ({ text: o.text, correct: o.correct })),
+    right: t.right,
+    wrong: t.wrong,
+  }));
+}
+
+runPractice({
+  practiceId: 'tasks',
+  storageKey: 'magnetism-progress',
+  homeHref: '../demo/',
+  title: 'Магниты вокруг нас',
+  subtitle: 'Компасы вокруг безымянного магнита, распил, опыт Эрстеда и корабельный компас, который врёт. Разберись в каждой ситуации как физик.',
+  levels: {
+    easy:   { label: 'Разминка',  desc: '3 случайные задачи из пяти.', xp: 25 },
+    medium: { label: 'Уверенный', desc: 'Все 5 задач — полюса каждый раз новые.', xp: 40 },
+    hard:   { label: 'Физик',     desc: '5 задач + 2 бонусные с подвохом.', xp: 60 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

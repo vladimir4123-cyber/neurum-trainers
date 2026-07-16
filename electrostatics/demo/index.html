@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Электризация · Урок для класса</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎈</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@48,500,1&display=block">
+<style>
+  *{ box-sizing: border-box; }
+  body{
+    margin: 0; font-family: var(--font-sans);
+    background: var(--white); color: var(--fg-1);
+    min-height: 100vh; -webkit-font-smoothing: antialiased;
+  }
+  .ms{ font-family: 'Material Symbols Rounded'; font-variation-settings: 'FILL' 1, 'wght' 500; line-height: 1; }
+
+  /* ============ TOP BAR ============ */
+  .topbar{
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    max-width: 1120px; margin: 0 auto; padding: 18px 24px;
+    background: var(--white);
+  }
+  .home-link{
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 16px; border-radius: 9999px;
+    background: var(--white); color: var(--fg-1);
+    text-decoration: none; font-weight: 500; font-size: 14px;
+    box-shadow: 0 1px 2px rgba(35,35,35,.05), 0 4px 12px rgba(35,35,35,.06), inset 0 0 0 1px rgba(35,35,35,.05);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .home-link:hover{ background: var(--purple-3); }
+  .home-link:active{ transform: scale(0.96); }
+  .share-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: 9999px;
+    background: var(--purple-1); color: #fff;
+    border: 0; cursor: pointer;
+    font-family: var(--font-sans); font-weight: 500; font-size: 14px;
+    box-shadow: 0 4px 12px rgba(101,31,255,.28);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .share-btn .ms{ font-size: 18px; }
+  .share-btn:hover{ background: var(--purple-2); }
+  .share-btn:active{ transform: scale(0.96); }
+  .share-toast{
+    position: fixed; left: 50%; bottom: 24px;
+    transform: translateX(-50%) translateY(20px);
+    padding: 12px 20px; border-radius: 12px;
+    background: var(--fg-1); color: #fff;
+    font-family: var(--font-sans); font-weight: 500; font-size: 15px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.2);
+    opacity: 0; pointer-events: none; z-index: 100;
+    transition: opacity 200ms var(--ease-standard), transform 200ms var(--ease-standard);
+  }
+  .share-toast.is-open{ opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  main.kit{ max-width: 1120px; margin: 0 auto; padding: 0 24px 120px; }
+
+  /* ============ HERO ============ */
+  .hero{
+    width: 100%;
+    background: var(--white);
+    box-shadow: 0 4px 16px rgba(0,0,0,.06);
+  }
+  .hero-inner{
+    max-width: 1120px; margin: 0 auto;
+    padding: 32px 24px;
+    display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 32px; align-items: stretch;
+  }
+  @media (max-width: 860px){ .hero-inner{ grid-template-columns: 1fr; gap: 22px; padding: 24px; } }
+  .hero-preview{
+    width: 100%; aspect-ratio: 4 / 3;
+    border-radius: var(--radius-2xl); overflow: hidden;
+    background: linear-gradient(180deg, #EEF0FF, #FBF8FF);
+    display: grid; place-items: center; padding: 28px;
+  }
+  .hero-preview img{ max-width: 100%; max-height: 100%; object-fit: contain; }
+  .hero-body{ display: flex; flex-direction: column; padding: 12px 0; }
+  .hero h1{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(28px, 3.4vw, 40px); line-height: 1.05;
+    letter-spacing: -0.02em; margin: 0 0 12px; text-wrap: balance;
+  }
+  .hero-value{
+    font-size: var(--t-base); line-height: var(--lh-base); color: var(--fg-2);
+    margin: 0 0 18px; text-wrap: pretty;
+  }
+  .hero-meta{ display: flex; flex-wrap: wrap; gap: 18px; margin: 0 0 22px; }
+  .hero-meta .meta-item{ display: inline-flex; align-items: center; gap: 7px; color: var(--fg-2); font-size: 14px; font-weight: 500; }
+  .hero-meta .meta-item .ms{ font-size: 19px; color: var(--purple-1); }
+  .hero-cta{ display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: auto; }
+  .btn-primary{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 14px 32px;
+    border-radius: var(--radius-md);
+    background: var(--purple-1);
+    color: var(--white); text-decoration: none;
+    font-family: var(--font-sans); font-weight: 500; font-size: 16px;
+    box-shadow: var(--shadow-purple);
+    transition: background-color 140ms var(--ease-standard), transform 140ms var(--ease-standard);
+  }
+  .btn-primary .ms{ font-size: 20px; }
+  .btn-primary:hover{ background: var(--purple-2); }
+  .btn-primary:active{ transform: scale(0.96); }
+
+  /* ============ SECTIONS ============ */
+  .sec{ margin-top: 52px; }
+  .sec-head{ margin-bottom: 20px; }
+  .sec-head h2{
+    margin: 0;
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(24px, 3.4vw, 32px); letter-spacing: -0.02em;
+  }
+
+  /* ============ КАРТОЧКА ТЕМЫ ============ */
+  .topic-grid{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  @media (max-width: 780px){ .topic-grid{ grid-template-columns: 1fr; } }
+  .topic{
+    display: grid; grid-template-columns: 168px 1fr; gap: 20px; align-items: center;
+    padding: 22px; border-radius: var(--radius-2xl);
+    background: var(--white); text-decoration: none; color: var(--fg-1);
+    border: 1px solid var(--purple-4);
+    transition: transform 160ms var(--ease-standard), box-shadow 160ms var(--ease-standard);
+  }
+  .topic:hover{ transform: translateY(-4px); box-shadow: 0 8px 28px rgba(0,0,0,.12); }
+  .topic:active{ transform: translateY(-1px) scale(0.99); }
+  @media (max-width: 520px){
+    .topic{ grid-template-columns: 1fr; padding: 20px; }
+    .topic__illus{ order: -1; }
+  }
+  .topic__illus{
+    width: 168px; height: 138px; border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    display: grid; place-items: center; overflow: hidden;
+    padding: 12px;
+  }
+  .topic__illus svg{ width: 100%; height: 100%; }
+  .topic__body{ display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .topic__step{
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 500; color: var(--purple-1);
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .topic__title{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: 22px; line-height: 1.15; letter-spacing: -0.01em; margin: 0;
+    text-wrap: balance;
+  }
+  .topic__desc{ margin: 0; color: var(--fg-2); font-size: 15px; line-height: 1.4; text-wrap: pretty; }
+
+  /* ============ КАРТОЧКА ПРАКТИКИ ============ */
+  .practice-grid{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; max-width: 740px; }
+  @media (max-width: 600px){ .practice-grid{ grid-template-columns: 1fr; } }
+  .practice{
+    display: flex; flex-direction: column; gap: 14px;
+    padding: 20px; border-radius: var(--radius-2xl);
+    background: var(--white); text-decoration: none; color: var(--fg-1);
+    border: 1px solid var(--purple-4);
+    transition: transform 160ms var(--ease-standard), box-shadow 160ms var(--ease-standard);
+  }
+  .practice:hover{ transform: translateY(-4px); box-shadow: 0 8px 28px rgba(0,0,0,.12); }
+  .practice__illus{
+    width: 100%; height: 180px;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    display: grid; place-items: center; overflow: hidden;
+    padding: 10px;
+  }
+  .practice__illus svg{ max-width: 100%; max-height: 100%; }
+  .practice__top{ display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .practice__kind{
+    font-size: 12px; font-weight: 500; color: var(--fg-3);
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .practice__xp{
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 13px; font-weight: 500; color: var(--purple-1);
+    background: var(--purple-4); padding: 5px 10px; border-radius: 9999px;
+  }
+  .practice__xp .ms{ font-size: 15px; }
+  .practice__title{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: 20px; line-height: 1.15; letter-spacing: -0.01em; margin: 0;
+    text-wrap: balance;
+  }
+  .practice__desc{ margin: 0; color: var(--fg-2); font-size: 15px; line-height: 1.4; text-wrap: pretty; flex: 1; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="home-link" href="../../">← Все тренажёры</a>
+  <button class="share-btn" id="shareBtn">
+    <span class="ms">share</span>
+    Поделиться с учениками
+  </button>
+</div>
+<div class="share-toast" id="shareToast">Ссылка скопирована</div>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-preview">
+      <img src="/assets/images/trainers/electrostatics.png" alt="Электризация">
+    </div>
+    <div class="hero-body">
+      <h1>Электризация</h1>
+      <p class="hero-value">Готовый интерактивный урок для 8 класса. Покажите классу, откуда берётся статическое электричество: потрите виртуальный шарик о волосы, проследите за перебегающими электронами и загляните внутрь электроскопа. Ученики закрепят на игре «Зарядовый детектив» и жизненных задачах — от молнии до антистатика.</p>
+      <div class="hero-meta" id="heroMeta"></div>
+      <div class="hero-cta">
+        <a class="btn-primary" id="startBtn" href="../lesson-charge/"><span class="ms">play_arrow</span> Провести урок</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<main class="kit">
+
+  <section class="sec">
+    <div class="sec-head"><h2>Темы урока</h2></div>
+    <div class="topic-grid" id="topicGrid"></div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><h2>Практика для учеников</h2></div>
+    <div class="practice-grid" id="practiceGrid"></div>
+  </section>
+
+</main>
+
+<script type="module">
+
+/* Мини-иллюстрации тем — инлайн-SVG в светлой палитре */
+const ILLUS = {
+  balloon: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="ballG" cx=".35" cy=".3" r="1">
+          <stop offset="0" stop-color="#FFE6AE"/><stop offset="1" stop-color="#F5B93B"/>
+        </radialGradient>
+      </defs>
+      <g stroke="#B98A4A" stroke-width="3" stroke-linecap="round">
+        <line x1="30" y1="112" x2="24" y2="92"/><line x1="48" y1="116" x2="46" y2="94"/>
+        <line x1="66" y1="118" x2="68" y2="96"/><line x1="84" y1="118" x2="88" y2="97"/>
+        <line x1="102" y1="116" x2="108" y2="96"/><line x1="120" y1="112" x2="128" y2="94"/>
+      </g>
+      <ellipse cx="76" cy="52" rx="34" ry="39" fill="url(#ballG)">
+        <animateTransform attributeName="transform" type="translate" values="0,0;0,-5;0,0" dur="2.6s" repeatCount="indefinite"/>
+      </ellipse>
+      <text x="76" y="60" text-anchor="middle" font-family="system-ui" font-weight="700" font-size="22" fill="#7A5A18">−</text>
+      <g fill="none" stroke="#E8590C" stroke-width="2.5" stroke-linecap="round">
+        <path d="M116 40 l8 -6 l-3 8 l9 -4"><animate attributeName="opacity" values="0;1;0" dur="1.4s" repeatCount="indefinite"/></path>
+        <path d="M34 32 l-8 -7 l4 9 l-9 -3"><animate attributeName="opacity" values="0;1;0" dur="1.8s" repeatCount="indefinite" begin=".5s"/></path>
+      </g>
+    </svg>`,
+  pendulums: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <line x1="30" y1="14" x2="130" y2="14" stroke="#C9CEDA" stroke-width="5" stroke-linecap="round"/>
+      <line x1="66" y1="14" x2="44" y2="82" stroke="#9AA0AA" stroke-width="2"/>
+      <line x1="94" y1="14" x2="116" y2="82" stroke="#9AA0AA" stroke-width="2"/>
+      <circle cx="44" cy="94" r="17" fill="#FFD2C5" stroke="#E5484D" stroke-width="2.5"/>
+      <text x="44" y="101" text-anchor="middle" font-family="system-ui" font-weight="700" font-size="19" fill="#C2372F">+</text>
+      <circle cx="116" cy="94" r="17" fill="#CFE6FF" stroke="#2F80ED" stroke-width="2.5"/>
+      <text x="116" y="100" text-anchor="middle" font-family="system-ui" font-weight="700" font-size="21" fill="#1E62C4">−</text>
+      <g stroke="#6240FF" stroke-width="3" fill="#6240FF">
+        <line x1="66" y1="94" x2="80" y2="94"/><path d="M84 94 l-7 -5 v10 z"/>
+        <line x1="94" y1="94" x2="82" y2="94"/>
+      </g>
+    </svg>`,
+  scope: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <rect x="52" y="38" width="66" height="84" rx="14" fill="#F4F1FF" stroke="#C9CEDA" stroke-width="3"/>
+      <circle cx="85" cy="24" r="12" fill="#DDE1EC" stroke="#9AA0AA" stroke-width="2"/>
+      <line x1="85" y1="36" x2="85" y2="72" stroke="#8A8F9C" stroke-width="5" stroke-linecap="round"/>
+      <g stroke="#8A8F9C" stroke-width="4" stroke-linecap="round">
+        <line x1="85" y1="72" x2="68" y2="104">
+          <animate attributeName="x2" values="68;74;68" dur="2.4s" repeatCount="indefinite"/>
+        </line>
+        <line x1="85" y1="72" x2="102" y2="104">
+          <animate attributeName="x2" values="102;96;102" dur="2.4s" repeatCount="indefinite"/>
+        </line>
+      </g>
+      <rect x="8" y="16" width="42" height="12" rx="6" fill="#F5B93B"/>
+      <text x="20" y="14" font-family="system-ui" font-weight="700" font-size="11" fill="#2F80ED">−  −</text>
+    </svg>`,
+  detective: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <line x1="35" y1="16" x2="125" y2="16" stroke="#C9CEDA" stroke-width="5" stroke-linecap="round"/>
+      <line x1="62" y1="16" x2="46" y2="74" stroke="#9AA0AA" stroke-width="2"/>
+      <line x1="98" y1="16" x2="114" y2="74" stroke="#9AA0AA" stroke-width="2"/>
+      <circle cx="46" cy="86" r="16" fill="#FFD2C5" stroke="#E5484D" stroke-width="2.5"/>
+      <text x="46" y="93" text-anchor="middle" font-family="system-ui" font-weight="700" font-size="18" fill="#C2372F">+</text>
+      <circle cx="114" cy="86" r="16" fill="#E6E9F2" stroke="#8A8F9C" stroke-width="2.5">
+        <animate attributeName="r" values="16;17.5;16" dur="1.6s" repeatCount="indefinite"/>
+      </circle>
+      <text x="114" y="92" text-anchor="middle" font-family="system-ui" font-weight="700" font-size="17" fill="#5A5F6E">?</text>
+      <text x="80" y="120" text-anchor="middle" font-size="20">🕵️</text>
+    </svg>`,
+  life: `
+    <svg viewBox="0 0 160 130" xmlns="http://www.w3.org/2000/svg">
+      <path d="M86 12 L60 66 L78 66 L68 116 L104 54 L84 54 L98 12 Z" fill="#F5B93B" stroke="#E8590C" stroke-width="3" stroke-linejoin="round">
+        <animate attributeName="opacity" values="1;.75;1" dur="1.8s" repeatCount="indefinite"/>
+      </path>
+    </svg>`,
+};
+
+const TOPICS = [
+  { title: 'Откуда берётся заряд',        desc: 'Трём шарик о волосы и ловим момент, когда электроны перебегают.',        href: '../lesson-charge/',    illus: 'balloon' },
+  { title: 'Кто притягивается, кто нет',  desc: 'Задаём заряды двум шарикам и проверяем главное правило статики.',        href: '../lesson-forces/',    illus: 'pendulums' },
+  { title: 'Индукция и электроскоп',      desc: 'Почему заряженное притягивает даже нейтральное — и как увидеть заряд.',  href: '../lesson-induction/', illus: 'scope' },
+];
+
+const PRACTICES = [
+  { title: 'Зарядовый детектив', kind: 'игра', xp: '+40 XP', href: '../practice-detective/', illus: 'detective',
+    desc: 'Определи заряд шарика по одному его поведению. Осторожно: среди раундов есть ловушка!' },
+  { title: 'Статика вокруг нас', kind: 'жизненные задачи', xp: '+40 XP', href: '../practice-life/', illus: 'life',
+    desc: 'Расчёска, пыльный экран, заправка самолёта и молния — объясни каждую ситуацию как физик.' },
+];
+
+/* ---------- hero-мета ---------- */
+const heroMeta = [
+  { ic: 'auto_stories', text: `${TOPICS.length} интерактивные темы` },
+  { ic: 'science',      text: '5 живых опытов' },
+  { ic: 'construction', text: `${PRACTICES.length} практики` },
+];
+document.getElementById('heroMeta').innerHTML = heroMeta.map(m =>
+  `<span class="meta-item"><span class="ms">${m.ic}</span> ${m.text}</span>`
+).join('');
+document.getElementById('startBtn').href = TOPICS[0].href;
+
+/* ---------- темы ---------- */
+document.getElementById('topicGrid').innerHTML = TOPICS.map((t, i) => `
+  <a class="topic" href="${t.href}">
+    <div class="topic__illus">${ILLUS[t.illus]}</div>
+    <div class="topic__body">
+      <span class="topic__step">Тема ${i + 1}</span>
+      <h3 class="topic__title">${t.title}</h3>
+      <p class="topic__desc">${t.desc}</p>
+    </div>
+  </a>`).join('');
+
+/* ---------- практика ---------- */
+document.getElementById('practiceGrid').innerHTML = PRACTICES.map(p => `
+  <a class="practice" href="${p.href}">
+    <div class="practice__illus">${ILLUS[p.illus]}</div>
+    <div class="practice__top">
+      <span class="practice__kind">${p.kind}</span>
+      <span class="practice__xp"><span class="ms">bolt</span> ${p.xp}</span>
+    </div>
+    <h3 class="practice__title">${p.title}</h3>
+    <p class="practice__desc">${p.desc}</p>
+  </a>`).join('');
+
+/* ---------- поделиться ---------- */
+const shareBtn = document.getElementById('shareBtn');
+const shareToast = document.getElementById('shareToast');
+let toastTimer;
+function showToast(text){
+  shareToast.textContent = text;
+  shareToast.classList.add('is-open');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => shareToast.classList.remove('is-open'), 2200);
+}
+shareBtn.addEventListener('click', async () => {
+  const url = location.origin + location.pathname;
+  const title = 'Электризация — интерактивный урок';
+  if (navigator.share) {
+    try { await navigator.share({ title, url }); return; } catch(e) {}
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Ссылка скопирована');
+  } catch(e){
+    showToast('Скопируйте: ' + url);
+  }
+});
+</script>
+
+</body>
+</html>

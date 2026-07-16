@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Откуда берётся заряд · Электризация</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎈</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<style>
+  /* панель+подсказка+кнопки визуала — колонкой, а не в ряд */
+  .step-visual{ flex-direction: column; }
+  /* панель с канвасом — светлая, в стиле step-visual */
+  .canvas-panel{
+    width: 100%; max-width: 560px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 10px;
+  }
+  .canvas-panel canvas{ width: 100%; display: block; touch-action: none; cursor: grab; }
+  .canvas-hint{
+    margin: 14px 0 0; text-align: center;
+    font-size: 17px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .canvas-hint b{ color: var(--purple-1); font-weight: 500; }
+  .mini-actions{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  /* Кнопки внутри урока — ЧЁРНЫЕ (или белые). Фиолетовая — только «Дальше». */
+  .mini-play-btn{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border: 0; border-radius: var(--radius-md);
+    background: var(--fg-1); color: #fff; cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .mini-play-btn:hover:not(:disabled){ background: #3a3a3f; }
+  .mini-play-btn:active:not(:disabled){ transform: scale(0.96); }
+  .mini-play-btn:disabled{ opacity: .55; cursor: default; }
+  .chip-btn{
+    padding: 12px 18px; border: 1px solid var(--purple-4); border-radius: var(--radius-md);
+    background: var(--white); color: var(--fg-2); cursor: pointer;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 500;
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+  }
+  .chip-btn:hover{ background: var(--purple-4); }
+  .chip-btn:active{ transform: scale(0.96); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '/assets/lesson/lesson-engine.js?v=4';
+
+/* ============================================================
+   ТЕМА 1 «Откуда берётся заряд».
+   Интерактивы перенесены из старого монолита electrostatics/
+   и перекрашены в светлую Neuroom-тему.
+   ============================================================ */
+
+/* ---------- общие рисовалки ---------- */
+function fit(c, cssH) {
+  const cssW = c.offsetWidth || 320;
+  const w = cssW * 2, h = cssH * 2;
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) { c.height = h; c.style.height = cssH + 'px'; }
+  return { w: c.width, h: c.height };
+}
+const norm = (x, y) => { const d = Math.hypot(x, y) || 1; return { x: x / d, y: y / d }; };
+function rr(ctx, x, y, w2, h2, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w2, y, x + w2, y + h2, r);
+  ctx.arcTo(x + w2, y + h2, x, y + h2, r);
+  ctx.arcTo(x, y + h2, x, y, r);
+  ctx.arcTo(x, y, x + w2, y, r);
+  ctx.closePath();
+}
+/* Плоский стиль: сплошные заливки, БЕЗ градиентов и свечения, БЕЗ чёрного
+   контура. Края — тонкие, того же цвета, но темнее (shade). */
+function tint(hex, t) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  r = Math.round(r + (255 - r) * t);
+  g = Math.round(g + (255 - g) * t);
+  b = Math.round(b + (255 - b) * t);
+  return `rgb(${r},${g},${b})`;
+}
+function shade(hex, t) {   // темнее к чёрному на долю t
+  const n = parseInt(hex.slice(1), 16);
+  let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  r = Math.round(r * (1 - t)); g = Math.round(g * (1 - t)); b = Math.round(b * (1 - t));
+  return `rgb(${r},${g},${b})`;
+}
+function chargeDot(ctx, x, y, r, sign, color) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = tint(color, 0.66);
+  ctx.fill();
+  ctx.lineWidth = 1.6;
+  ctx.strokeStyle = color;
+  ctx.stroke();
+  ctx.font = '700 ' + Math.round(r * 1.4) + 'px var(--font-display), sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = shade(color, 0.15);
+  ctx.fillText(sign, x, y + 0.5);
+  ctx.textAlign = 'start';
+  ctx.textBaseline = 'alphabetic';
+}
+function drawBalloon(ctx, x, y, r, light, main, sign, opts) {
+  opts = opts || {};
+  const edge = shade(main, 0.2);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(opts.tilt || 0);
+  if (opts.string !== false) {
+    ctx.beginPath();
+    ctx.moveTo(0, r * 1.28);
+    ctx.quadraticCurveTo(r * 0.4, r * 2.0, -r * 0.15, r * 2.8);
+    ctx.strokeStyle = '#B9BEC9';
+    ctx.lineWidth = Math.max(1.5, r * 0.045);
+    ctx.stroke();
+  }
+  // узелок-хвостик
+  ctx.beginPath();
+  ctx.moveTo(0, r * 1.12);
+  ctx.lineTo(-r * 0.16, r * 1.32);
+  ctx.lineTo(r * 0.16, r * 1.32);
+  ctx.closePath();
+  ctx.fillStyle = main;
+  ctx.fill();
+  // тело — плоская заливка + тонкий край того же цвета
+  ctx.beginPath();
+  ctx.ellipse(0, 0, r, r * 1.16, 0, 0, Math.PI * 2);
+  ctx.fillStyle = main;
+  ctx.fill();
+  ctx.lineWidth = Math.max(1.5, r * 0.045);
+  ctx.strokeStyle = edge;
+  ctx.stroke();
+  if (sign) {
+    ctx.font = '700 ' + Math.round(r * 0.9) + 'px var(--font-display), sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = shade(main, 0.55);
+    ctx.fillText(sign, 0, 0);
+  }
+  ctx.restore();
+  ctx.textAlign = 'start';
+  ctx.textBaseline = 'alphabetic';
+}
+
+/* палитра шарика на светлом фоне */
+const BAL_L = '#FFE6AE', BAL_M = '#F0B23C';
+const MINUS = '#2F80ED', PLUS = '#E5484D';
+
+/* ============================================================
+   ИНТЕРАКТИВ 1: шарик и волосы (drag)
+   ============================================================ */
+function startHook(root, done) {
+  const canvas = root.querySelector('#hookCanvas');
+  const hint = root.querySelector('#hookHint');
+  const ctx = canvas.getContext('2d');
+  const HAIR_N = 30;
+  let hairDirs = null;
+  const balloon = { x: 0.75, y: 0.22 };
+  let dragging = false, charge = 0, msgShown = false, lastPointer = null;
+
+  const ptr = e => {
+    const r = canvas.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+  };
+  canvas.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    dragging = true;
+    const p = ptr(e);
+    balloon.x = Math.min(0.97, Math.max(0.03, p.x));
+    balloon.y = Math.min(0.9, Math.max(0.05, p.y));
+    lastPointer = p;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!dragging || !lastPointer) return;
+    const p = ptr(e);
+    const move = Math.hypot(p.x - lastPointer.x, p.y - lastPointer.y);
+    balloon.x = Math.min(0.97, Math.max(0.03, p.x));
+    balloon.y = Math.min(0.9, Math.max(0.05, p.y));
+    const nearHair = p.y > 0.30 && Math.abs(p.x - 0.5) < 0.42;
+    if (nearHair && move > 0.004) charge = Math.min(1, charge + move * 1.6);
+    if (charge > 0.55 && !msgShown) {
+      msgShown = true;
+      hint.innerHTML = '⚡ Шарик зарядился! Теперь волосы <b>сами тянутся</b> за ним';
+      done();
+    }
+    lastPointer = p;
+  });
+  ['pointerup', 'pointercancel'].forEach(ev => canvas.addEventListener(ev, () => { dragging = false; }));
+
+  function draw(t) {
+    if (!canvas.isConnected) return;          // шаг сменился — глушим цикл
+    const { w, h } = fit(canvas, 300);
+    ctx.clearRect(0, 0, w, h);
+    const hcx = w * 0.5, hcy = h * 1.30, R = h * 0.85;
+    const bx = balloon.x * w, by = balloon.y * h, br = h * 0.13;
+
+    // голова — плоская, тонкий край того же цвета (без чёрного)
+    ctx.beginPath();
+    ctx.arc(hcx, hcy, R, 0, Math.PI * 2);
+    ctx.fillStyle = '#F3C89E';
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#D9A876';
+    ctx.stroke();
+    ctx.strokeStyle = '#B98A5A';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    [-1, 1].forEach(s => {
+      ctx.beginPath();
+      ctx.arc(hcx + s * R * 0.30, hcy - R * 0.70, R * 0.07, Math.PI * 1.15, Math.PI * 1.85);
+      ctx.stroke();
+    });
+    ctx.beginPath();
+    ctx.arc(hcx, hcy - R * 0.52, R * 0.12, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.stroke();
+
+    // волосы
+    if (!hairDirs) {
+      hairDirs = [];
+      for (let i = 0; i < HAIR_N; i++) {
+        const th = -2.65 + 2.16 * (i / (HAIR_N - 1));
+        hairDirs.push({ th, x: Math.cos(th), y: Math.sin(th) });
+      }
+    }
+    let minD = 1e9;
+    hairDirs.forEach(sd => {
+      const rx = hcx + Math.cos(sd.th) * R;
+      const ry = hcy + Math.sin(sd.th) * R;
+      const dx = bx - rx, dy = by - ry;
+      const d = Math.hypot(dx, dy);
+      if (d < minD) minD = d;
+      const reach = h * 1.05;
+      const s = Math.max(0, 1 - d / reach) * (0.18 + 0.82 * charge);
+      const nx = Math.cos(sd.th), ny = Math.sin(sd.th);
+      const tb = norm(dx, dy);
+      const tg = norm(nx * (1 - s * 0.9) + tb.x * s * 0.9, ny * (1 - s * 0.9) + tb.y * s * 0.9);
+      sd.x += (tg.x - sd.x) * 0.14;
+      sd.y += (tg.y - sd.y) * 0.14;
+      const dir = norm(sd.x, sd.y);
+      const L = h * 0.20 * (1 + s * 0.6);
+      ctx.beginPath();
+      ctx.moveTo(rx, ry);
+      ctx.lineTo(rx + dir.x * L, ry + dir.y * L);
+      ctx.strokeStyle = s > 0.45 ? '#D99A3E' : '#8a5a30';
+      ctx.lineWidth = 3;
+      if (s > 0.45) { ctx.shadowColor = '#F5B93B'; ctx.shadowBlur = 8; }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    });
+
+    // искра между шариком и волосами
+    if (charge > 0.5 && minD < h * 0.5 && Math.random() < 0.22) {
+      const txp = hcx + (Math.random() - 0.5) * R * 1.1;
+      const typ = hcy - R * 0.92;
+      ctx.beginPath();
+      let px = bx, py = by + br;
+      ctx.moveTo(px, py);
+      for (let k = 1; k <= 4; k++) {
+        const f = k / 4;
+        px = bx + (txp - bx) * f + (Math.random() - 0.5) * 18;
+        py = (by + br) + (typ - (by + br)) * f + (Math.random() - 0.5) * 18;
+        ctx.lineTo(px, py);
+      }
+      ctx.strokeStyle = 'rgba(232,89,12,0.8)';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#F5A623';
+      ctx.shadowBlur = 12;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // шкала заряда — плоский капсульный индикатор, мягкий край
+    const mw = w * 0.30, mx = w * 0.04, my = h * 0.06, mh = 16;
+    const cap = (x, wd) => { rr(ctx, x, my, Math.max(mh, wd), mh, mh / 2); };
+    cap(mx, mw); ctx.fillStyle = '#EDEFF5'; ctx.fill();
+    if (charge > 0.02) { cap(mx, mw * charge); ctx.fillStyle = BAL_M; ctx.fill(); }
+    cap(mx, mw); ctx.lineWidth = 2; ctx.strokeStyle = '#D8DBE4'; ctx.stroke();
+    ctx.font = '700 ' + Math.round(w * 0.036) + 'px var(--font-display), sans-serif';
+    ctx.fillStyle = '#6B7180';
+    ctx.textAlign = 'left';
+    ctx.fillText('заряд шарика', mx, my + mh + 34);
+    ctx.textAlign = 'start';
+
+    const sign = charge > 0.3 ? '−' : '';
+    drawBalloon(ctx, bx, by, br, BAL_L, BAL_M, sign, { glow: 10 + charge * 22, tilt: Math.sin(t * 2) * 0.05 });
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ============================================================
+   ИНТЕРАКТИВ 2: трение — электроны перебегают
+   ============================================================ */
+function startRub(root, done) {
+  const canvas = root.querySelector('#rubCanvas');
+  const btn = root.querySelector('#rubBtn');
+  const resetBtn = root.querySelector('#rubReset');
+  const ctx = canvas.getContext('2d');
+  const RUB_MAX = 6;
+  let charge = 0, flights = [], pressT = -9;
+  const minusSlots = [[0.18, 0.30], [0.55, 0.20], [0.80, 0.42], [0.30, 0.62], [0.62, 0.74], [0.44, 0.44]];
+  const plusSlots  = [[0.30, 0.22], [0.68, 0.30], [0.18, 0.48], [0.50, 0.56], [0.76, 0.62], [0.34, 0.80]];
+  const ballSlots  = [[-0.45, -0.35], [0.42, -0.5], [0.0, 0.12], [-0.35, 0.5], [0.48, 0.4], [0.05, -0.85]];
+
+  btn.addEventListener('click', () => {
+    const pending = charge + flights.length;
+    if (pending >= RUB_MAX) return;
+    pressT = performance.now() / 1000;
+    const n = Math.min(2, RUB_MAX - pending);
+    for (let k = 0; k < n; k++) flights.push({ slot: RUB_MAX - 1 - (pending + k), p: -0.3 * k });
+    if (pending + n >= RUB_MAX) {
+      btn.disabled = true;
+      btn.textContent = 'Шарик заряжен по полной! ⚡';
+      done();
+    }
+  });
+  resetBtn.addEventListener('click', () => {
+    charge = 0; flights = [];
+    btn.disabled = false;
+    btn.textContent = '🤝 Потереть шарик о свитер';
+  });
+
+  function draw(t) {
+    if (!canvas.isConnected) return;
+    const { w, h } = fit(canvas, 270);
+    ctx.clearRect(0, 0, w, h);
+
+    // свитер — плоская заливка + тонкий край того же цвета
+    const sx = w * 0.05, sy = h * 0.12, sw = w * 0.36, sh = h * 0.66;
+    rr(ctx, sx, sy, sw, sh, 22);
+    ctx.fillStyle = '#C36A54';
+    ctx.fill();
+    ctx.strokeStyle = '#9C5546';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // шарик с анимацией «потирания»
+    const dt = t - pressT;
+    let shift = 0, wob = 0;
+    if (dt >= 0 && dt < 0.7) {
+      shift = -Math.sin(dt / 0.7 * Math.PI) * w * 0.16;
+      wob = Math.sin(dt * 40) * 0.06;
+    }
+    const bx = w * 0.72 + shift, by = h * 0.42, br = h * 0.17;
+    drawBalloon(ctx, bx, by, br, BAL_L, BAL_M, '', { glow: 8 + charge * 4, tilt: wob });
+
+    // «плюсы» свитера (протоны не бегают)
+    plusSlots.forEach(ps => chargeDot(ctx, sx + ps[0] * sw, sy + ps[1] * sh, 9, '+', PLUS));
+    // оставшиеся электроны свитера
+    const rem = RUB_MAX - charge - flights.length;
+    for (let i = 0; i < rem; i++) {
+      const ms = minusSlots[i];
+      chargeDot(ctx, sx + ms[0] * sw, sy + ms[1] * sh, 9, '−', MINUS);
+    }
+    // летящие электроны
+    flights = flights.filter(fl => {
+      fl.p += 0.022;
+      if (fl.p >= 1) { charge++; return false; }
+      if (fl.p > 0) {
+        const ms = minusSlots[fl.slot];
+        const x0 = sx + ms[0] * sw, y0 = sy + ms[1] * sh;
+        const tsl = ballSlots[fl.slot % ballSlots.length];
+        const x1 = bx + tsl[0] * br, y1 = by + tsl[1] * br;
+        const mx = (x0 + x1) / 2, my = Math.min(y0, y1) - h * 0.25;
+        const u = fl.p;
+        const X = (1 - u) * (1 - u) * x0 + 2 * (1 - u) * u * mx + u * u * x1;
+        const Y = (1 - u) * (1 - u) * y0 + 2 * (1 - u) * u * my + u * u * y1;
+        chargeDot(ctx, X, Y, 9, '−', MINUS, true);
+      }
+      return true;
+    });
+    // электроны, прибывшие на шарик
+    for (let i = 0; i < charge; i++) {
+      const s = ballSlots[i];
+      chargeDot(ctx, bx + s[0] * br, by + s[1] * br * 1.1, 9, '−', MINUS);
+    }
+
+    // подписи — единый кегль и семейство (font-display), tabular
+    ctx.font = '700 ' + Math.round(w * 0.042) + 'px var(--font-display), sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = PLUS;
+    ctx.fillText('Свитер: ' + (charge > 0 ? '+' + charge : '0'), sx + sw / 2, h * 0.94);
+    ctx.fillStyle = MINUS;
+    ctx.fillText('Шарик: ' + (charge > 0 ? '−' + charge : '0'), w * 0.72, h * 0.94);
+    ctx.textAlign = 'start';
+    requestAnimationFrame(ts => draw(ts / 1000));
+  }
+  requestAnimationFrame(ts => draw(ts / 1000));
+}
+
+/* ============================================================
+   ШАГИ УРОКА
+   ============================================================ */
+const steps = [
+  {
+    phase: 'theory', type: 'interact', id: 'hook', visual: 'hook',
+    title: 'Почему волосы встают дыбом от шарика?',
+    text: 'Потри шарик о волосы и подними — волосы потянутся за ним, как живые. Попробуй прямо здесь: хватай шарик и повози им по волосам.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'amber', big: true,
+    title: 'Это статическое электричество',
+    text: 'Невидимая сила, которая поднимает волосы, — <b>статическое электричество</b>. Кстати, ещё 2600 лет назад грек Фалес заметил: натёртый янтарь притягивает пылинки. «Электрон» по-гречески — янтарь. Так что «электричество» буквально значит «янтарность».',
+  },
+  {
+    phase: 'theory', type: 'interact', id: 'rub', visual: 'rub',
+    title: 'Заряды: два вида, и только два',
+    text: 'В любом теле «+» и «−» поровну — поэтому оно нейтрально. Но при трении часть электронов («−») перескакивает с одного тела на другое. Потри шарик о свитер и проследи за каждым электроном.',
+  },
+  {
+    phase: 'theory', type: 'info', visual: 'result', big: true,
+    title: 'Кто куда перебежал',
+    text: 'Электроны ушли со свитера → на нём не хватает «−», он стал <b>«+»</b>. Шарик получил лишние «−» — он <b>«−»</b>. Протоны никуда не бегают: они заперты в ядрах атомов. Забавно: знаки «+» и «−» придумал Франклин задолго до открытия электрона — поэтому так вышло, что «бегают» именно минусы.',
+  },
+  {
+    phase: 'check', type: 'splash',
+    title: 'Проверь себя',
+    text: 'Один вопрос — и тема твоя.',
+  },
+  {
+    phase: 'check', type: 'question',
+    title: 'Вопрос',
+    text: 'Шарик потёрли о волосы, и он зарядился «−». Какой заряд получили волосы?',
+    options: [
+      { id: 'a', text: 'Тоже «−» — трение заряжает оба тела одинаково', correct: false },
+      { id: 'b', text: '«+» — волосы отдали электроны шарику', correct: true },
+      { id: 'c', text: 'Никакой — волосы остались нейтральными', correct: false },
+    ],
+    right: 'Электроны перебежали с волос на шарик: шарик «−», волосы «+». Заряды всегда рождаются парой.',
+    wrong: 'Вспомни интерактив: электроны перебежали с волос на шарик. Значит, волосы потеряли «−» и стали «+».',
+  },
+];
+
+/* ---------- визуалы шагов ---------- */
+const visuals = {
+  hook: () => `
+    <div class="canvas-panel"><canvas id="hookCanvas" height="300"></canvas></div>
+    <p class="canvas-hint" id="hookHint">Тащи шарик 🎈 по волосам — следи за шкалой заряда</p>`,
+  rub: () => `
+    <div class="canvas-panel"><canvas id="rubCanvas" height="270"></canvas></div>
+    <div class="mini-actions">
+      <button class="mini-play-btn" id="rubBtn">🤝 Потереть шарик о свитер</button>
+      <button class="chip-btn" id="rubReset">↺ Сначала</button>
+    </div>`,
+  amber: () => `
+    <svg viewBox="0 0 260 150" xmlns="http://www.w3.org/2000/svg">
+      <path d="M85 100 Q70 60 100 42 Q130 24 165 44 Q192 62 178 98 Q166 122 130 122 Q97 122 85 100 Z"
+            fill="#F0B23C" stroke="#C98A2E" stroke-width="3" stroke-linejoin="round"/>
+      <g stroke="#9AA0AA" stroke-width="4" stroke-linecap="round">
+        <rect x="60" y="20" width="11" height="4" rx="2" fill="#9AA0AA" stroke="none" transform="rotate(24 65 22)">
+          <animateTransform attributeName="transform" type="translate" values="0,0; 34,44" dur="1.8s" repeatCount="indefinite" additive="sum"/>
+          <animate attributeName="opacity" values="1;0" dur="1.8s" repeatCount="indefinite"/>
+        </rect>
+        <rect x="205" y="30" width="10" height="4" rx="2" fill="#9AA0AA" stroke="none" transform="rotate(-20 209 32)">
+          <animateTransform attributeName="transform" type="translate" values="0,0; -40,36" dur="2.2s" repeatCount="indefinite" additive="sum"/>
+          <animate attributeName="opacity" values="1;0" dur="2.2s" repeatCount="indefinite"/>
+        </rect>
+      </g>
+    </svg>`,
+  result: () => `
+    <svg viewBox="0 0 260 160" xmlns="http://www.w3.org/2000/svg">
+      <g font-family="var(--font-display), sans-serif" font-weight="700">
+        <rect x="24" y="26" width="82" height="96" rx="18" fill="#C36A54" stroke="#9C5546" stroke-width="3"/>
+        <text x="65" y="86" text-anchor="middle" font-size="38" fill="#7A4A38">+</text>
+        <text x="65" y="146" text-anchor="middle" font-size="14" font-weight="500" fill="#6B7180">свитер</text>
+        <ellipse cx="194" cy="72" rx="38" ry="44" fill="#F0B23C" stroke="#C98A2E" stroke-width="3"/>
+        <text x="194" y="84" text-anchor="middle" font-size="38" fill="#7A5A18">−</text>
+        <text x="194" y="146" text-anchor="middle" font-size="14" font-weight="500" fill="#6B7180">шарик</text>
+        <g stroke="#2F80ED" stroke-width="3" fill="none" stroke-linecap="round">
+          <path d="M114 58 Q142 32 160 52">
+            <animate attributeName="stroke-dasharray" values="0 90; 90 0" dur="1.6s" repeatCount="indefinite"/>
+          </path>
+        </g>
+        <text x="138" y="32" text-anchor="middle" font-size="16" fill="#2F80ED">e−</text>
+      </g>
+    </svg>`,
+};
+
+/* ---------- интерактивы ---------- */
+function onInteract(step, ctx) {
+  if (step.id === 'hook') startHook(ctx.root, ctx.done);
+  if (step.id === 'rub') startRub(ctx.root, ctx.done);
+}
+
+runLesson({
+  lessonId: 'charge',
+  storageKey: 'electrostatics-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-forces/',
+  steps, visuals, onInteract,
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Приёмка приборов · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="/assets/lesson/practice.css?v=4">
+<style>
+  .step-visual{ flex-direction: column; }
+  .ammeter-svg{ width: 100%; height: auto; display: block; }
+  .am-scene{ width: 100%; max-width: 440px; margin: 0 auto; }
+  .am-tag{
+    margin: 10px auto 0; width: fit-content;
+    padding: 8px 18px; border-radius: 9999px;
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    color: var(--fg-2); font-size: 14px; font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">6</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '/assets/lesson/practice-engine.js?v=4';
+import { ammeterSVG, animateAmmeterNeedle } from '../ammeter.js';
+
+/* ============================================================
+   ПРАКТИКА «Приёмка приборов». В кабинет физики привезли
+   партию амперметров — у каждого своя шкала. Ученик, как
+   приёмщик, для каждого прибора: 1) определяет цену деления,
+   2) снимает показание по стрелке. Шкалы и положение стрелки
+   случайные при каждом запуске.
+   ============================================================ */
+
+const fmt = v => String(Math.round(v * 1000) / 1000).replace('.', ',');
+
+/* пулы шкал: { max, numStep, minor } → цена деления = numStep / minor */
+const POOLS = {
+  easy: [
+    { max: 2, numStep: 1, minor: 2 },   // 0,5 А
+    { max: 4, numStep: 1, minor: 2 },   // 0,5 А
+    { max: 3, numStep: 1, minor: 5 },   // 0,2 А
+    { max: 6, numStep: 2, minor: 4 },   // 0,5 А
+  ],
+  medium: [
+    { max: 2, numStep: 1, minor: 4 },   // 0,25 А
+    { max: 3, numStep: 1, minor: 5 },   // 0,2 А
+    { max: 4, numStep: 1, minor: 2 },   // 0,5 А
+    { max: 6, numStep: 2, minor: 10 },  // 0,2 А
+    { max: 3, numStep: 1, minor: 10 },  // 0,1 А
+  ],
+  hard: [
+    { max: 2, numStep: 1, minor: 4 },   // 0,25 А
+    { max: 4, numStep: 1, minor: 4 },   // 0,25 А
+    { max: 6, numStep: 2, minor: 10 },  // 0,2 А
+    { max: 3, numStep: 1, minor: 10 },  // 0,1 А
+    { max: 6, numStep: 2, minor: 8 },   // 0,25 А
+  ],
+};
+
+function shuffle(arr, rnd) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* партия случайных приборов */
+function makeDevices(level, rnd) {
+  const count = level === 'easy' ? 3 : level === 'medium' ? 4 : 5;
+  const pool = shuffle(POOLS[level], rnd);
+  const devices = [];
+  for (let i = 0; i < count; i++) {
+    const sc = pool[i % pool.length];
+    const N = Math.round(sc.max / sc.numStep) * sc.minor;
+    const price = sc.numStep / sc.minor;
+    let k;
+    if (level === 'easy') {
+      // круглые значения: стрелка на подписанном числе или посередине
+      const step = sc.minor % 2 === 0 ? sc.minor / 2 : sc.minor;
+      k = step * (1 + Math.floor(rnd() * (N / step - 1)));
+    } else {
+      k = 1 + Math.floor(rnd() * (N - 1));
+      if (level === 'hard') {
+        // некруглые: не на подписанном числе
+        for (let t = 0; t < 10 && k % sc.minor === 0; t++) k = 1 + Math.floor(rnd() * (N - 1));
+      }
+    }
+    devices.push({ sc, price, k, value: Math.round(k * price * 1000) / 1000 });
+  }
+  return devices;
+}
+
+/* ---------- шаги миссии ---------- */
+function buildSteps(level, rnd) {
+  const devices = makeDevices(level, rnd);
+  const count = devices.length;
+  const steps = [];
+
+  devices.forEach((d, i) => {
+    const { sc, price, k, value } = d;
+    const valueTol = level === 'easy' ? price * 0.25
+                   : level === 'medium' ? price * 0.2
+                   : Math.min(0.02, price * 0.1);
+
+    steps.push({
+      type: 'reading',
+      title: `Прибор ${i + 1} из ${count}: цена деления`,
+      text: 'Новый амперметр из коробки. Найди два соседних подписанных числа, посчитай деления между ними и впиши цену деления.',
+      render: host => {
+        host.innerHTML = `
+          <div class="am-scene">${ammeterSVG({ ...sc, value: 0 })}</div>
+          <div class="am-tag">Шкала до ${fmt(sc.max)} А · числа через ${fmt(sc.numStep)}</div>`;
+      },
+      answer: price, tolerance: 0.001, unit: 'А',
+      right: `✓ Точно: ${fmt(sc.numStep)} ÷ ${sc.minor} = ${fmt(price)} А. Прибор промаркирован!`,
+      hints: [
+        `Соседние числа шкалы отличаются на ${fmt(sc.numStep)} А, а делений между ними — ${sc.minor}. Раздели одно на другое.`,
+        `${fmt(sc.numStep)} ÷ ${sc.minor} = ${fmt(price)}. Впиши это число.`,
+      ],
+    });
+
+    steps.push({
+      type: 'reading',
+      title: `Прибор ${i + 1} из ${count}: показание`,
+      text: 'Пропускаем через прибор контрольный ток. Прочитай, что показывает стрелка, и впиши значение.',
+      render: host => {
+        host.innerHTML = `<div class="am-scene">${ammeterSVG({ ...sc, value: 0 })}</div>`;
+        animateAmmeterNeedle(host, value, sc.max, 900);
+      },
+      answer: value, tolerance: valueTol, unit: 'А',
+      right: `✓ Записано: ${fmt(value)} А. Прибор исправен — в кабинет!`,
+      hints: [
+        `Цена деления этой шкалы — ${fmt(price)} А. Посчитай, на каком делении от нуля остановилась стрелка.`,
+        `Стрелка на ${k}-м делении: ${k} × ${fmt(price)} = ${fmt(value)} А.`,
+      ],
+    });
+  });
+
+  return steps;
+}
+
+/* ---------- запуск ---------- */
+runPractice({
+  practiceId: 'inspect',
+  storageKey: 'ampermeter-progress',
+  homeHref: '../demo/',
+  title: 'Приёмка приборов',
+  subtitle: 'В кабинет физики привезли коробку новых амперметров — все с разными шкалами. Ты приёмщик: у каждого определи цену деления и проверь показание контрольным током.',
+  levels: {
+    easy:   { label: 'Разминка',  desc: '3 прибора, стрелка на круглых значениях.', xp: 30 },
+    medium: { label: 'Уверенный', desc: '4 прибора, стрелка на любом делении.', xp: 50 },
+    hard:   { label: 'Метролог',  desc: '5 приборов, хитрые шкалы, некруглые значения и строгий допуск.', xp: 80 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

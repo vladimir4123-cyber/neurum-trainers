@@ -3,140 +3,299 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
 <title>Интерактивные тренажёры по физике и математике · Нейрум</title>
 <meta name="description" content="Бесплатные интерактивные тренажёры: 3D-приборы (амперметр, вольтметр, динамометр), живые симуляции (звук, плавление, электризация), математические игры (дроби, устный счёт, тригонометрия). ОГЭ, 5–11 класс.">
-<meta property="og:title" content="⚡ Интерактивные тренажёры · Нейрум">
+<meta property="og:title" content="Интерактивные тренажёры · Нейрум">
 <meta property="og:description" content="3D-приборы, живые симуляции и математические игры — бесплатно, без регистрации, работает на телефоне.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
 <style>
-  :root{
-    --bg:#0b1130; --card:#141b40; --card2:#1a2350; --line:rgba(255,255,255,.09);
-    --text:#eef1fb; --muted:#9aa3c7; --accent:#ffd166; --accent2:#6c9bff;
-  }
-  *{box-sizing:border-box;}
+  *{ box-sizing: border-box; }
   body{
-    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
-    background:radial-gradient(1100px 600px at 50% -10%, #1d2856 0%, var(--bg) 62%) var(--bg);
-    color:var(--text); line-height:1.5; min-height:100vh;
+    margin: 0; font-family: var(--font-sans);
+    background-color: var(--white); color: var(--fg-1);
+    background-image:
+      linear-gradient(to right,  rgba(238,240,255,.3) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(238,240,255,.3) 1px, transparent 1px);
+    background-size: 48px 48px;
+    background-position: -1px -1px;
+    min-height: 100vh; -webkit-font-smoothing: antialiased;
   }
-  header{text-align:center; padding:44px 16px 10px;}
-  h1{margin:0; font-size:clamp(26px,5vw,42px);}
-  .sub{color:var(--muted); margin:10px auto 0; max-width:680px; font-size:16px;}
-  .wrap{max-width:1080px; margin:10px auto 60px; padding:0 16px;}
-  .section{margin-top:34px;}
-  .section h2{
-    font-size:20px; margin:0 0 4px; display:flex; align-items:center; gap:10px;
+
+  /* ============ TOP BAR (sticky) ============ */
+  .topbar{
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    max-width: 1120px; margin: 0 auto; padding: 18px 24px;
+    background: var(--white);
   }
-  .section .sdesc{color:var(--muted); font-size:14px; margin:0 0 16px;}
-  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px;}
+  .brand{
+    display: inline-flex; align-items: center; gap: 10px;
+    text-decoration: none; color: var(--fg-1);
+    font-family: var(--font-display); font-weight: 500; font-size: 17px;
+    letter-spacing: -0.01em;
+  }
+  .brand img{ height: 26px; width: auto; display: block; }
+  .brand-sub{ color: var(--fg-3); font-weight: 500; font-size: 15px; }
+
+  main.kit{ max-width: 1120px; margin: 0 auto; padding: 8px 24px 100px; }
+
+  /* ============ HERO ============ */
+  .hero{
+    padding: 40px 8px 32px;
+    text-align: center;
+  }
+  .hero h1{
+    margin: 0 auto 14px; max-width: 22ch;
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(28px, 3.4vw, 44px); line-height: 1.05;
+    letter-spacing: -0.02em; text-wrap: balance;
+  }
+  .hero p{
+    margin: 0 auto; max-width: 62ch;
+    color: var(--fg-2); font-size: 16px; line-height: 1.5;
+    text-wrap: balance;
+  }
+
+  /* ============ ФИЛЬТР ПО ПРЕДМЕТАМ ============ */
+  .subj-bar{
+    position: sticky; top: 62px; z-index: 40;
+    background: var(--white);
+    padding: 12px 0 20px;
+    margin: 8px 0 4px;
+    display: flex; justify-content: center;
+  }
+  .subj-tabs{
+    display: inline-flex; flex-wrap: wrap; gap: 8px;
+    padding: 6px; border-radius: 9999px;
+    background: #F4F4F7;
+  }
+  .subj-tab{
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: 9999px;
+    border: 0; background: transparent; cursor: pointer;
+    font-family: var(--font-sans); font-weight: 500; font-size: 15px;
+    color: var(--fg-2);
+    transition: background-color 140ms var(--ease-standard), color 140ms var(--ease-standard);
+  }
+  .subj-tab:hover{ color: var(--fg-1); }
+  .subj-tab.is-active{
+    background: var(--fg-1); color: var(--white);
+  }
+  .subj-tab__count{
+    font-size: 13px; font-weight: 500;
+    padding: 2px 8px; border-radius: 9999px;
+    background: #E6E6EC; color: var(--fg-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .subj-tab.is-active .subj-tab__count{
+    background: rgba(255,255,255,.18); color: var(--white);
+  }
+
+  /* ============ CARDS ============ */
+  .grid{ display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; margin-top: 32px; }
   .card{
-    display:block; text-decoration:none; color:var(--text);
-    background:linear-gradient(180deg,var(--card),var(--card2));
-    border:1px solid var(--line); border-radius:20px; padding:24px; transition:.18s;
+    display: flex; flex-direction: column; gap: 14px;
+    padding: 24px; border-radius: var(--radius-2xl);
+    background: var(--white); text-decoration: none; color: var(--fg-1);
+    box-shadow: 0 4px 16px rgba(0,0,0,.06);
+    transition: transform 160ms var(--ease-standard), box-shadow 160ms var(--ease-standard);
   }
-  .card:hover{transform:translateY(-4px); border-color:rgba(255,209,102,.5);}
-  .card .emoji{font-size:44px;}
-  .card h3{margin:12px 0 6px; font-size:21px;}
-  .card p{margin:0; color:var(--muted); font-size:14px;}
-  .badges{margin-top:12px; display:flex; gap:6px; flex-wrap:wrap;}
+  .card:hover{
+    transform: translateY(-4px);
+    box-shadow: 0 8px 28px rgba(0,0,0,.12);
+  }
+  .card:active{ transform: translateY(-1px) scale(0.99); }
+
+  .card-top{ display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .card-ic{
+    width: 88px; height: 88px;
+    display: grid; place-items: center;
+    background: transparent;
+    flex: none;
+  }
+  .card-ic img{
+    width: 100%; height: 100%; object-fit: contain; display: block;
+  }
+
+  .card h3{
+    margin: 4px 0 0;
+    font-family: var(--font-display); font-weight: 500;
+    font-size: 22px; line-height: 1.15; letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .card p{
+    margin: 0; flex: 1;
+    color: var(--fg-2); font-size: 15px; line-height: 1.45;
+    text-wrap: pretty;
+  }
+  .badges{ display: flex; gap: 8px; flex-wrap: wrap; }
   .badge{
-    font-size:12px; padding:4px 10px; border-radius:999px;
-    background:rgba(108,155,255,.14); border:1px solid rgba(108,155,255,.3);
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 12px; font-weight: 500; letter-spacing: 0.02em;
+    padding: 5px 10px; border-radius: 9999px;
+    background: #F2F4F8; color: var(--fg-2);
   }
-  .badge.oge{background:rgba(255,209,102,.12); border-color:rgba(255,209,102,.4); color:var(--accent);}
-  .badge.new{background:rgba(61,220,132,.12); border-color:rgba(61,220,132,.4); color:#3ddc84;}
-  footer{text-align:center; color:var(--muted); font-size:13px; padding:0 16px 40px;}
+  .badge.oge{ background: var(--purple-4); color: var(--purple-1); }
+  .badge.new{ background: var(--success-surface); color: var(--success); }
+  .badge.subj-phys{ background: var(--purple-1); color: #fff; }
+  .badge.subj-math{ background: #0B7EA6;         color: #fff; }
+  .badge.subj-chem{ background: #07BE7E;         color: #fff; }
+
+  /* ============ ПУСТОЕ СОСТОЯНИЕ ============ */
+  .empty{
+    grid-column: 1 / -1;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    padding: 64px 20px;
+    text-align: center;
+    background: linear-gradient(180deg, #FAFAFC, #F4F4F7);
+    border-radius: var(--radius-2xl);
+  }
+  .empty__emo{ font-size: 48px; line-height: 1; opacity: .8; }
+  .empty__title{
+    font-family: var(--font-display); font-weight: 500;
+    font-size: 22px; letter-spacing: -0.01em;
+  }
+  .empty__desc{ color: var(--fg-2); font-size: 15px; max-width: 32ch; text-wrap: pretty; }
+
+  footer{
+    max-width: 1120px; margin: 0 auto; padding: 30px 24px 40px;
+    color: var(--fg-3); font-size: 14px; text-align: center;
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>⚡ Интерактивные тренажёры</h1>
-  <p class="sub">Крути 3D-приборы, запускай живые симуляции, играй в математику. Бесплатно, без регистрации, работает на телефоне — просто отправь ссылку ученику.</p>
-</header>
-<div class="wrap">
 
-  <div class="section">
-    <h2>🔬 Измерительные приборы в 3D</h2>
-    <p class="sdesc">Покрути настоящий школьный прибор, найди цену деления, сними показания — как в задании 1 ОГЭ по физике.</p>
-    <div class="grid">
-      <a class="card" href="ampermeter/">
-        <div class="emoji">⚡</div>
-        <h3>Амперметр</h3>
-        <p>Сила тока, две шкалы (А и мА), закон Ома и живая электрическая цепь с бегущим током.</p>
-        <div class="badges"><span class="badge">8 класс</span><span class="badge oge">ОГЭ задание 1</span><span class="badge">3D</span></div>
-      </a>
-      <a class="card" href="voltmeter/demo/">
-        <div class="emoji">🔋</div>
-        <h3>Вольтметр</h3>
-        <p>Напряжение, диапазоны 6 В и 3 В — плюс практика «Мастерская электрика»: почини гирлянду и не спали прибор!</p>
-        <div class="badges"><span class="badge">8 класс</span><span class="badge oge">ОГЭ задание 1</span><span class="badge">3D</span><span class="badge new">🛠️ практика</span></div>
-      </a>
-      <a class="card" href="dynamometer/">
-        <div class="emoji">🪝</div>
-        <h3>Динамометр</h3>
-        <p>Сила и вес, пружина по закону Гука, грузики на крючке — и проверка прибора на Луне.</p>
-        <div class="badges"><span class="badge">7 класс</span><span class="badge oge">ОГЭ задание 1</span><span class="badge">3D</span></div>
-      </a>
-    </div>
-  </div>
-
-  <div class="section">
-    <h2>🧪 Живые симуляции</h2>
-    <p class="sdesc">Микроуроки на ~7 минут: явление на экране, эксперименты руками, игра и проверка. Идеально показывать у доски.</p>
-    <div class="grid">
-      <a class="card" href="sound/">
-        <div class="emoji">🔊</div>
-        <h3>Звуковые волны</h3>
-        <p>Частота, амплитуда, интерференция и биения — волны, которые видно и слышно.</p>
-        <div class="badges"><span class="badge">9 класс</span><span class="badge">со звуком</span></div>
-      </a>
-      <a class="card" href="melting/">
-        <div class="emoji">🔥</div>
-        <h3>Нагревание и плавление</h3>
-        <p>Живой график с «полочкой» плавления, молекулы и решётка, чтение графиков — как в ОГЭ.</p>
-        <div class="badges"><span class="badge">8 класс</span><span class="badge oge">графики ОГЭ</span><span class="badge new">новый</span></div>
-      </a>
-      <a class="card" href="electrostatics/">
-        <div class="emoji">⚡</div>
-        <h3>Электризация</h3>
-        <p>Шарик и волосы, перелетающие электроны, электроскоп и игра «Зарядовый детектив».</p>
-        <div class="badges"><span class="badge">8 класс</span><span class="badge new">новый</span></div>
-      </a>
-      <a class="card" href="magnetism/">
-        <div class="emoji">🧲</div>
-        <h3>Магнитное поле</h3>
-        <p>Поле, которое видно: 117 живых компасов, железные опилки и игра «Найди спрятанный магнит».</p>
-        <div class="badges"><span class="badge">8–9 класс</span><span class="badge new">новый</span></div>
-      </a>
-    </div>
-  </div>
-
-  <div class="section">
-    <h2>📐 Математика в игре</h2>
-    <p class="sdesc">Три разных формата: бродилка, интерактивный урок и жизненный сценарий. Математика — руками, а не по учебнику.</p>
-    <div class="grid">
-      <a class="card" href="math-dungeon/">
-        <div class="emoji">🧙</div>
-        <h3>Числовое подземелье</h3>
-        <p>Бродилка: открывай двери примерами, собирай монеты, победи дракона на время. От счёта до 20 до отрицательных чисел.</p>
-        <div class="badges"><span class="badge">5–6 класс</span><span class="badge">игра</span><span class="badge new">новый</span></div>
-      </a>
-      <a class="card" href="fraction-pizza/">
-        <div class="emoji">🍕</div>
-        <h3>Пиццерия дробей</h3>
-        <p>Смена повара: режь пиццу, выдавай порции и пойми руками, почему 2 ÷ ¼ = 8. Чаевые за точность!</p>
-        <div class="badges"><span class="badge">5–6 класс</span><span class="badge">жизненный сценарий</span><span class="badge new">новый</span></div>
-      </a>
-      <a class="card" href="trig-circle/">
-        <div class="emoji">🎯</div>
-        <h3>Тригонометрический круг</h3>
-        <p>Тащи точку по кругу — sin и cos живут на глазах. Собери таблицу углов и пройди челлендж. Формат Brilliant.</p>
-        <div class="badges"><span class="badge">9–11 класс</span><span class="badge oge">база ЕГЭ</span><span class="badge new">новый</span></div>
-      </a>
-    </div>
-  </div>
-
+<div class="topbar">
+  <a class="brand" href="./">
+    <img src="/assets/brand/logo-full.svg" alt="Нейрум" width="130" height="26">
+  </a>
 </div>
-<footer>Сделано для уроков физики и математики · каждый тренажёр открывается по прямой ссылке — делись с классом</footer>
+
+<main class="kit">
+
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <h1>База интерактивных уроков и тренажёров</h1>
+    <p>Теория с анимациями, 3D-приборы, симуляции и практика. Открывайте на проекторе или отправляйте ссылку классу.</p>
+  </section>
+
+  <!-- ============ ФИЛЬТР ПО ПРЕДМЕТАМ ============ -->
+  <div class="subj-bar">
+    <div class="subj-tabs" id="subjTabs" role="tablist"></div>
+  </div>
+
+  <!-- ============ КАРТОЧКИ ============ -->
+  <div class="grid" id="grid"></div>
+
+</main>
+
+
+<script>
+  const SUBJECTS = [
+    { id: 'all',   label: 'Все' },
+    { id: 'phys',  label: 'Физика' },
+    { id: 'math',  label: 'Математика' },
+    { id: 'chem',  label: 'Химия' },
+  ];
+  const SUBJ_LABELS = { phys: 'Физика', math: 'Математика', chem: 'Химия' };
+
+  const TRAINERS = [
+    // Физика — приборы
+    { subj: 'phys', href: 'voltmeter/demo/', img: 'assets/images/trainers/voltmeter.png', title: 'Вольтметр',
+      desc: 'Готовый интерактивный урок: живой прибор, 4 темы теории и 3 практики. Ученики измеряют напряжение и открывают закон U = U₁ + U₂.',
+      badges: [{t:'8 класс'}, {t:'3D'}] },
+    { subj: 'phys', href: 'ampermeter/', img: 'assets/images/trainers/ampermeter.png', title: 'Амперметр',
+      desc: 'Сила тока, шкалы А и мА, закон Ома. Живая цепь с бегущим током — видно, как ток меняется от напряжения и сопротивления.',
+      badges: [{t:'8 класс'}, {t:'3D'}] },
+    { subj: 'phys', href: 'dynamometer/', img: 'assets/images/trainers/dynamometer.png', title: 'Динамометр',
+      desc: 'Сила и вес, пружина по закону Гука, грузики на крючке. Плюс проверка прибора на Луне — гравитация другая.',
+      badges: [{t:'7 класс'}, {t:'3D'}] },
+    // Физика — симуляции
+    { subj: 'phys', href: 'sound/', img: 'assets/images/trainers/sound.png', title: 'Звуковые волны',
+      desc: 'Частота, амплитуда, интерференция и биения — волны, которые видно и слышно.',
+      badges: [{t:'9 класс'}, {t:'со звуком'}] },
+    { subj: 'phys', href: 'melting/', img: 'assets/images/trainers/melting.png', title: 'Нагревание и плавление',
+      desc: 'Живой график с полочкой плавления, молекулы и кристаллическая решётка. Тренируем чтение графиков — как в ОГЭ.',
+      badges: [{t:'8 класс'}] },
+    { subj: 'phys', href: 'electrostatics/', img: 'assets/images/trainers/electrostatics.png', title: 'Электризация',
+      desc: 'Шарик и волосы, перелетающие электроны, электроскоп и игра «Зарядовый детектив».',
+      badges: [{t:'8 класс'}] },
+    { subj: 'phys', href: 'magnetism/', img: 'assets/images/trainers/magnetism.png', title: 'Магнитное поле',
+      desc: 'Поле, которое видно: 117 живых компасов, железные опилки и игра «Найди спрятанный магнит».',
+      badges: [{t:'8–9 класс'}] },
+    // Математика
+    { subj: 'math', href: 'math-dungeon/', img: 'assets/images/trainers/math-dungeon.png', title: 'Числовое подземелье',
+      desc: 'Бродилка: открывай двери примерами, собирай монеты, побеждай дракона на время. От счёта до 20 до отрицательных чисел.',
+      badges: [{t:'5–6 класс'}, {t:'тренажёр'}] },
+    { subj: 'math', href: 'fraction-pizza/', img: 'assets/images/trainers/fraction-pizza.png', title: 'Пиццерия дробей',
+      desc: 'Смена повара: режь пиццу, выдавай порции — и станет понятно, почему 2 ÷ ¼ = 8. Чаевые за точность.',
+      badges: [{t:'5–6 класс'}, {t:'тренажёр'}] },
+    { subj: 'math', href: 'trig-circle/', img: 'assets/images/trainers/trig-circle.png', title: 'Тригонометрический круг',
+      desc: 'Тащи точку по кругу — sin и cos живут на глазах. Соберите таблицу углов и пройдите челлендж. Формат Brilliant.',
+      badges: [{t:'9–11 класс'}, {t:'тренажёр'}] },
+  ];
+
+  const countFor = subj => subj === 'all' ? TRAINERS.length : TRAINERS.filter(t => t.subj === subj).length;
+
+  // Табы предметов
+  const tabsEl = document.getElementById('subjTabs');
+  tabsEl.innerHTML = SUBJECTS.map(s => `
+    <button class="subj-tab" role="tab" data-subj="${s.id}">
+      ${s.label}
+      <span class="subj-tab__count">${countFor(s.id)}</span>
+    </button>`).join('');
+
+  // Определить активный таб (по hash, дефолт — «Все»)
+  const initial = (location.hash.replace('#', '') || 'all');
+  let active = SUBJECTS.some(s => s.id === initial) ? initial : 'all';
+
+  // Рендер карточек
+  const gridEl = document.getElementById('grid');
+  function renderGrid() {
+    const list = active === 'all' ? TRAINERS : TRAINERS.filter(t => t.subj === active);
+    if (list.length === 0) {
+      gridEl.innerHTML = `
+        <div class="empty">
+          <div class="empty__emo">🧪</div>
+          <div class="empty__title">Скоро тут будут тренажёры</div>
+          <div class="empty__desc">По этому предмету работа уже идёт — загляните позже.</div>
+        </div>`;
+      return;
+    }
+    gridEl.innerHTML = list.map(t => `
+      <a class="card" href="${t.href}">
+        <div class="card-top">
+          <div class="card-ic"><img src="${t.img}" alt="${t.title}" loading="lazy"></div>
+        </div>
+        <h3>${t.title}</h3>
+        <p>${t.desc}</p>
+        <div class="badges">
+          <span class="badge subj-${t.subj}">${SUBJ_LABELS[t.subj]}</span>
+          ${t.badges.map(b => `<span class="badge${b.cls ? ' ' + b.cls : ''}">${b.t}</span>`).join('')}
+        </div>
+      </a>`).join('');
+  }
+
+  function syncTabs() {
+    tabsEl.querySelectorAll('.subj-tab').forEach(b => {
+      b.classList.toggle('is-active', b.dataset.subj === active);
+    });
+  }
+
+  tabsEl.addEventListener('click', e => {
+    const btn = e.target.closest('.subj-tab');
+    if (!btn) return;
+    active = btn.dataset.subj;
+    history.replaceState(null, '', active === 'all' ? location.pathname : '#' + active);
+    syncTabs();
+    renderGrid();
+  });
+
+  syncTabs();
+  renderGrid();
+</script>
+
 </body>
 </html>

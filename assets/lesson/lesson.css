@@ -99,10 +99,27 @@
   .step > *:nth-child(4){ animation-delay: 300ms; }
 
   .step-visual{
-    margin: 0 auto 32px;
-    max-width: 780px;
-    min-height: 300px;
+    position: relative;
+    margin: 36px auto 8px;
+    max-width: 560px;
     display: flex; align-items: center; justify-content: center;
+  }
+  /* прямые SVG-иллюстрации (info-шаги) — крупные по умолчанию */
+  .step-visual > svg{ width: 100%; max-width: 460px; height: auto; }
+
+  /* «Гигантский» вариант — для чистых иллюстраций-акцентов */
+  .step-visual--big{ max-width: 920px; }
+  .step-visual--big > svg{ max-width: 760px; }
+  .step-visual--big .canvas-panel{ max-width: 760px; }
+
+  /* Зерно/шум поверх иллюстрации — чтобы плоскость не читалась
+     старомодной. Тонкая плёнка, не мешает интерактиву (pointer-events:none). */
+  .step-visual::after{
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+    border-radius: inherit;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 140px 140px;
+    opacity: 0.05; mix-blend-mode: multiply;
   }
   .step-title{
     font-family: var(--font-display);
@@ -120,7 +137,7 @@
     font-size: var(--t-md); line-height: var(--lh-md);
     color: var(--fg-2);
     margin: 0 auto;
-    max-width: 520px;
+    max-width: 660px;
     /* pretty: не оставляет сирот в последней строке */
     text-wrap: pretty;
   }
@@ -128,19 +145,19 @@
 
   /* ============ QUESTION step ============ */
   .options{
-    display: grid; gap: 12px;
-    max-width: 520px; margin: 24px auto 0;
+    display: grid; gap: 14px;
+    max-width: 820px; margin: 28px auto 0;
     grid-template-columns: 1fr 1fr;
   }
-  @media (max-width: 480px){ .options{ grid-template-columns: 1fr; } }
+  @media (max-width: 560px){ .options{ grid-template-columns: 1fr; } }
   .opt-btn{
-    padding: 20px 16px;
+    padding: 18px 22px;
     border-radius: var(--radius-xl);
     background: var(--white);
     border: 2px solid var(--border-2);
     cursor: pointer;
     font-family: var(--font-sans);
-    font-size: var(--t-md); font-weight: 500;
+    font-size: 17px; line-height: 1.4; font-weight: 500;
     color: var(--fg-1);
     /* Никогда не 'transition: all' — только те свойства, что реально
        меняются в hover/selected/correct/wrong */

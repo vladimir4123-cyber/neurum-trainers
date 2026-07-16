@@ -1,0 +1,951 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Динамометр · 3D-тренажёр по физике · ОГЭ задание 1</title>
+<meta name="description" content="Интерактивный 3D-динамометр: подвешивай грузы, находи цену деления, снимай показания — даже на Луне. Физика 7 класс + подготовка к ОГЭ (задание 1).">
+<meta property="og:title" content="🪝 Динамометр — 3D-тренажёр">
+<meta property="og:description" content="Подвесь грузики на настоящий школьный динамометр в 3D, найди цену деления и сними показания. И проверь, сколько ты весишь на Луне!">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪝</text></svg>">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<style>
+  :root{
+    --bg:#0b1130; --card:#141b40; --card2:#1a2350; --line:rgba(255,255,255,.09);
+    --text:#eef1fb; --muted:#9aa3c7; --accent:#ffd166; --accent2:#6c9bff;
+    --ok:#3ddc84; --bad:#ff5d73;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    background:radial-gradient(1100px 600px at 50% -10%, #1d2856 0%, var(--bg) 62%) var(--bg);
+    color:var(--text); line-height:1.45;
+  }
+  header{text-align:center; padding:26px 16px 6px;}
+  h1{margin:0; font-size:clamp(26px,5vw,40px);}
+  .sub{color:var(--muted); margin:8px auto 0; max-width:640px; font-size:15px;}
+  main{
+    max-width:1180px; margin:18px auto; padding:0 14px;
+    display:grid; grid-template-columns:1.05fr .95fr; gap:16px; align-items:start;
+  }
+  @media (max-width:960px){ main{grid-template-columns:1fr;} }
+  .card{
+    background:linear-gradient(180deg,var(--card),var(--card2));
+    border:1px solid var(--line); border-radius:20px; padding:18px;
+  }
+  h2{font-size:18px; margin:0 0 12px;}
+  #gauge3d{
+    position:relative; width:100%; height:440px; border-radius:16px; overflow:hidden;
+    touch-action:none; cursor:grab;
+    background:radial-gradient(circle at 50% 36%, #26366b, #0a1029 78%);
+    border:1px solid var(--line);
+  }
+  #gauge3d:active{cursor:grabbing;}
+  #dragHint{
+    position:absolute; left:50%; bottom:12px; transform:translateX(-50%);
+    background:rgba(8,12,32,.72); border:1px solid var(--line); border-radius:999px;
+    padding:6px 14px; font-size:14px; pointer-events:none; transition:opacity .5s;
+  }
+  .reading{margin-top:12px; font-size:38px; font-weight:800; color:var(--accent);
+    font-variant-numeric:tabular-nums; min-height:48px;}
+  .reading small{font-size:19px; color:var(--muted); font-weight:600;}
+  .reading.over{color:var(--bad);}
+  .stagehint{color:var(--muted); font-size:13px; margin-top:6px;}
+  .pricechip{
+    display:inline-block; margin-top:10px; padding:7px 12px; border-radius:12px;
+    background:rgba(255,209,102,.1); border:1px solid rgba(255,209,102,.35); font-size:14px;
+  }
+  .tabs{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;}
+  .tab{
+    flex:1; min-width:130px; padding:10px 8px; border-radius:14px; border:1px solid var(--line);
+    background:rgba(255,255,255,.04); color:var(--text); font-size:14px; font-weight:700;
+    cursor:pointer; transition:.15s;
+  }
+  .tab:hover{background:rgba(255,255,255,.09);}
+  .tab.active{background:var(--accent); color:#1a1a2e; border-color:var(--accent);}
+  .row{display:flex; align-items:center; gap:10px; margin:12px 0; flex-wrap:wrap;}
+  .btn{
+    padding:9px 16px; border-radius:12px; border:1px solid var(--line); cursor:pointer;
+    background:rgba(255,255,255,.06); color:var(--text); font-size:14px; font-weight:700; transition:.15s;
+  }
+  .btn:hover{background:rgba(255,255,255,.12);}
+  .btn.range.active{background:var(--accent2); color:#0b1130; border-color:var(--accent2);}
+  .btn.planet.active{background:var(--accent); color:#1a1a2e; border-color:var(--accent);}
+  .control{margin:14px 0;}
+  .control label{display:flex; justify-content:space-between; font-size:14px; color:var(--muted); margin-bottom:6px;}
+  .control b{color:var(--text);}
+  input[type=range]{width:100%; accent-color:var(--accent);}
+  .law{
+    margin-top:12px; padding:10px 14px; border-radius:12px; background:rgba(108,155,255,.1);
+    border:1px solid rgba(108,155,255,.3); font-size:14px;
+  }
+  .law b{color:var(--accent2);}
+  .warn{
+    margin-top:10px; padding:10px 14px; border-radius:12px; font-size:14px;
+    background:rgba(255,93,115,.12); border:1px solid rgba(255,93,115,.4);
+  }
+  .moonnote{
+    margin-top:10px; padding:10px 14px; border-radius:12px; font-size:14px;
+    background:rgba(108,155,255,.12); border:1px solid rgba(108,155,255,.4);
+  }
+  .parts{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px;}
+  @media (max-width:520px){ .parts{grid-template-columns:1fr;} }
+  .part{
+    border:1px solid var(--line); border-radius:14px; padding:10px 12px; cursor:pointer; transition:.15s;
+    background:rgba(255,255,255,.03);
+  }
+  .part:hover{background:rgba(255,255,255,.08);}
+  .part.sel{border-color:var(--accent); background:rgba(255,209,102,.08);}
+  .part h3{margin:0; font-size:14px;}
+  .part p{margin:6px 0 0; font-size:13px; color:var(--muted); display:none;}
+  .part.sel p{display:block;}
+  .info{
+    border:1px solid var(--line); border-radius:16px; padding:14px 16px; margin-bottom:12px;
+    background:rgba(255,255,255,.03);
+  }
+  .info h3{margin:0 0 8px; font-size:16px;}
+  .info p{margin:0 0 8px; font-size:14px; color:#d7dcf2;}
+  .info p:last-child{margin-bottom:0;}
+  .info.tip{background:rgba(255,209,102,.08); border-color:rgba(255,209,102,.35);}
+  .timeline{list-style:none; margin:6px 0 0; padding:0; position:relative;}
+  .timeline li{
+    position:relative; padding:0 0 14px 22px; font-size:14px; color:#d7dcf2;
+    border-left:2px solid rgba(108,155,255,.4); margin-left:5px;
+  }
+  .timeline li:last-child{border-left-color:transparent; padding-bottom:0;}
+  .timeline li::before{
+    content:''; position:absolute; left:-7px; top:4px; width:11px; height:11px;
+    border-radius:50%; background:var(--accent2); border:2px solid var(--card2);
+  }
+  .timeline b{color:var(--accent);}
+  .uses{display:flex; flex-wrap:wrap; gap:8px;}
+  .use{
+    font-size:13px; padding:7px 11px; border-radius:11px;
+    background:rgba(108,155,255,.12); border:1px solid rgba(108,155,255,.25);
+  }
+  #panelTask{position:relative;}
+  .taskhead{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px;}
+  .roundlbl{font-size:14px; color:var(--muted); font-weight:700;}
+  .stars{font-size:20px; letter-spacing:2px;}
+  .dots{display:flex; gap:6px; margin-bottom:14px;}
+  .dot{width:12px; height:12px; border-radius:50%; background:rgba(255,255,255,.13); border:1px solid var(--line);}
+  .dot.done{background:var(--ok); border-color:var(--ok);}
+  .dot.cur{background:var(--accent); border-color:var(--accent);}
+  .question{font-size:17px; font-weight:700; margin:6px 0 14px;}
+  .opts{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  @media (max-width:420px){ .opts{grid-template-columns:1fr;} }
+  .opt{
+    padding:14px 10px; border-radius:14px; border:1px solid var(--line); cursor:pointer;
+    background:rgba(255,255,255,.05); color:var(--text); font-size:18px; font-weight:800; transition:.15s;
+    font-variant-numeric:tabular-nums;
+  }
+  .opt:hover:not(:disabled){background:rgba(255,255,255,.12);}
+  .opt.right{background:rgba(61,220,132,.18); border-color:var(--ok); color:var(--ok);}
+  .opt.wrong{background:rgba(255,93,115,.15); border-color:var(--bad); color:var(--bad); opacity:.8;}
+  .opt:disabled{cursor:default;}
+  .expl{
+    margin-top:14px; padding:12px 14px; border-radius:12px; font-size:14px;
+    background:rgba(61,220,132,.1); border:1px solid rgba(61,220,132,.35);
+  }
+  .nextbtn{
+    margin-top:14px; width:100%; padding:13px; border-radius:14px; border:none; cursor:pointer;
+    background:var(--accent); color:#1a1a2e; font-size:16px; font-weight:800;
+  }
+  #result{text-align:center; padding:18px 6px;}
+  #result .big{font-size:52px;}
+  #result h3{font-size:22px; margin:10px 0 6px;}
+  #result p{color:var(--muted); margin:0 0 16px;}
+  .cf{position:absolute; left:50%; top:38%; font-size:20px; pointer-events:none; z-index:5;
+    animation:fly 1.15s cubic-bezier(.2,.6,.3,1) forwards;}
+  @keyframes fly{ to{ transform:translate(var(--dx),var(--dy)) rotate(var(--rt)); opacity:0; } }
+  footer{
+    max-width:1180px; margin:6px auto 34px; padding:0 14px; display:flex; gap:12px;
+    align-items:center; justify-content:center; color:var(--muted); font-size:13px; flex-wrap:wrap;
+  }
+  #toast{
+    position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+    background:var(--ok); color:#08381f; font-weight:700; padding:10px 18px; border-radius:999px;
+    opacity:0; transition:.3s; pointer-events:none; z-index:50;
+  }
+  #toast.show{opacity:1; transform:translateX(-50%);}
+</style>
+<style>
+  /* ===== EMBED-режим (?embed=1): только 3D-прибор, прозрачный фон ===== */
+  body.embed{ background: transparent !important; overflow: hidden; }
+  body.embed header,
+  body.embed .stagehint,
+  body.embed .reading,
+  body.embed .pricechip,
+  body.embed #dragHint,
+  body.embed main > section.card:last-child{ display: none !important; }
+  body.embed main{ display: block !important; padding: 0 !important; max-width: none !important; margin: 0 !important; }
+  body.embed main > section.card:first-child{
+    background: transparent !important; border: 0 !important; box-shadow: none !important;
+    padding: 0 !important; margin: 0 !important;
+  }
+  body.embed #gauge3d{
+    background: transparent !important; border-radius: 0 !important;
+    width: 100% !important; height: 100vh !important; cursor: default;
+  }
+
+  /* ===== Флоу «Показать прибор»: крупный прибор + светлая панель настроек ===== */
+  body.embed main > section.card:nth-of-type(2){ display: none !important; }
+  .embed-close{
+    position: fixed; top: 16px; left: 16px; z-index: 100;
+    width: 44px; height: 44px; border-radius: 50%; border: 0; cursor: pointer;
+    background: #fff; color: #232323; font-size: 20px; line-height: 1;
+    display: grid; place-items: center; box-shadow: 0 4px 14px rgba(35,35,35,.14);
+    transition: transform 120ms cubic-bezier(.2,0,0,1), background-color 120ms;
+  }
+  .embed-close:hover{ background: #EFECFF; }
+  .embed-close:active{ transform: scale(.94); }
+  body.embed.has-panel main{ display: grid !important; grid-template-columns: 1fr 360px !important; gap: 0 !important; padding: 0 !important; max-width: none !important; }
+  @media (max-width: 820px){ body.embed.has-panel main{ grid-template-columns: 1fr !important; } }
+  .em-panel{
+    position: relative; z-index: 90; height: 100vh; overflow-y: auto;
+    background: #fff; box-shadow: -12px 0 32px rgba(35,35,35,.08);
+    padding: 84px 26px 26px; display: flex; flex-direction: column; gap: 22px;
+    font-family: -apple-system, system-ui, 'Segoe UI', sans-serif; color: #232323;
+  }
+  @media (max-width: 820px){ .em-panel{ height: auto; padding: 26px; } }
+  .em-panel h2{ margin: 0; font-weight: 700; font-size: 26px; letter-spacing: -0.02em; line-height: 1.1; }
+  .em-hint{ margin: 12px 0 0; font-size: 16px; color: #5A5D66; }
+  .em-power{ display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-radius: 16px; background: #EEF0FF; font-weight: 500; font-size: 15px; color: #5A5D66; }
+  .em-switch{ position: relative; width: 52px; height: 30px; border-radius: 9999px; background: #C2C6D0; border: 0; cursor: pointer; padding: 0; transition: background-color 160ms; }
+  .em-switch::after{ content:""; position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%; background:#fff; box-shadow:0 2px 6px rgba(35,35,35,.2); transition: transform 160ms; }
+  .em-switch.on{ background: #6240FF; }
+  .em-switch.on::after{ transform: translateX(22px); }
+  .em-ctrl{ display: flex; flex-direction: column; gap: 8px; }
+  .em-ctrl__head{ display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 16px; color: #5A5D66; }
+  .em-ctrl__head b{ font-weight: 700; font-size: 22px; color: #232323; font-variant-numeric: tabular-nums; }
+  .em-ctrl input[type="range"]{ -webkit-appearance:none; appearance:none; width:100%; height:22px; background:transparent; cursor:pointer; }
+  .em-ctrl input[type="range"]::-webkit-slider-runnable-track{ height:8px; border-radius:9999px; background:#EEF0FF; }
+  .em-ctrl input[type="range"]::-moz-range-track{ height:8px; border-radius:9999px; background:#EEF0FF; }
+  .em-ctrl input[type="range"]::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:26px; height:26px; border-radius:50%; background:#6240FF; box-shadow:0 3px 10px rgba(101,31,255,.35); margin-top:-9px; cursor:grab; }
+  .em-ctrl input[type="range"]::-moz-range-thumb{ width:26px; height:26px; border-radius:50%; border:0; background:#6240FF; box-shadow:0 3px 10px rgba(101,31,255,.35); cursor:grab; }
+  .em-range{ display:flex; align-items:center; gap:8px; margin-top:4px; flex-wrap:wrap; }
+  .em-range__label{ font-size:16px; color:#5A5D66; flex:1 0 100%; margin-bottom:2px; }
+  .em-range__btn{ padding:9px 15px; border-radius:9999px; border:1.5px solid #D6D8E2; background:#fff; font-weight:500; font-size:14px; color:#232323; cursor:pointer; transition: background-color 120ms, border-color 120ms; }
+  .em-range__btn:hover{ background:#EEF0FF; }
+  .em-range__btn.on{ background:#6240FF; border-color:#6240FF; color:#fff; }
+  .em-readout{ padding:18px; border-radius:16px; background:linear-gradient(160deg,#fff,#EEF0FF); text-align:center; margin-top:4px; }
+  .em-readout__lbl{ font-size:13px; color:#5A5D66; }
+  .em-readout__val{ font-weight:700; font-size:38px; line-height:1; color:#232323; font-variant-numeric:tabular-nums; letter-spacing:-0.02em; margin-top:6px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🪝 Динамометр</h1>
+  <p class="sub">3D-тренажёр: подвешивай грузики на настоящий школьный прибор, находи цену деления и снимай показания — как в задании 1 ОГЭ по физике. Бонус: проверь, что покажет прибор на Луне!</p>
+</header>
+
+<main>
+  <!-- ======== ЛЕВАЯ КОЛОНКА: 3D-прибор ======== -->
+  <section class="card">
+    <div id="gauge3d"><div id="dragHint">👆 Покрути меня!</div></div>
+    <div class="reading" id="readingBox"><span id="readVal">3</span> <small id="readUnit">Н</small></div>
+    <div class="pricechip" id="priceChip"></div>
+    <div class="stagehint">🖱️ Зажми и двигай — повернуть прибор · колесо или щипок — приблизить · нажми на деталь прибора, чтобы узнать, что это.</div>
+  </section>
+
+  <!-- ======== ПРАВАЯ КОЛОНКА: режимы ======== -->
+  <section class="card">
+    <div class="tabs">
+      <button class="tab active" data-mode="study">🔍 Изучаем</button>
+      <button class="tab" data-mode="division">📏 Цена деления</button>
+      <button class="tab" data-mode="reading">🎯 Показания</button>
+      <button class="tab" data-mode="about">📖 О приборе</button>
+    </div>
+
+    <!-- ---- режим: изучение ---- -->
+    <div id="panelStudy">
+      <div class="row">
+        <span style="color:var(--muted);font-size:14px;">Где измеряем:</span>
+        <button class="btn planet active" id="plEarth">🌍 Земля</button>
+        <button class="btn planet" id="plMoon">🌙 Луна</button>
+        <span style="flex:1"></span>
+        <span style="color:var(--muted);font-size:14px;">Шкала:</span>
+        <button class="btn range active" id="rangeN">Н</button>
+        <button class="btn range" id="rangeG">г</button>
+      </div>
+
+      <div class="control">
+        <label><span>⚖️ Грузики на крючке (по 50 г)</span><b><span id="mLbl">300</span> г</b></label>
+        <input type="range" id="mSlider" min="0" max="500" step="50" value="300">
+      </div>
+
+      <div class="law">Сила тяжести: <b>F = m × g</b><br><span id="lawCalc"></span></div>
+      <div class="warn" id="overWarn" hidden>💥 <b>Перегрузка!</b> Пружина на пределе — сними часть грузиков, иначе прибор испортится.</div>
+      <div class="moonnote" id="moonNote" hidden>🌙 На Луне g в 6 раз меньше — те же грузики растягивают пружину слабее. А шкала в граммах откалибрована для Земли, поэтому на Луне она «врёт»!</div>
+
+      <h2 style="margin-top:18px;">🧩 Из чего состоит прибор</h2>
+      <div class="parts" id="partsGrid"></div>
+    </div>
+
+    <!-- ---- режим: задания ---- -->
+    <div id="panelTask" hidden>
+      <div class="taskhead">
+        <span class="roundlbl" id="roundLbl"></span>
+        <span class="stars" id="starsLbl"></span>
+      </div>
+      <div class="dots" id="dots"></div>
+      <div id="taskBody">
+        <div class="question" id="qText"></div>
+        <div class="opts" id="opts"></div>
+        <div class="expl" id="expl" hidden></div>
+        <button class="nextbtn" id="nextBtn" hidden>Дальше →</button>
+      </div>
+      <div id="result" hidden>
+        <div class="big" id="resEmoji"></div>
+        <h3 id="resTitle"></h3>
+        <p id="resText"></p>
+        <button class="nextbtn" id="againBtn">🔄 Ещё раз</button>
+      </div>
+    </div>
+
+    <!-- ---- режим: о приборе ---- -->
+    <div id="panelAbout" hidden>
+      <div class="info">
+        <h3>🔍 Что это и зачем он нужен</h3>
+        <p>Динамометр измеряет <b>силу</b> — например, силу тяжести, с которой груз тянет вниз, или силу, с которой ты тянешь санки. Сила измеряется в <b>ньютонах (Н)</b>.</p>
+        <p>Внутри — пружина: чем сильнее её тянут, тем больше она растягивается. По растяжению пружины прибор и определяет силу.</p>
+      </div>
+
+      <div class="info">
+        <h3>👨‍🔬 В честь кого названа единица</h3>
+        <p>Единица силы названа в честь англичанина <b>Исаака Ньютона</b> (1643–1727) — того самого, с яблоком. Он открыл закон всемирного тяготения и три закона движения, на которых стоит вся механика.</p>
+        <p>1 ньютон — это примерно вес одного яблока. Красивое совпадение, правда?</p>
+      </div>
+
+      <div class="info">
+        <h3>📜 Как его придумали</h3>
+        <p>Динамометр появился благодаря открытию свойства пружин:</p>
+        <ul class="timeline">
+          <li><b>1676</b> — англичанин <b>Роберт Гук</b> открыл закон упругости: растяжение пружины прямо пропорционально силе («каково растяжение — такова сила»). Это сердце любого динамометра.</li>
+          <li><b>~1770</b> — семья <b>Салтер</b> в Англии начала делать первые пружинные весы-безмены — по сути, первые массовые динамометры.</li>
+          <li><b>1830-е</b> — динамометры стали инструментом инженеров: ими измеряли тягу лошадей, машин и паровозов.</li>
+          <li><b>XX век</b> — трубчатый учебный динамометр со шкалой пришёл в каждую школьную лабораторию — он и стоит перед тобой.</li>
+        </ul>
+      </div>
+
+      <div class="info">
+        <h3>🛠️ Где его применяют</h3>
+        <div class="uses">
+          <span class="use">🎣 Безмен — взвесить улов или багаж</span>
+          <span class="use">💪 Медицина — сила кисти (динамометрия)</span>
+          <span class="use">🏋️ Спорт — измерение силы спортсменов</span>
+          <span class="use">🏗️ Краны и тросы — контроль натяжения</span>
+          <span class="use">🚜 Техника — тяга двигателей и машин</span>
+          <span class="use">🔬 Лаборатории — точные измерения сил</span>
+          <span class="use">🎓 Школа — ОГЭ задание 1: снять показания</span>
+        </div>
+      </div>
+
+      <div class="info tip">
+        <h3>💡 Важные правила измерения</h3>
+        <p><b>1. Проверь ноль.</b> Перед измерением указатель должен стоять ровно на нуле — иначе все показания «уедут».</p>
+        <p><b>2. Не превышай предел.</b> Если тянуть сильнее максимума шкалы, пружина растянется навсегда и прибор начнёт врать.</p>
+        <p><b>3. Вес — не масса!</b> Шкала в граммах показывает массу только там, где её калибровали (на Земле). Прибор честно меряет <b>силу</b> — а она на Луне у тех же грузиков в 6 раз меньше.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>Сделано для уроков физики · 7 класс · ОГЭ задание 1</span>
+  <button class="btn" id="shareBtn">📤 Скопировать ссылку</button>
+</footer>
+<div id="toast">Ссылка скопирована!</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ================================================================
+   КОНФИГ ТРЕНАЖЁРА — динамометр (линейная шкала)
+   ================================================================ */
+const DEFAULT_SPEC = {
+  top:    { max: 5,   numStep: 1,   minor: 10, unit: 'Н' },  // левая шкала: ньютоны, цена 0,1 Н
+  bottom: { max: 500, numStep: 100, minor: 5,  unit: 'г' },  // правая шкала: граммы, цена 20 г
+  active: 'top'
+};
+const A_POOL = [  // левая шкала (Н)
+  { max: 5,  numStep: 1, minor: 10, unit: 'Н' },  // 0,1 Н
+  { max: 5,  numStep: 1, minor: 5,  unit: 'Н' },  // 0,2 Н
+  { max: 4,  numStep: 1, minor: 4,  unit: 'Н' },  // 0,25 Н
+  { max: 4,  numStep: 1, minor: 2,  unit: 'Н' },  // 0,5 Н
+  { max: 10, numStep: 2, minor: 4,  unit: 'Н' },  // 0,5 Н
+  { max: 10, numStep: 2, minor: 10, unit: 'Н' },  // 0,2 Н
+];
+const MA_POOL = [ // правая шкала (г)
+  { max: 500, numStep: 100, minor: 5,  unit: 'г' },  // 20 г
+  { max: 500, numStep: 100, minor: 10, unit: 'г' },  // 10 г
+  { max: 200, numStep: 50,  minor: 5,  unit: 'г' },  // 10 г
+  { max: 300, numStep: 100, minor: 4,  unit: 'г' },  // 25 г
+  { max: 400, numStep: 100, minor: 5,  unit: 'г' },  // 20 г
+];
+const ROUNDS = 5;
+const SIDE_NAME = { top: ['левой шкалы', 'левой шкале'], bottom: ['правой шкалы', 'правой шкале'] };
+
+/* ================== состояние ================== */
+let mode = 'study';
+let massG = 300, g = 10, range = 'N';   // масса грузов (г), ускорение, активная шкала
+let targetFrac = 0, curFrac = 0, overload = false;
+let CURRENT_SPEC = JSON.parse(JSON.stringify(DEFAULT_SPEC));
+let task = null;
+
+const $ = id => document.getElementById(id);
+const fmt = v => (Math.round(v * 1000) / 1000).toString().replace('.', ',');
+const pick = a => a[Math.floor(Math.random() * a.length)];
+
+/* ================== звук ================== */
+let AC;
+function tone(f, d, type = 'sine', gv = 0.1, dl = 0) {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    const t = AC.currentTime + dl;
+    const o = AC.createOscillator(), v = AC.createGain();
+    o.type = type; o.frequency.value = f;
+    v.gain.setValueAtTime(gv, t);
+    v.gain.exponentialRampToValueAtTime(0.001, t + d);
+    o.connect(v).connect(AC.destination);
+    o.start(t); o.stop(t + d + 0.05);
+  } catch (e) {}
+}
+const sndOk = () => { tone(880, .12); tone(1318, .2, 'sine', .1, .1); };
+const sndNo = () => tone(150, .18, 'square', .06);
+
+/* ================== линейная шкала (CanvasTexture) ================== */
+const CVW = 512, CVH = 1024;           // канвас планки
+const Y0 = 112, SPAN = 800;            // ноль шкалы и длина в px
+const SLOT_L = 244, SLOT_R = 268;      // центральная прорезь
+
+function drawDial(spec) {
+  const cv = document.createElement('canvas');
+  cv.width = CVW * 2; cv.height = CVH * 2;
+  const c = cv.getContext('2d');
+  c.scale(2, 2);
+
+  c.fillStyle = '#15151b'; c.fillRect(0, 0, CVW, CVH);
+  const grad = c.createLinearGradient(0, 0, CVW, 0);
+  grad.addColorStop(0, '#ece9dd'); grad.addColorStop(0.5, '#fbfaf4'); grad.addColorStop(1, '#e8e4d6');
+  c.fillStyle = grad;
+  c.beginPath(); c.roundRect(10, 10, CVW - 20, CVH - 20, 14); c.fill();
+
+  // центральная прорезь, по которой ходит указатель
+  c.fillStyle = '#23252c';
+  c.beginPath(); c.roundRect(SLOT_L, Y0 - 26, SLOT_R - SLOT_L, SPAN + 60, 8); c.fill();
+
+  const yAt = f => Y0 + SPAN * f;
+
+  // одна шкала: side = 'left' (Н) | 'right' (г)
+  const scale = (sc, side, isActive) => {
+    const ink = isActive ? '#15161d' : '#a9aeb9';
+    const N = Math.round(sc.max / sc.numStep) * sc.minor;
+    const dir = side === 'left' ? -1 : 1;
+    const x0 = side === 'left' ? SLOT_L - 4 : SLOT_R + 4;
+    for (let i = 0; i <= N; i++) {
+      const y = yAt(i / N);
+      const major = i % sc.minor === 0;
+      const mid = !major && sc.minor % 2 === 0 && i % sc.minor === sc.minor / 2;
+      const len = major ? 46 : mid ? 32 : 20;
+      c.beginPath(); c.moveTo(x0, y); c.lineTo(x0 + dir * len, y);
+      c.strokeStyle = ink; c.lineWidth = major ? 3.4 : mid ? 2.4 : 1.6; c.stroke();
+      if (major) {
+        const val = (i / sc.minor) * sc.numStep;
+        c.fillStyle = ink;
+        c.font = `bold 34px Georgia, 'Times New Roman', serif`;
+        c.textAlign = side === 'left' ? 'right' : 'left';
+        c.textBaseline = 'middle';
+        c.fillText(String(val), x0 + dir * (len + 12), y);
+      }
+    }
+    // единица сверху
+    c.fillStyle = ink;
+    c.font = 'italic bold 30px Georgia, serif';
+    c.textAlign = side === 'left' ? 'right' : 'left';
+    c.fillText(sc.unit, x0 + dir * 58, Y0 - 54);
+    // красная зона перегрузки внизу активной шкалы
+    if (isActive) {
+      c.beginPath(); c.moveTo(x0, yAt(0.9)); c.lineTo(x0, yAt(1));
+      c.strokeStyle = '#d8232a'; c.lineWidth = 7; c.stroke();
+    }
+  };
+
+  if (spec.active === 'top') { scale(spec.bottom, 'right', false); scale(spec.top, 'left', true); }
+  else { scale(spec.top, 'left', false); scale(spec.bottom, 'right', true); }
+
+  // маркировка прибора
+  c.fillStyle = '#3a3d46'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.font = 'bold 26px Georgia, serif';
+  c.fillText('ДПН', CVW / 2, CVH - 52);
+  return cv;
+}
+
+/* ================== three.js сцена ================== */
+const host = $('gauge3d');
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, host.clientWidth / host.clientHeight, 0.1, 100);
+camera.position.set(0.4, -0.1, 4.6);
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(host.clientWidth, host.clientHeight);
+host.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+const d1 = new THREE.DirectionalLight(0xffffff, 0.7); d1.position.set(2.5, 3.5, 4); scene.add(d1);
+const d2 = new THREE.DirectionalLight(0x99aaff, 0.3); d2.position.set(-3, -1.5, 2); scene.add(d2);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.enablePan = false;
+controls.minDistance = 2.5; controls.maxDistance = 8;
+controls.minPolarAngle = 0.25; controls.maxPolarAngle = Math.PI - 0.25;
+controls.target.set(0, -0.15, 0);
+
+const device = new THREE.Group(); scene.add(device);
+
+// планка со шкалой
+const PW = 1.05, PH = 2.2, PD = 0.16;
+const plank = new THREE.Mesh(
+  new THREE.BoxGeometry(PW, PH, PD),
+  new THREE.MeshStandardMaterial({ color: 0xb9b4a4, roughness: 0.6, metalness: 0.1 })
+);
+plank.userData.part = 'scale'; device.add(plank);
+
+const faceMat = new THREE.MeshBasicMaterial();
+const face = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 2.0), faceMat);
+face.position.set(0, 0, PD / 2 + 0.002); face.userData.part = 'scale'; device.add(face);
+
+// мировые координаты шкалы (текстура 512×1024 → плоскость 1.0×2.0: 512 px = 1.0)
+const PX = 512;                          // px на世 юнит
+const Y0w = 1.0 - Y0 / PX;               // мировая y нуля шкалы ≈ 0.781
+const Sw = SPAN / PX;                    // мировая длина шкалы ≈ 1.562
+
+// верхнее кольцо
+const ring = new THREE.Mesh(
+  new THREE.TorusGeometry(0.13, 0.028, 14, 32),
+  new THREE.MeshStandardMaterial({ color: 0x666b78, roughness: 0.35, metalness: 0.8 })
+);
+ring.position.set(0, PH / 2 + 0.14, 0); ring.userData.part = 'ring'; device.add(ring);
+
+// пружина: спираль высотой 1 (от 0 вниз), растягиваем scale.y
+const SPRING_TOP = PH / 2 - 0.06;        // где пружина закреплена
+function springGeometry() {
+  const pts = [];
+  const coils = 12, seg = 16;
+  for (let i = 0; i <= coils * seg; i++) {
+    const t = i / (coils * seg);
+    const a = t * coils * Math.PI * 2;
+    pts.push(new THREE.Vector3(Math.cos(a) * 0.055, -t, Math.sin(a) * 0.055));
+  }
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), coils * seg, 0.014, 8, false);
+}
+const spring = new THREE.Mesh(
+  springGeometry(),
+  new THREE.MeshStandardMaterial({ color: 0x8a8f9c, roughness: 0.35, metalness: 0.85 })
+);
+spring.position.set(0, SPRING_TOP, PD / 2 + 0.09);
+spring.userData.part = 'spring'; device.add(spring);
+
+// подвижный блок: указатель + стержень + крючок + грузики
+const plunger = new THREE.Group(); device.add(plunger);
+plunger.position.set(0, Y0w, PD / 2 + 0.09);
+
+const pointerMat = new THREE.MeshStandardMaterial({ color: 0xd8232a, roughness: 0.4 });
+const pointer = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.022, 0.02), pointerMat);
+pointer.position.set(0, 0, -0.045); pointer.userData.part = 'pointer'; plunger.add(pointer);
+const pointerTip = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.07, 4), pointerMat);
+pointerTip.rotation.z = Math.PI / 2; pointerTip.position.set(-0.12, 0, -0.045);
+pointerTip.userData.part = 'pointer'; plunger.add(pointerTip);
+
+const rod = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.02, 0.02, 0.4, 12),
+  new THREE.MeshStandardMaterial({ color: 0x666b78, roughness: 0.3, metalness: 0.8 })
+);
+rod.position.set(0, -0.2, 0); rod.userData.part = 'hook'; plunger.add(rod);
+
+const hook = new THREE.Mesh(
+  new THREE.TorusGeometry(0.075, 0.02, 12, 24, Math.PI * 1.45),
+  new THREE.MeshStandardMaterial({ color: 0x666b78, roughness: 0.3, metalness: 0.8 })
+);
+hook.rotation.z = Math.PI * 0.78; hook.position.set(0, -0.47, 0);
+hook.userData.part = 'hook'; plunger.add(hook);
+
+// грузики (по 50 г, до 10 шт.)
+const weightMat = new THREE.MeshStandardMaterial({ color: 0x4a4e5a, roughness: 0.35, metalness: 0.7 });
+const weights = [];
+for (let i = 0; i < 10; i++) {
+  const w = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.075, 24), weightMat);
+  w.position.set(0, -0.60 - i * 0.082, 0); w.visible = false;
+  w.userData.part = 'hook'; plunger.add(w); weights.push(w);
+}
+
+device.rotation.y = -0.35; device.rotation.x = 0.06;
+
+let maxAniso = renderer.capabilities.getMaxAnisotropy();
+function applyDial(spec) {
+  const tex = new THREE.CanvasTexture(drawDial(spec));
+  tex.anisotropy = maxAniso; tex.colorSpace = THREE.SRGBColorSpace;
+  const old = faceMat.map;
+  faceMat.map = tex; faceMat.needsUpdate = true;
+  if (old) old.dispose();
+  CURRENT_SPEC = spec;
+}
+applyDial(CURRENT_SPEC);
+
+/* ---- клики по деталям ---- */
+const clickable = [face, plank, spring, pointer, pointerTip, rod, hook, ring, ...weights];
+const glowable = { spring: [spring], pointer: [pointer, pointerTip], hook: [rod, hook], ring: [ring] };
+const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
+let downXY = null;
+renderer.domElement.addEventListener('pointerdown', e => { downXY = [e.clientX, e.clientY]; hideHint(); });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!downXY) return;
+  const moved = Math.hypot(e.clientX - downXY[0], e.clientY - downXY[1]); downXY = null;
+  if (moved > 6 || mode !== 'study') return;
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+  ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects(clickable, true)[0];
+  if (hit && hit.object.userData.part) selectPart(hit.object.userData.part);
+});
+let hintHidden = false;
+function hideHint() { if (!hintHidden) { hintHidden = true; $('dragHint').style.opacity = '0'; } }
+setTimeout(hideHint, 6000);
+
+/* ================== детали прибора ================== */
+const PART_INFO = {
+  scale:   { t: '📐 Шкала (их две!)', d: 'Левая — в ньютонах (Н), цена деления 0,1 Н. Правая — в граммах (г), цена 20 г. Любое измерение начинаем с цены деления: разность соседних чисел делим на число делений между ними.' },
+  spring:  { t: '🌀 Пружина', d: 'Сердце прибора. По закону Гука растяжение пружины прямо пропорционально силе: тянешь вдвое сильнее — растягивается вдвое больше.' },
+  pointer: { t: '🔻 Указатель', d: 'Красный указатель закреплён на пружине и движется вдоль шкалы. Перед измерением он должен стоять ровно на нуле.' },
+  hook:    { t: '🪝 Крючок со стержнем', d: 'Сюда подвешивают груз или цепляют то, что тянут. Стержень передаёт силу пружине.' },
+  ring:    { t: '⭕ Кольцо', d: 'За кольцо прибор держат рукой или подвешивают на штатив. Сила измеряется между кольцом и крючком.' },
+};
+const partsGrid = $('partsGrid');
+for (const key of Object.keys(PART_INFO)) {
+  const el = document.createElement('div');
+  el.className = 'part'; el.dataset.key = key;
+  el.innerHTML = `<h3>${PART_INFO[key].t}</h3><p>${PART_INFO[key].d}</p>`;
+  el.addEventListener('click', () => selectPart(key));
+  partsGrid.appendChild(el);
+}
+let glowTimer = null;
+function selectPart(key) {
+  document.querySelectorAll('.part').forEach(p => p.classList.toggle('sel', p.dataset.key === key));
+  for (const arr of Object.values(glowable)) arr.forEach(m => m.material.emissive && m.material.emissive.setHex(0));
+  (glowable[key] || []).forEach(m => m.material.emissive && m.material.emissive.setHex(0xff9500));
+  clearTimeout(glowTimer);
+  glowTimer = setTimeout(() => {
+    for (const arr of Object.values(glowable)) arr.forEach(m => m.material.emissive && m.material.emissive.setHex(0));
+  }, 2500);
+  const card = document.querySelector(`.part[data-key="${key}"]`);
+  if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* ================== показания ================== */
+function setNeedle(value, max) {
+  overload = value > max * 1.02;
+  targetFrac = Math.min(value / max, 1.05);
+}
+function forceN() { return massG / 1000 * g; }   // сила тяжести грузов, Н
+
+function updateStudy() {
+  $('mLbl').textContent = massG;
+  const F = forceN();
+  const act = CURRENT_SPEC[CURRENT_SPEC.active];
+  // показание: Н — сила; г — «граммовая» шкала, калиброванная под Землю (g=10)
+  const shown = range === 'N' ? F : F * 100;
+  setNeedle(shown, act.max);
+  const over = shown > act.max * 1.02;
+  $('overWarn').hidden = !over;
+  $('moonNote').hidden = g === 10;
+  const rb = $('readingBox');
+  rb.classList.toggle('over', over);
+  $('readVal').textContent = over ? '💥 перегруз!' : fmt(Math.round(shown * 100) / 100);
+  $('readUnit').textContent = act.unit;
+  $('lawCalc').innerHTML =
+    `F = ${fmt(massG / 1000)} кг × ${fmt(g)} Н/кг = <b>${fmt(Math.round(F * 100) / 100)} Н</b>` +
+    (range === 'G' ? `<br>по шкале в граммах: ${fmt(Math.round(F * 100 * 10) / 10)} г ${g !== 10 ? '⚠️ (а настоящая масса — ' + massG + ' г!)' : ''}` : '');
+  const pT = DEFAULT_SPEC.top, pB = DEFAULT_SPEC.bottom;
+  $('priceChip').innerHTML = `📏 Цена деления: левая шкала ${fmt(pT.numStep / pT.minor)} Н · правая ${fmt(pB.numStep / pB.minor)} г`;
+  // грузики (по 50 г)
+  const n = Math.round(massG / 50);
+  weights.forEach((w, i) => w.visible = i < n);
+}
+
+/* ================== задания ================== */
+function uniqueOpts(correct, cands) {
+  const arr = [correct];
+  for (const c of cands) {
+    if (arr.length >= 4) break;
+    const v = Math.round(c * 1000) / 1000;
+    if (v > 0 && !arr.some(x => Math.abs(x - v) < 1e-9)) arr.push(v);
+  }
+  let f = 2;
+  while (arr.length < 4) {
+    const v = Math.round(correct * f * 1000) / 1000;
+    if (!arr.some(x => Math.abs(x - v) < 1e-9)) arr.push(v);
+    f += 1.5;
+  }
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return { list: arr, correct: arr.findIndex(x => Math.abs(x - correct) < 1e-9) };
+}
+
+function genTask(kind) {
+  const side = Math.random() < 0.5 ? 'top' : 'bottom';
+  const sc = { ...pick(side === 'top' ? A_POOL : MA_POOL) };
+  const spec = JSON.parse(JSON.stringify(DEFAULT_SPEC));
+  spec[side] = sc; spec.active = side;
+  const price = sc.numStep / sc.minor;
+  const [sideGen, sideDat] = SIDE_NAME[side];
+  applyDial(spec);
+
+  if (kind === 'division') {
+    setNeedle(0, sc.max);
+    const o = uniqueOpts(price, [sc.numStep, price * 2, price / 2, price * 5, price * 10]);
+    return {
+      q: `📏 Определи цену деления <u>${sideGen}</u> (${sc.unit})`,
+      opts: o.list, correct: o.correct, unit: sc.unit,
+      expl: `Берём два соседних числа шкалы (например, 0 и ${fmt(sc.numStep)}) и считаем деления между ними — их ${sc.minor}. Цена деления = ${fmt(sc.numStep)} ÷ ${sc.minor} = <b>${fmt(price)} ${sc.unit}</b>.`
+    };
+  } else {
+    const N = Math.round(sc.max / sc.numStep) * sc.minor;
+    const k = 2 + Math.floor(Math.random() * (N - 3));
+    const value = Math.round(k * price * 1000) / 1000;
+    setNeedle(value, sc.max);
+    const o = uniqueOpts(value, [value + price, value - price, value + 2 * price, value - 2 * price, value + sc.numStep].filter(c => c > 0 && c <= sc.max));
+    return {
+      q: `🎯 Что показывает динамометр по <u>${sideDat}</u> (${sc.unit})?`,
+      opts: o.list, correct: o.correct, unit: sc.unit,
+      expl: `Цена деления ${sideGen} — ${fmt(price)} ${sc.unit}. Указатель стоит на ${k}-м делении: ${k} × ${fmt(price)} = <b>${fmt(value)} ${sc.unit}</b>.`
+    };
+  }
+}
+
+function startTasks(kind) {
+  task = { kind, round: 1, stars: 0, firstTry: true, locked: false };
+  $('result').hidden = true; $('taskBody').style.display = '';
+  nextTask(true);
+}
+function nextTask(first) {
+  if (!first) task.round++;
+  if (task.round > ROUNDS) return showResult();
+  task.firstTry = true; task.locked = false;
+  const t = genTask(task.kind);
+  Object.assign(task, t);
+  $('roundLbl').textContent = `Задание ${task.round} из ${ROUNDS}`;
+  $('starsLbl').textContent = '⭐'.repeat(task.stars) + '☆'.repeat(Math.max(0, task.round - 1 - task.stars));
+  $('dots').innerHTML = Array.from({ length: ROUNDS }, (_, i) =>
+    `<div class="dot ${i < task.round - 1 ? 'done' : i === task.round - 1 ? 'cur' : ''}"></div>`).join('');
+  $('qText').innerHTML = t.q;
+  $('expl').hidden = true; $('nextBtn').hidden = true;
+  const box = $('opts'); box.innerHTML = '';
+  t.opts.forEach((v, i) => {
+    const b = document.createElement('button');
+    b.className = 'opt'; b.textContent = `${fmt(v)} ${t.unit}`;
+    b.addEventListener('click', () => answer(i, b));
+    box.appendChild(b);
+  });
+}
+function answer(i, btn) {
+  if (task.locked) return;
+  if (i === task.correct) {
+    task.locked = true;
+    btn.classList.add('right');
+    document.querySelectorAll('.opt').forEach(b => b.disabled = true);
+    if (task.firstTry) { task.stars++; confetti(); }
+    sndOk();
+    $('starsLbl').textContent = '⭐'.repeat(task.stars) + '☆'.repeat(Math.max(0, task.round - task.stars));
+    $('expl').innerHTML = '✅ ' + task.expl; $('expl').hidden = false;
+    $('nextBtn').hidden = false;
+    $('nextBtn').textContent = task.round === ROUNDS ? 'К результату 🏁' : 'Дальше →';
+  } else {
+    task.firstTry = false;
+    btn.classList.add('wrong'); btn.disabled = true;
+    sndNo();
+  }
+}
+function showResult() {
+  $('taskBody').style.display = 'none';
+  $('result').hidden = false;
+  const s = task.stars;
+  const map = s === 5 ? ['🏆', 'Идеально!', 'Все 5 заданий с первой попытки. Ты настоящий физик!']
+    : s === 4 ? ['🌟', 'Отлично!', 'Почти максимум — ещё чуть-чуть и будет 5 из 5.']
+    : s === 3 ? ['👍', 'Хорошо!', 'База есть! Потренируйся ещё разок — и звёзд станет больше.']
+    : ['💪', 'Неплохо для начала!', 'Вспомни правило: цена деления = разность соседних чисел ÷ число делений между ними. И попробуй ещё раз!'];
+  $('resEmoji').textContent = map[0];
+  $('resTitle').textContent = map[1];
+  $('resText').textContent = `${s} ⭐ из ${ROUNDS}. ${map[2]}`;
+  if (s >= 4) confetti();
+}
+function confetti() {
+  const hostEl = $('panelTask');
+  const E = ['🎉', '⭐', '✨', '🟡', '💛'];
+  for (let i = 0; i < 26; i++) {
+    const s = document.createElement('span');
+    s.className = 'cf'; s.textContent = E[i % E.length];
+    const a = Math.random() * 2 * Math.PI, d = 70 + Math.random() * 150;
+    s.style.setProperty('--dx', Math.cos(a) * d + 'px');
+    s.style.setProperty('--dy', (Math.sin(a) * d - 110) + 'px');
+    s.style.setProperty('--rt', (Math.random() * 720 - 360) + 'deg');
+    s.style.animationDelay = (Math.random() * 0.12) + 's';
+    hostEl.appendChild(s);
+    setTimeout(() => s.remove(), 1400);
+  }
+}
+
+/* ================== режимы ================== */
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.mode === m));
+  $('panelStudy').hidden = m !== 'study';
+  $('panelTask').hidden = !(m === 'division' || m === 'reading');
+  $('panelAbout').hidden = m !== 'about';
+  $('priceChip').style.display = m === 'study' ? '' : 'none';
+  if (m === 'study' || m === 'about') {
+    const spec = JSON.parse(JSON.stringify(DEFAULT_SPEC));
+    spec.active = range === 'N' ? 'top' : 'bottom';
+    applyDial(spec);
+    updateStudy();
+  } else {
+    $('readVal').textContent = '?'; $('readUnit').textContent = '';
+    $('readingBox').classList.remove('over');
+    weights.forEach(w => w.visible = false);
+    startTasks(m);
+  }
+}
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setMode(t.dataset.mode)));
+$('nextBtn').addEventListener('click', () => nextTask(false));
+$('againBtn').addEventListener('click', () => startTasks(task.kind));
+
+/* ================== управление (изучение) ================== */
+$('mSlider').addEventListener('input', e => { massG = +e.target.value; updateStudy(); });
+function setPlanet(pg) {
+  g = pg;
+  $('plEarth').classList.toggle('active', g === 10);
+  $('plMoon').classList.toggle('active', g !== 10);
+  updateStudy();
+}
+$('plEarth').addEventListener('click', () => setPlanet(10));
+$('plMoon').addEventListener('click', () => setPlanet(1.6));
+function setRange(r) {
+  range = r;
+  $('rangeN').classList.toggle('active', r === 'N');
+  $('rangeG').classList.toggle('active', r === 'G');
+  const spec = JSON.parse(JSON.stringify(DEFAULT_SPEC));
+  spec.active = r === 'N' ? 'top' : 'bottom';
+  applyDial(spec);
+  updateStudy();
+}
+$('rangeN').addEventListener('click', () => setRange('N'));
+$('rangeG').addEventListener('click', () => setRange('G'));
+
+$('shareBtn').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(location.href);
+    const t = $('toast'); t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 1800);
+  } catch (e) {}
+});
+
+/* ================== цикл ================== */
+function resize() {
+  const w = host.clientWidth, h = host.clientHeight;
+  renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+
+/* Встроенный режим: превью в шапке (автоповорот) ИЛИ «Показать прибор» (панель настроек) */
+(function embedFlow(){
+  const P = new URLSearchParams(location.search);
+  if (P.get('embed') !== '1') return;
+  document.body.classList.add('embed');
+  const fit = () => resize();
+  setTimeout(fit, 60);
+  requestAnimationFrame(() => requestAnimationFrame(fit));
+  new ResizeObserver(fit).observe(host);
+
+  const panelMode = P.get('panel') === '1';
+  if (!panelMode) { controls.autoRotate = true; controls.autoRotateSpeed = 1.6; controls.enablePan = false; }
+
+  if (P.get('back')) {
+    const c = document.createElement('button');
+    c.className = 'embed-close'; c.setAttribute('aria-label', 'Закрыть'); c.textContent = '✕';
+    c.onclick = () => { if (history.length > 1) history.back(); else location.href = '../demo/'; };
+    document.body.appendChild(c);
+  }
+
+  if (panelMode) {
+    document.body.classList.add('has-panel');
+    const panel = document.createElement('aside');
+    panel.className = 'em-panel';
+    panel.innerHTML = `
+      <div><h2>Настройте прибор</h2><p class="em-hint">Вешайте грузики — пружина растянется, а указатель покажет силу.</p></div>
+      <div class="em-ctrl"><div class="em-ctrl__head"><span>Грузики на крючке (по 50 г)</span><b><span id="emMLbl">300</span> г</b></div>
+        <input type="range" id="emM" min="0" max="500" step="50" value="300"></div>
+      <div class="em-range"><span class="em-range__label">Где измеряем</span>
+        <button class="em-range__btn on" data-p="earth">🌍 Земля</button>
+        <button class="em-range__btn" data-p="moon">🌙 Луна</button></div>
+      <div class="em-range"><span class="em-range__label">Шкала прибора</span>
+        <button class="em-range__btn on" data-s="N">Ньютоны</button>
+        <button class="em-range__btn" data-s="G">Граммы</button></div>
+      <div class="em-readout"><div class="em-readout__lbl">Показание прибора</div>
+        <div class="em-readout__val"><span id="emReadVal">—</span></div></div>`;
+    document.querySelector('main').appendChild(panel);
+    const fire = (id, val) => { const n = $(id); if (!n) return; n.value = val; n.dispatchEvent(new Event('input', { bubbles: true })); };
+    const readout = () => {
+      const rv = ($('readVal') && $('readVal').textContent) || '';
+      const ru = ($('readUnit') && $('readUnit').textContent) || '';
+      const el = document.getElementById('emReadVal');
+      if (el) el.textContent = rv + (ru ? (' ' + ru) : '');
+    };
+
+    $('emM').addEventListener('input', e => { document.getElementById('emMLbl').textContent = e.target.value; fire('mSlider', e.target.value); readout(); });
+    panel.querySelectorAll('.em-range').forEach(group => group.querySelectorAll('.em-range__btn').forEach(btn => btn.addEventListener('click', () => {
+      group.querySelectorAll('.em-range__btn').forEach(b => b.classList.remove('on')); btn.classList.add('on');
+      if (btn.dataset.p === 'earth' && $('plEarth')) $('plEarth').click();
+      if (btn.dataset.p === 'moon'  && $('plMoon'))  $('plMoon').click();
+      if (btn.dataset.s === 'N' && $('rangeN')) $('rangeN').click();
+      if (btn.dataset.s === 'G' && $('rangeG')) $('rangeG').click();
+      readout();
+    })));
+    setTimeout(readout, 140);
+    requestAnimationFrame(() => { resize(); requestAnimationFrame(resize); });
+  }
+})();
+
+const clock = new THREE.Clock();
+let introT = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (introT < 1.2) {
+    introT += dt;
+    const k = Math.min(introT / 1.2, 1), e = 1 - Math.pow(1 - k, 3);
+    device.rotation.y = -1.0 + (-0.35 + 1.0) * e;
+  }
+  curFrac += (targetFrac - curFrac) * 0.1;
+  const jitter = overload ? Math.sin(performance.now() / 28) * 0.004 : 0;
+  const py = Y0w - (curFrac + jitter) * Sw;
+  plunger.position.y = py;
+  // пружина: от точки крепления до указателя
+  const len = Math.max(SPRING_TOP - py - 0.02, 0.12);
+  spring.scale.y = len;
+  controls.update();
+  renderer.render(scene, camera);
+}
+updateStudy();
+animate();
+</script>
+</body>
+</html>

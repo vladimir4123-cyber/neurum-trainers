@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Цена деления · Динамометр</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📏</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .dyno-panel{
+    width: max-content; max-width: 100%;
+    margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 18px 34px;
+  }
+  .dyno-panel svg{ height: 420px; width: auto; display: block; }
+  .zoom-panel{
+    width: 100%; max-width: 500px; margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 18px 22px;
+  }
+  .zoom-panel svg{ width: 100%; height: auto; display: block; }
+  .count-line{ margin-top: 16px; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '/assets/lesson/lesson-engine.js?v=4';
+import { dynoSVG, fmt } from '../dyno-parts.js';
+
+const SPEC5 = { max: 5, numStep: 1, minor: 5 };  // цена 0,2 Н
+const SPEC4 = { max: 4, numStep: 1, minor: 2 };  // цена 0,5 Н
+
+/* =================== ШАГИ ТЕМЫ =================== */
+const STEPS = [
+  /* ---------- ТЕОРИЯ ---------- */
+  {
+    type: 'intro', phase: 'theory', visual: 'dynoScale',
+    title: 'Шкала и предел измерения',
+    text: 'Шкала — это линейка прибора. Самое большое её число — <b>предел измерения</b>: сильнее тянуть нельзя, пружина перетянется и испортится. У этого динамометра предел — <b>5 Н</b>.',
+  },
+  {
+    type: 'reveal', phase: 'theory', visual: 'priceZoom',
+    title: 'Сколько стоит один шаг стрелки',
+    text: 'Между числами 1 и 2 — пять делений. Значит, один шаг указателя стоит (2 − 1) : 5 = <b>0,2 Н</b>. Это и есть <b>цена деления</b>: разность соседних чисел дели на число делений между ними.',
+  },
+  {
+    type: 'interact', phase: 'theory', visual: 'countScale',
+    title: 'Шагаем по делениям',
+    text: 'У этой шкалы предел 4 Н, между числами 2 деления — цена деления <b>0,5 Н</b>. Двигай указатель и следи за счётом.',
+    check: 'count',
+  },
+
+  /* ---------- SPLASH ---------- */
+  {
+    type: 'splash', phase: 'transition',
+    title: 'Проверь себя!',
+    text: 'Формула простая — проверим, как она работает на новых шкалах.',
+  },
+
+  /* ---------- ПРАКТИКА ---------- */
+  {
+    type: 'question', phase: 'practice',
+    title: 'Числа идут через 1 Н, между ними 5 делений',
+    text: 'Какова цена деления такой шкалы?',
+    options: [
+      { id: 'a', text: '0,2 Н', correct: true },
+      { id: 'b', text: '0,5 Н', correct: false },
+      { id: 'c', text: '5 Н',   correct: false },
+      { id: 'd', text: '1 Н',   correct: false },
+    ],
+    right: 'Верно! 1 Н делим на 5 делений — по 0,2 Н на шаг.',
+    wrong: 'Считаем по формуле: разность соседних чисел (1 Н) делим на 5 делений — получается 0,2 Н.',
+  },
+  {
+    type: 'question', phase: 'practice',
+    title: 'Груз тяжелее предела измерения',
+    text: 'Что будет, если его всё-таки подвесить на динамометр?',
+    options: [
+      { id: 'a', text: 'Пружина перетянется, и прибор начнёт врать', correct: true },
+      { id: 'b', text: 'Ничего — прибор сам остановится',            correct: false },
+      { id: 'c', text: 'Показание просто обнулится',                 correct: false },
+      { id: 'd', text: 'Пружина станет точнее',                      correct: false },
+    ],
+    right: 'Именно! Перетянутая пружина не вернётся к прежней длине — все показания «уедут».',
+    wrong: 'Увы, защиты внутри нет: пружина перетянется навсегда, и прибор начнёт врать. Поэтому предел не превышают.',
+  },
+];
+
+/* =================== ВИЗУАЛЫ ТЕМЫ =================== */
+const visuals = {
+  dynoScale() {
+    return `<div class="dyno-panel">${dynoSVG({ spec: SPEC5, value: 0, h: 600 })}</div>`;
+  },
+  priceZoom() {
+    /* горизонтальный фрагмент шкалы: числа 1 и 2, пять делений */
+    const ticks = [60, 124, 188, 252, 316, 380];
+    return `
+      <div class="zoom-panel">
+        <svg viewBox="0 0 440 176" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="28" width="420" height="58" rx="12" fill="#FDFCF7" stroke="#C9CEDA" stroke-width="2.5"/>
+          <g stroke="#2B2B33">
+            ${ticks.map((x, i) => `<line x1="${x}" y1="38" x2="${x}" y2="${i === 0 || i === 5 ? 76 : 60}" stroke-width="${i === 0 || i === 5 ? 3 : 2}"/>`).join('')}
+          </g>
+          <text x="60" y="112" text-anchor="middle" font-family="var(--font-display)" font-weight="500" font-size="24" fill="#2B2B33">1</text>
+          <text x="380" y="112" text-anchor="middle" font-family="var(--font-display)" font-weight="500" font-size="24" fill="#2B2B33">2</text>
+          <circle cy="33" r="5" fill="#6240FF">
+            <animate attributeName="cx" values="60;124;188;252;316;380" calcMode="discrete" dur="3.6s" repeatCount="indefinite"/>
+          </circle>
+          <path d="M60 126 Q60 138 80 138 L200 138 Q220 138 220 150 Q220 138 240 138 L360 138 Q380 138 380 126"
+                fill="none" stroke="#8B6FFF" stroke-width="2.5" stroke-linecap="round"/>
+          <text x="220" y="172" text-anchor="middle" font-family="var(--font-sans)" font-weight="500" font-size="18" fill="#6240FF">(2 − 1) : 5 = 0,2 Н</text>
+        </svg>
+      </div>`;
+  },
+  countScale() {
+    return `
+      <div class="dyno-panel" id="dynoHost">${dynoSVG({ spec: SPEC4, value: 0, h: 600 })}</div>
+      <p class="count-readout count-line"><b id="cntK">0</b> делений × 0,5 Н = <span id="cntDiv">0 Н</span></p>
+      <div class="big-slider">
+        <input type="range" id="kSlider" min="0" max="8" step="1" value="0" class="big-slider__input">
+        <div class="big-slider__hint">Двигай указатель по делениям</div>
+      </div>`;
+  },
+};
+
+/* =================== ЗАПУСК =================== */
+runLesson({
+  lessonId: 'price',
+  storageKey: 'dynamometer-progress',
+  homeHref: '../demo/',
+  nextHref: '../lesson-reading/',
+  steps: STEPS,
+  visuals,
+  onInteract(step, ctx) {
+    if (step.check === 'count') {
+      const host = document.getElementById('dynoHost');
+      const slider = document.getElementById('kSlider');
+      const cntK = document.getElementById('cntK');
+      const cntDiv = document.getElementById('cntDiv');
+      let moved = false;
+      slider.addEventListener('input', () => {
+        const k = +slider.value;
+        const F = k * 0.5;
+        host.innerHTML = dynoSVG({ spec: SPEC4, value: F, h: 600 });
+        cntK.textContent = k;
+        cntDiv.textContent = fmt(F) + ' Н';
+        if (!moved && k > 0) { moved = true; ctx.done(); }
+      });
+    }
+  },
+});
+</script>
+
+</body>
+</html>

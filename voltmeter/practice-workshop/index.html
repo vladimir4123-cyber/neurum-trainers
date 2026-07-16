@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Мастерская: проверь прибор · Практика</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="/assets/lesson/practice.css?v=4">
+<style>
+  /* пульсация щупов-целей */
+  .term-ring{ transform-box: fill-box; transform-origin: center;
+    animation: ringPulse 1.6s ease-in-out infinite; pointer-events: none; }
+  @keyframes ringPulse{ 0%,100%{ opacity:.9; transform:scale(1);} 50%{ opacity:.35; transform:scale(1.18);} }
+  .term{ cursor: pointer; }
+
+  /* паспорт прибора (карточка на шаге расчёта) */
+  .passport{
+    display: flex; flex-direction: column; gap: 14px; align-items: center;
+    width: 100%; max-width: 460px; margin: 0 auto;
+    padding: 22px; border-radius: var(--radius-2xl);
+    background: var(--white); border: 1px solid var(--purple-4);
+    box-shadow: 0 4px 16px rgba(0,0,0,.05);
+  }
+  .passport__head{ display: flex; align-items: center; gap: 12px; }
+  .passport__head svg{ width: 52px; height: 52px; }
+  .passport__name{ font-family: var(--font-display); font-weight: 500; font-size: 22px; color: var(--fg-1); }
+  .passport__rows{ display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .prow{
+    padding: 10px 16px; border-radius: 9999px; background: var(--purple-4);
+    font-size: 17px; color: var(--fg-2); font-variant-numeric: tabular-nums;
+  }
+  .prow b{ color: var(--fg-1); font-weight: 500; }
+  .formula{
+    font-family: var(--font-display); font-size: 24px; color: var(--fg-1);
+    letter-spacing: .01em; font-variant-numeric: tabular-nums;
+  }
+  .formula .q{ color: var(--purple-1); }
+  .formula .sub{ font-size: .62em; vertical-align: sub; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
+</div>
+
+<main id="stage"></main>
+<div class="bottom" id="bottom"></div>
+
+<script type="module">
+import { runPractice } from '/assets/lesson/practice-engine.js?v=4';
+
+/* ============================================================
+   ПРАКТИКА «Мастерская: проверь прибор».
+   По задачам Пёрышкина §41 (закон Ома на приборах, 1010–1033).
+   Ученик: подключает вольтметр → снимает напряжение со шкалы →
+   вычисляет силу тока I = U/R по паспорту → выносит вердикт.
+   Каждый заход — другой прибор, другие числа, другой расчёт:
+   рефлекс не поможет, надо считать заново.
+   ============================================================ */
+
+const fmt = v => String(Math.round(v * 100) / 100).replace('.', ',');
+
+/* ---------- вольтметр: круговая шкала 0–6 В ---------- */
+const GX = 300, GY = 250, GR = 150;      // центр и радиус циферблата
+const START = -120, END = 120;           // градусы от вертикали
+const MAXV = 6;
+const rad = d => d * Math.PI / 180;
+const ang = v => START + (END - START) * (v / MAXV);
+const ptAt = (a, r) => [GX + r * Math.sin(rad(a)), GY - r * Math.cos(rad(a))];
+
+function gaugeSVG(value) {
+  let ticks = '';
+  for (let i = 0; i <= 12; i++) {           // деления через 0,5 В
+    const v = i * 0.5, a = ang(v), major = i % 2 === 0;
+    const [x1, y1] = ptAt(a, GR - 8);
+    const [x2, y2] = ptAt(a, GR - (major ? 30 : 18));
+    ticks += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#C9CEDA" stroke-width="${major ? 3 : 2}"/>`;
+    if (major) {
+      const [tx, ty] = ptAt(a, GR - 52);
+      ticks += `<text x="${tx.toFixed(1)}" y="${(ty + 8).toFixed(1)}" text-anchor="middle" font-family="var(--font-display)" font-weight="500" font-size="24" fill="#2B2B33">${v}</text>`;
+    }
+  }
+  const [nx, ny] = ptAt(ang(Math.min(value, MAXV)), GR - 40);
+  return `
+    <g>
+      <path d="M ${ptAt(START, GR - 8)[0].toFixed(1)} ${ptAt(START, GR - 8)[1].toFixed(1)}
+               A ${GR - 8} ${GR - 8} 0 1 1 ${ptAt(END, GR - 8)[0].toFixed(1)} ${ptAt(END, GR - 8)[1].toFixed(1)}"
+            fill="none" stroke="#EDEFF5" stroke-width="4"/>
+      ${ticks}
+      <text x="${GX}" y="${GY - 8}" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-weight="700" font-size="34" fill="#6240FF">V</text>
+      <text x="${GX}" y="${GY + 60}" text-anchor="middle" font-family="var(--font-sans)" font-size="16" fill="#8A8F9C">вольтметр</text>
+      <line x1="${GX}" y1="${GY + 30}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="#E5484D" stroke-width="4.5" stroke-linecap="round"/>
+      <circle cx="${GX}" cy="${GY + 30}" r="10" fill="#2B2B33"/>
+    </g>`;
+}
+
+/* ---------- глифы приборов ---------- */
+const GLYPHS = {
+  lamp: `<g transform="translate(0,4)">
+      <path d="M0 -34 A34 34 0 1 1 0 34 A34 34 0 0 1 0 -34" fill="#FFF6D6" stroke="#E7B10A" stroke-width="3" transform="translate(0,-6) scale(.8)"/>
+      <path d="M-11 24 h22 M-9 32 h18 M-6 40 h12" stroke="#8A8F9C" stroke-width="3" stroke-linecap="round"/>
+      <path d="M-7 6 L-2 -6 L3 6 L8 -6" fill="none" stroke="#E7B10A" stroke-width="3" stroke-linecap="round"/>
+    </g>`,
+  motor: `<g>
+      <rect x="-30" y="-24" width="60" height="48" rx="10" fill="#EEF0FF" stroke="#6240FF" stroke-width="3"/>
+      <circle cx="0" cy="0" r="12" fill="none" stroke="#6240FF" stroke-width="3"/>
+      <line x1="30" y1="0" x2="46" y2="0" stroke="#6240FF" stroke-width="4" stroke-linecap="round"/>
+      <path d="M0 -8 A8 8 0 0 1 8 0" fill="none" stroke="#6240FF" stroke-width="3"/>
+    </g>`,
+  bell: `<g transform="translate(0,-4)">
+      <path d="M-26 26 C-26 -6 -14 -22 0 -22 C14 -22 26 -6 26 26 Z" fill="#EEF0FF" stroke="#6240FF" stroke-width="3"/>
+      <rect x="-30" y="26" width="60" height="7" rx="3" fill="#6240FF"/>
+      <circle cx="0" cy="40" r="6" fill="#6240FF"/>
+      <circle cx="0" cy="-26" r="4" fill="#6240FF"/>
+    </g>`,
+  heater: `<g>
+      <path d="M-40 0 q10 -22 20 0 q10 22 20 0 q10 -22 20 0 q10 22 20 0"
+            fill="none" stroke="#E5484D" stroke-width="5" stroke-linecap="round"/>
+    </g>`,
+};
+
+/* прибор в рамке + вольтметр, соединённые проводами */
+function deviceSceneSVG(devKey, devName, value, withProbes) {
+  const probes = withProbes ? `
+    <circle class="term-ring" cx="120" cy="150" r="16" fill="none" stroke="#6240FF" stroke-width="2.5" stroke-dasharray="4 5"/>
+    <circle class="term" data-t="1" cx="120" cy="150" r="22" fill="transparent"/>
+    <circle class="term-ring" cx="120" cy="250" r="16" fill="none" stroke="#6240FF" stroke-width="2.5" stroke-dasharray="4 5"/>
+    <circle class="term" data-t="2" cx="120" cy="250" r="22" fill="transparent"/>` : `
+    <line x1="120" y1="150" x2="150" y2="150" stroke="#2B2B33" stroke-width="4" stroke-linecap="round"/>
+    <line x1="150" y1="150" x2="150" y2="${GY + 30}" stroke="#E5484D" stroke-width="4"/>
+    <line x1="120" y1="250" x2="150" y2="250" stroke="#2B2B33" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="120" cy="150" r="6" fill="#E5484D"/><circle cx="120" cy="250" r="6" fill="#2B2B33"/>`;
+  return `
+    <svg viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+      <rect x="44" y="120" width="120" height="160" rx="16" fill="#fff" stroke="#E4E7F0" stroke-width="2"/>
+      <g transform="translate(104,192)">${GLYPHS[devKey] || ''}</g>
+      <text x="104" y="266" text-anchor="middle" font-family="var(--font-sans)" font-size="15" fill="#6B7180">${devName}</text>
+      ${probes}
+      ${gaugeSVG(value)}
+    </svg>`;
+}
+
+/* ---------- пул приборов ---------- */
+const DEVICES = [
+  { key: 'lamp',   name: 'Лампочка' },
+  { key: 'motor',  name: 'Моторчик' },
+  { key: 'bell',   name: 'Звонок' },
+  { key: 'heater', name: 'Спираль' },
+];
+
+/* набор (R, I) такой, что U=I·R целое ≤ 6 */
+const COMBOS_EASY   = [[2,1],[3,1],[4,1],[5,1],[6,1],[2,2],[3,2]];
+const COMBOS_MED    = [[2,1.5],[4,0.5],[6,0.5],[2,0.5],[3,1],[4,1],[5,1],[6,1],[2,2]];
+const COMBOS_FINDR  = [[3,2],[2,2],[4,1.5],[2,1.5],[6,1]]; // [R,I] → U=I·R, ищем R
+
+function pick(arr, rnd) { return arr[Math.floor(rnd() * arr.length)]; }
+
+/* ---------- шаги одного прибора ---------- */
+function deviceSteps(dev, R, I, opts) {
+  const U = Math.round(R * I * 100) / 100;
+  const tol = opts.tol;
+  const readHint = U % 1 === 0
+    ? `Цена деления — 0,5 В (маленькие штрихи). Стрелка стоит ровно на подписанном числе <b>${fmt(U)}</b>.`
+    : `Цена деления — 0,5 В. Стрелка между <b>${Math.floor(U)}</b> и <b>${Math.ceil(U)}</b>, ровно на маленьком штрихе посередине.`;
+
+  const steps = [];
+
+  // 1) снять напряжение вольтметром
+  steps.push({
+    type: 'reading',
+    title: `${dev.name}: сними напряжение`,
+    text: 'Вольтметр подключён к прибору. Прочитай, что показывает стрелка на шкале.',
+    render: host => { host.innerHTML = deviceSceneSVG(dev.key, dev.name, U, false); },
+    answer: U, tolerance: tol, unit: 'В',
+    right: `✓ Напряжение на приборе — ${fmt(U)} В.`,
+    hints: [ readHint, `Смотри, на какой штрих легла стрелка: это ${fmt(U)} В.` ],
+  });
+
+  if (opts.findR) {
+    // 2') по паспорту известен ток → найти сопротивление R = U/I
+    steps.push({
+      type: 'reading',
+      title: `${dev.name}: найди сопротивление`,
+      text: 'В паспорте прибора записана сила тока. Вычисли его сопротивление по закону Ома.',
+      render: host => {
+        host.innerHTML = `
+          <div class="passport">
+            <div class="passport__head"><svg viewBox="-46 -46 92 92">${GLYPHS[dev.key]}</svg>
+              <span class="passport__name">${dev.name}</span></div>
+            <div class="passport__rows">
+              <span class="prow">Измерено: <b>U = ${fmt(U)} В</b></span>
+              <span class="prow">Паспорт: <b>I = ${fmt(I)} А</b></span>
+            </div>
+            <div class="formula">R = U / I = ${fmt(U)} / ${fmt(I)} = <span class="q">?</span> Ом</div>
+          </div>`;
+      },
+      answer: R, tolerance: 0.01, unit: 'Ом',
+      right: `✓ Сопротивление прибора — ${fmt(R)} Ом.`,
+      hints: [
+        'Закон Ома: R = U / I. Раздели измеренное напряжение на ток из паспорта.',
+        `${fmt(U)} ÷ ${fmt(I)} = ${fmt(R)} Ом.`,
+      ],
+    });
+  } else {
+    // 2) по паспорту известно R → найти ток I = U/R
+    steps.push({
+      type: 'reading',
+      title: `${dev.name}: вычисли силу тока`,
+      text: 'В паспорте прибора записано сопротивление. Вычисли силу тока по закону Ома.',
+      render: host => {
+        host.innerHTML = `
+          <div class="passport">
+            <div class="passport__head"><svg viewBox="-46 -46 92 92">${GLYPHS[dev.key]}</svg>
+              <span class="passport__name">${dev.name}</span></div>
+            <div class="passport__rows">
+              <span class="prow">Измерено: <b>U = ${fmt(U)} В</b></span>
+              <span class="prow">Паспорт: <b>R = ${fmt(R)} Ом</b></span>
+            </div>
+            <div class="formula">I = U / R = ${fmt(U)} / ${fmt(R)} = <span class="q">?</span> А</div>
+          </div>`;
+      },
+      answer: I, tolerance: 0.01, unit: 'А',
+      right: `✓ Через прибор идёт ток ${fmt(I)} А.`,
+      hints: [
+        'Закон Ома: I = U / R. Раздели измеренное напряжение на сопротивление из паспорта.',
+        `${fmt(U)} ÷ ${fmt(R)} = ${fmt(I)} А.`,
+      ],
+    });
+  }
+
+  return { steps, U, R, I };
+}
+
+/* ---------- сборка миссии ---------- */
+function buildSteps(level, rnd) {
+  const n = level === 'easy' ? 2 : 3;
+  const tol = level === 'hard' ? 0.11 : 0.26;
+  const pool = level === 'easy' ? COMBOS_EASY : COMBOS_MED;
+
+  // выбрать n разных приборов
+  const devs = [...DEVICES].sort(() => rnd() - 0.5).slice(0, n);
+
+  let all = [];
+  let last = null;
+  devs.forEach((dev, i) => {
+    const isLast = i === n - 1;
+    // на сложном последний прибор — «найди сопротивление»
+    const findR = level === 'hard' && isLast;
+    const [R, I] = pick(findR ? COMBOS_FINDR : pool, rnd);
+    const built = deviceSteps(dev, R, I, { tol, findR });
+    all = all.concat(built.steps);
+    if (isLast) last = { dev, ...built };
+  });
+
+  // финальный вердикт по последнему прибору
+  const normaOk = rnd() < 0.5;
+  const norma = normaOk
+    ? Math.round((last.I + (rnd() < 0.5 ? 0.5 : 1)) * 10) / 10
+    : Math.max(0.5, Math.round((last.I - 0.5) * 10) / 10);
+  const overheated = last.I > norma + 1e-9;
+  all.push({
+    type: 'choice',
+    title: `${last.dev.name}: вынеси вердикт`,
+    text: `Ты вычислил, что через «${last.dev.name}» идёт ток <b>${fmt(last.I)} А</b>. В паспорте: прибор рассчитан на ток <b>до ${fmt(norma)} А</b>.`,
+    options: [
+      { text: 'Годен — ток в пределах нормы', correct: !overheated },
+      { text: 'Перегрузка — ток выше нормы, прибор перегреется', correct: overheated },
+    ],
+    right: overheated
+      ? `✓ Верно: ${fmt(last.I)} А больше нормы ${fmt(norma)} А — прибор перегреется.`
+      : `✓ Верно: ${fmt(last.I)} А не превышает ${fmt(norma)} А — прибор годен.`,
+    wrong: overheated
+      ? `Сравни числа: ${fmt(last.I)} А больше ${fmt(norma)} А — это перегрузка.`
+      : `Сравни числа: ${fmt(last.I)} А не больше ${fmt(norma)} А — прибор в норме.`,
+  });
+
+  return all;
+}
+
+/* ---------- запуск ---------- */
+runPractice({
+  practiceId: 'workshop',
+  storageKey: 'voltmeter-progress',
+  homeHref: '../demo/',
+  title: 'Мастерская: проверь прибор',
+  subtitle: 'Ты — мастер в ремонтной мастерской. Приборы на проверке: подключи вольтметр, сними напряжение, вычисли ток по закону Ома и реши, годен прибор или перегрузится.',
+  levels: {
+    easy:   { label: 'Стажёр',   desc: 'Два прибора, целые значения на шкале, подсказки под рукой.', xp: 30 },
+    medium: { label: 'Мастер',   desc: 'Три прибора, значения с половинками, вердикт в конце.',       xp: 50 },
+    hard:   { label: 'Инженер',  desc: 'Три прибора, обратная задача на сопротивление, допуск строже.', xp: 80 },
+  },
+  buildSteps,
+});
+</script>
+
+</body>
+</html>

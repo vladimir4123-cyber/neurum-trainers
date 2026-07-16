@@ -15,7 +15,10 @@
    Требует в DOM: .top(#progressFill,#stepNow,#stepTotal), #stepHost,
    #feedback(#fbIcon,#fbTitle,#fbHint), .bottom(#backBtn,#continueBtn).
    ============================================================ */
-import { mountMascot } from '/assets/mascot/mascot.js';
+// Маскот убран из теории по решению — оставлен только в практиках.
+// Пустышка возвращается вместо mountMascot(), чтобы вызовы .say/.setEmotion
+// в этом файле продолжали работать без ошибок.
+const mountMascot = () => ({ say(){}, setEmotion(){}, hide(){}, el: null });
 
 export function runLesson(cfg) {
   const { lessonId, storageKey, homeHref, nextHref, steps, visuals, onInteract } = cfg;
@@ -79,12 +82,14 @@ export function runLesson(cfg) {
       return;
     }
 
+    // Порядок: заголовок → текст → иллюстрация → (варианты). Кнопки — в нижней панели.
     let html = '<div class="step">';
-    if (step.visual && visuals[step.visual]) {
-      html += `<div class="step-visual">${visuals[step.visual]()}</div>`;
-    }
     html += `<h2 class="step-title">${step.title}</h2>`;
     html += `<p class="step-text">${step.text}</p>`;
+    if (step.visual && visuals[step.visual]) {
+      const sz = step.big ? ' step-visual--big' : '';
+      html += `<div class="step-visual${sz}">${visuals[step.visual]()}</div>`;
+    }
     if (step.type === 'question') {
       html += '<div class="options">';
       step.options.forEach(opt => { html += `<button class="opt-btn" data-id="${opt.id}">${opt.text}</button>`; });
@@ -106,13 +111,13 @@ export function runLesson(cfg) {
         });
       });
     } else if (step.type === 'interact' && onInteract) {
-      // Интерактивный шаг: логику определяет урок. Пока не вызовут ctx.done()
-      // кнопка «Дальше» заблокирована.
-      continueBtn.disabled = true;
+      // Интерактивный шаг: «Дальше» активна ВСЕГДА — ученик волен идти
+      // дальше, даже не потрогав интерактив. ctx.done() оставлен для
+      // совместимости (уроки его вызывают), но ничего не блокирует.
       const ctx = {
         mascot,
         root: stepHost,
-        done() { continueBtn.disabled = false; },
+        done() {},
       };
       onInteract(step, ctx);
     }

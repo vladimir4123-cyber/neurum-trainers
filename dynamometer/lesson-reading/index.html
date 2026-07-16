@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<title>Как снять показания · Динамометр</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<style>
+  .step-visual{ flex-direction: column; }
+  .dyno-panel{
+    width: max-content; max-width: 100%;
+    margin: 0 auto;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(160deg, #F6F3FF, #EEF0FF);
+    padding: 18px 34px;
+  }
+  .dyno-panel svg{ height: 420px; width: auto; display: block; }
+  /* пара приборов для закона Гука */
+  .dyno-pair{ display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; }
+  .dyno-pair figure{ margin: 0; }
+  .dyno-pair .dyno-panel{ padding: 14px 22px; }
+  .dyno-pair .dyno-panel svg{ height: 330px; }
+  .dyno-pair figcaption{
+    margin-top: 10px; font-size: 15px; color: var(--fg-2);
+    text-align: center; font-variant-numeric: tabular-nums;
+  }
+  /* чипы-варианты показания */
+  .chips{ display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+  .chip-btn{
+    padding: 12px 20px; border: 2px solid var(--purple-4); border-radius: var(--radius-md);
+    background: var(--white); color: var(--fg-1); cursor: pointer;
+    font-family: var(--font-sans); font-size: 16px; font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    transition: background-color 120ms var(--ease-standard),
+                border-color 120ms var(--ease-standard),
+                color 120ms var(--ease-standard),
+                transform 120ms var(--ease-standard);
+  }
+  .chip-btn:hover:not(:disabled){ background: var(--purple-3); border-color: var(--purple-1); }
+  .chip-btn:active:not(:disabled){ transform: scale(0.96); }
+  .chip-btn:disabled{ cursor: default; }
+  .chip-btn.is-right{ border-color: var(--green-1); background: var(--green-2); color: var(--green-1); }
+  .chip-btn.is-wrong{ border-color: var(--red-1); background: var(--red-2); color: var(--red-1); }
+  .chip-hint{
+    margin: 12px 0 0; text-align: center;
+    font-size: 15px; color: var(--fg-2); text-wrap: pretty;
+  }
+  .chip-hint b{ color: var(--purple-1); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="close-btn" href="../demo/" aria-label="Закрыть">✕</a>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">1</span></span>
+</div>
+
+<main id="stepHost"></main>
+
+<div class="feedback" id="feedback">
+  <div class="fb-icon" id="fbIcon">✓</div>
+  <div class="fb-body">
+    <p class="fb-title" id="fbTitle"></p>
+    <p class="fb-hint" id="fbHint"></p>
+  </div>
+</div>
+
+<div class="bottom">
+  <button class="btn-back" id="backBtn" hidden>← Назад</button>
+  <button class="btn-continue" id="continueBtn" disabled>Дальше</button>
+</div>
+
+<script type="module">
+import { runLesson } from '/assets/lesson/lesson-engine.js?v=4';
+import { dynoSVG } from '../dyno-parts.js';
+
+const SPEC5 = { max: 5, numStep: 1, minor: 5 };  // цена 0,2 Н
+const SPEC2 = { max: 2, numStep: 1, minor: 5 };  // цена 0,2 Н
+
+/* =================== ШАГИ ТЕМЫ =================== */
+const STEPS = [
+  /* ---------- ТЕОРИЯ ---------- */
+  {
+    type: 'intro', phase: 'theory', visual: 'algoDyno',
+    title: 'Три шага до показания',
+    text: 'Сначала проверь, что без груза указатель стоит <b>на нуле</b>. Потом найди <b>цену деления</b>. А дальше считай: сколько делений прошёл указатель — столько раз возьми цену деления.',
+  },
+  {
+    type: 'interact', phase: 'theory', visual: 'readPick',
+    title: 'Сколько показывает прибор?',
+    text: 'Предел — 2 Н, между числами 5 делений, цена деления <b>0,2 Н</b>. Посчитай деления и выбери показание.',
+    check: 'pick',
+  },
+  {
+    type: 'reveal', phase: 'theory', visual: 'hookePair',
+    title: 'Почему пружине можно верить',
+    text: '<b>Закон Гука</b>: растяжение пружины прямо пропорционально силе. Груз вдвое тяжелее — растяжение вдвое больше. Поэтому деления на шкале одинаковые, и прибор не врёт.',
+  },
+
+  /* ---------- SPLASH ---------- */
+  {
+    type: 'splash', phase: 'transition',
+    title: 'Проверь себя!',
+    text: 'Алгоритм в руках — осталось применить его без подсказок.',
+  },
+
+  /* ---------- ПРАКТИКА ---------- */
+  {
+    type: 'question', phase: 'practice',
+    title: 'Указатель прошёл 3 деления',
+    text: 'Цена деления — 0,5 Н. Что показывает динамометр?',
+    options: [
+      { id: 'a', text: '1,5 Н', correct: true },
+      { id: 'b', text: '3 Н',   correct: false },
+      { id: 'c', text: '0,5 Н', correct: false },
+      { id: 'd', text: '3,5 Н', correct: false },
+    ],
+    right: 'Верно! 3 деления × 0,5 Н = 1,5 Н.',
+    wrong: 'Число делений умножаем на цену деления: 3 × 0,5 Н = 1,5 Н.',
+  },
+  {
+    type: 'question', phase: 'practice',
+    title: 'Указатель без груза стоит выше нуля',
+    text: 'Что нужно сделать перед измерением?',
+    options: [
+      { id: 'a', text: 'Выставить указатель на ноль',        correct: true },
+      { id: 'b', text: 'Ничего — так даже точнее',           correct: false },
+      { id: 'c', text: 'Подвесить груз потяжелее',           correct: false },
+      { id: 'd', text: 'Прибавить на глаз в конце',          correct: false },
+    ],
+    right: 'Именно! Измерение всегда начинается с проверки нуля — иначе все показания сдвинутся.',
+    wrong: 'Правило прибора: сначала ноль. Если указатель стоит не на нуле, каждое показание будет с ошибкой.',
+  },
+];
+
+/* =================== ВИЗУАЛЫ ТЕМЫ =================== */
+const visuals = {
+  algoDyno() {
+    return `<div class="dyno-panel">${dynoSVG({ spec: SPEC2, value: 1, weights: 1, h: 700 })}</div>`;
+  },
+  readPick() {
+    return `
+      <div class="dyno-panel">${dynoSVG({ spec: SPEC2, value: 1.4, item: '🥕', h: 660 })}</div>
+      <div class="chips" id="chips">
+        <button class="chip-btn" data-ok="0">1,2 Н</button>
+        <button class="chip-btn" data-ok="1">1,4 Н</button>
+        <button class="chip-btn" data-ok="0">0,7 Н</button>
+        <button class="chip-btn" data-ok="0">1,6 Н</button>
+      </div>
+      <p class="chip-hint" id="chipHint">На крючке — пучок морковки. Считай деления от нуля.</p>`;
+  },
+  hookePair() {
+    return `
+      <div class="dyno-pair">
+        <figure>
+          <div class="dyno-panel">${dynoSVG({ spec: SPEC5, value: 1, weights: 1, h: 700 })}</div>
+          <figcaption>100 г → 1 Н</figcaption>
+        </figure>
+        <figure>
+          <div class="dyno-panel">${dynoSVG({ spec: SPEC5, value: 2, weights: 2, h: 700 })}</div>
+          <figcaption>200 г → 2 Н: ровно вдвое больше</figcaption>
+        </figure>
+      </div>`;
+  },
+};
+
+/* =================== ЗАПУСК =================== */
+runLesson({
+  lessonId: 'reading',
+  storageKey: 'dynamometer-progress',
+  homeHref: '../demo/',
+  steps: STEPS,
+  visuals,
+  onInteract(step, ctx) {
+    if (step.check === 'pick') {
+      const chips = [...document.querySelectorAll('#chips .chip-btn')];
+      const hint = document.getElementById('chipHint');
+      chips.forEach(chip => chip.addEventListener('click', () => {
+        if (chip.disabled) return;
+        if (chip.dataset.ok === '1') {
+          chips.forEach(c => { c.disabled = true; });
+          chip.classList.add('is-right');
+          hint.innerHTML = '✓ Указатель на 7-м делении: 7 × 0,2 Н = <b>1,4 Н</b>.';
+          ctx.done();
+        } else {
+          chip.classList.add('is-wrong');
+          chip.disabled = true;
+          hint.innerHTML = 'Не спеши: цена деления <b>0,2 Н</b>. Посчитай деления от нуля ещё раз.';
+        }
+      }));
+    }
+  },
+});
+</script>
+
+</body>
+</html>

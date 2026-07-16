@@ -1,0 +1,2388 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Интерактивный микротренажёр по физике: нагревание и плавление. Молекулы, график с полочкой, задачи как в ОГЭ. 8 минут — и тема понятна.">
+    <title>Микротренажёр: Нагревание и плавление</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --fire: #e17055;
+            --fire-l: #ff7675;
+            --ice: #74b9ff;
+            --ice-l: #a8d4ff;
+            --green: #00b894;
+            --gold: #fdcb6e;
+            --wrong: #ff5252;
+            --bg: #070714;
+            --panel: #12122acc;
+            --panel-solid: #12122a;
+            --border: #2a2a3e;
+            --text: #e0e0e0;
+            --muted: #b0b0c0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            min-height: 100dvh;
+            overflow-x: hidden;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        /* ═══ Background: embers + aurora ═══ */
+        #bgCanvas {
+            position: fixed; inset: 0;
+            width: 100vw; height: 100vh;
+            z-index: 0; pointer-events: none;
+        }
+        .aurora {
+            position: fixed; z-index: 0; pointer-events: none;
+            width: 60vmax; height: 60vmax; border-radius: 50%;
+            filter: blur(90px); opacity: 0.14;
+        }
+        .aurora-1 { background: #e17055; bottom: -28vmax; left: -20vmax; animation: drift1 26s ease-in-out infinite alternate; }
+        .aurora-2 { background: #74b9ff; top: -30vmax; right: -22vmax; animation: drift2 32s ease-in-out infinite alternate; }
+        @keyframes drift1 { from { transform: translate(0,0) scale(1); } to { transform: translate(8vmax, -6vmax) scale(1.15); } }
+        @keyframes drift2 { from { transform: translate(0,0) scale(1.1); } to { transform: translate(-7vmax, 5vmax) scale(0.95); } }
+
+        #confettiCanvas {
+            position: fixed; inset: 0;
+            width: 100vw; height: 100vh;
+            z-index: 200; pointer-events: none;
+        }
+
+        .container {
+            position: relative; z-index: 1;
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 44px 24px 40px;
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            perspective: 1200px;
+        }
+
+        /* ═══ Progress + HUD ═══ */
+        .progress-bar {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 4px;
+            background: #1a1a2e; z-index: 100;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #e17055, #ff7675, #74b9ff);
+            transition: width 0.5s ease;
+            width: 0%;
+            box-shadow: 0 0 12px #e17055aa;
+        }
+
+        #hud {
+            position: fixed; top: 12px; right: 14px; z-index: 110;
+            display: flex; align-items: center; gap: 6px;
+            background: #12122ae8;
+            border: 1px solid #e1705550;
+            border-radius: 999px;
+            padding: 7px 14px;
+            font-size: 14px; font-weight: 700;
+            color: var(--gold);
+            box-shadow: 0 4px 18px #00000060;
+            transition: transform 0.2s ease;
+        }
+        #hud.bump { transform: scale(1.22); }
+        .float-point {
+            position: fixed; z-index: 111;
+            font-weight: 800; font-size: 16px; color: var(--gold);
+            pointer-events: none;
+            animation: floatUp 0.9s ease forwards;
+            text-shadow: 0 0 12px #fdcb6e90;
+        }
+        @keyframes floatUp {
+            from { opacity: 1; transform: translateY(0) scale(1); }
+            to { opacity: 0; transform: translateY(-44px) scale(1.3); }
+        }
+
+        .steps-indicator {
+            display: flex; gap: 6px;
+            margin-bottom: 30px;
+            justify-content: center; flex-wrap: wrap;
+        }
+        .step-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #2a2a3e;
+            transition: all 0.3s ease;
+        }
+        .step-dot.active { background: var(--fire); box-shadow: 0 0 10px #e17055; transform: scale(1.3); }
+        .step-dot.completed { background: var(--fire-l); }
+
+        /* ═══ Screens ═══ */
+        .screen { display: none; flex: 1; }
+        .screen.active { display: flex; flex-direction: column; animation: screenIn 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
+        @keyframes screenIn {
+            from { opacity: 0; transform: translateY(28px) rotateX(6deg) scale(0.985); }
+            to { opacity: 1; transform: translateY(0) rotateX(0) scale(1); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(14px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ═══ Typography ═══ */
+        .screen-label {
+            font-size: 11px; text-transform: uppercase;
+            letter-spacing: 2.5px; color: var(--fire-l);
+            margin-bottom: 12px;
+        }
+        h1 { font-size: 26px; font-weight: 800; line-height: 1.3; margin-bottom: 18px;
+             background: linear-gradient(120deg, #ffffff, #ffd3c4);
+             -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+        h2 { font-size: 20px; font-weight: 700; margin-bottom: 14px; color: #fff; }
+        p { font-size: 16px; line-height: 1.7; color: var(--muted); margin-bottom: 14px; }
+        .highlight { color: var(--fire-l); font-weight: 600; }
+        .highlight-ice { color: var(--ice); font-weight: 600; }
+
+        /* ═══ Cards ═══ */
+        .concept-card {
+            position: relative;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 20px;
+            margin-bottom: 14px;
+            overflow: hidden;
+        }
+        .concept-card::before {
+            content: '';
+            position: absolute; inset: 0; border-radius: 18px;
+            padding: 1px;
+            background: linear-gradient(135deg, #e1705540, transparent 40%, transparent 70%, #74b9ff20);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor; mask-composite: exclude;
+            pointer-events: none;
+        }
+        .concept-card .emoji { font-size: 28px; margin-bottom: 10px; }
+        .concept-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: #fff; }
+        .concept-card p { font-size: 14px; margin-bottom: 0; }
+        .concept-card p + p { margin-top: 10px; }
+
+        .note-box {
+            background: var(--panel); border: 1px solid var(--border);
+            border-radius: 12px; padding: 14px; margin-bottom: 14px;
+        }
+        .note-box p { margin: 0; font-size: 14px; }
+
+        /* ═══ Buttons ═══ */
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 16px 28px; border-radius: 14px;
+            font-size: 16px; font-weight: 700;
+            border: none; cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: auto;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #e17055, #ff7675);
+            color: #fff;
+            box-shadow: 0 6px 22px #e1705535;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 28px #e1705555; }
+        .btn-secondary { background: #1a1a2ecc; color: var(--ice-l); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: #22223a; }
+        .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn:active { transform: scale(0.97); }
+
+        /* ═══ Promo ═══ */
+        .promo-icon-wrap { position: relative; width: 110px; height: 110px; margin: 4px auto 24px; }
+        .promo-icon {
+            position: relative; z-index: 2;
+            width: 110px; height: 110px;
+            background: linear-gradient(135deg, #e1705528, #74b9ff18);
+            border-radius: 30px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 48px;
+            border: 1px solid #e1705545;
+            box-shadow: 0 10px 40px #e1705530, inset 0 0 30px #e1705515;
+            animation: iconFloat 4s ease-in-out infinite;
+        }
+        @keyframes iconFloat {
+            0%, 100% { transform: translateY(0) rotate(-2deg); }
+            50% { transform: translateY(-8px) rotate(2deg); }
+        }
+        .pulse-ring {
+            position: absolute; inset: 0; z-index: 1;
+            border: 2px solid #e17055;
+            border-radius: 30px;
+            animation: pulseRing 2.6s ease-out infinite;
+        }
+        .pulse-ring:nth-child(2) { animation-delay: 1.3s; border-color: #74b9ff; }
+        @keyframes pulseRing {
+            from { transform: scale(1); opacity: 0.7; }
+            to { transform: scale(1.65); opacity: 0; }
+        }
+        .promo-title { text-align: center; font-size: 32px; margin-bottom: 8px; }
+        .promo-subtitle { text-align: center; font-size: 17px; color: #8888a0; margin-bottom: 26px; }
+        .hero-canvas-wrap { margin: 0 0 24px; }
+        .hero-canvas-wrap canvas { width: 100%; display: block; }
+        .promo-features { display: flex; flex-direction: column; gap: 12px; margin-bottom: 26px; }
+        .promo-feature {
+            display: flex; align-items: flex-start; gap: 14px;
+            padding: 16px;
+            background: var(--panel);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+        .promo-feature-icon {
+            flex-shrink: 0; width: 44px; height: 44px;
+            border-radius: 13px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 21px;
+        }
+        .promo-feature-text h4 { font-size: 15px; color: #fff; margin-bottom: 3px; }
+        .promo-feature-text p { font-size: 13px; margin-bottom: 0; color: #8888a0; line-height: 1.5; }
+        .promo-meta {
+            display: flex; justify-content: center; gap: 22px;
+            margin-bottom: 26px; font-size: 13px; color: #66667a;
+        }
+        .promo-meta span { display: flex; align-items: center; gap: 6px; }
+
+        .canvas-panel {
+            background: #0c0c1eb8;
+            border-radius: 16px;
+            padding: 10px;
+            margin: 12px 0 10px;
+            border: 1px solid #1c1c34;
+        }
+        .canvas-panel canvas { width: 100%; display: block; border-radius: 10px; touch-action: none; }
+        .canvas-hint { font-size: 12px; color: #66667a; text-align: center; margin: 8px 0 14px; }
+
+        /* ═══ Mini controls ═══ */
+        .mini-control { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+        .mini-control-label { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+        .mini-control-label span:first-child { color: #8888a0; }
+        .mini-control-label .mc-value { color: var(--fire-l); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%; height: 6px;
+            border-radius: 3px;
+            background: linear-gradient(90deg, #74b9ff50, #e1705560);
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 26px; height: 26px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #ff7675, #e17055);
+            cursor: pointer;
+            box-shadow: 0 0 14px #e1705580, 0 2px 6px #00000080;
+        }
+
+        .preset-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+        .chip {
+            padding: 8px 13px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: #181830;
+            color: var(--muted);
+            font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .chip:hover { border-color: var(--fire); color: #fff; }
+        .chip.active { border-color: var(--fire-l); background: #3a2230; color: #fff; box-shadow: 0 0 14px #e1705540; }
+
+        .sim-btn {
+            margin-top: 12px;
+            padding: 12px 20px;
+            border: 1px solid var(--fire);
+            background: #e1705514;
+            color: var(--fire-l);
+            border-radius: 10px;
+            font-size: 14px; font-weight: 700;
+            cursor: pointer; transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .sim-btn:hover { background: #e1705528; }
+        .sim-btn.running { background: #74b9ff18; border-color: var(--ice); color: var(--ice-l); }
+        .sim-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .sim-controls .sim-btn { flex: 1 1 auto; }
+
+        .phase-label {
+            margin-top: 12px; padding: 12px 14px;
+            background: #181830; border-radius: 12px;
+            font-size: 14px; color: var(--muted);
+            border-left: 3px solid var(--fire);
+            transition: border-color 0.3s;
+            min-height: 44px;
+            display: flex; align-items: center;
+        }
+        .phase-label.ice-mode { border-left-color: var(--ice); }
+        .phase-label.melt-mode { border-left-color: var(--gold); }
+
+        /* ═══ Quiz ═══ */
+        .quiz-option {
+            background: var(--panel);
+            border: 2px solid var(--border);
+            border-radius: 14px;
+            padding: 16px 18px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 15px;
+            color: var(--text);
+            text-align: left;
+            width: 100%;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .quiz-option:hover { border-color: var(--fire); background: #1f1a30; transform: translateX(3px); }
+        .quiz-option.correct { border-color: var(--green); background: #00b89418; color: #5fe8c8; animation: popCorrect 0.4s ease; }
+        .quiz-option.wrong { border-color: var(--wrong); background: #ff525218; color: #ff9c9c; animation: shake 0.4s ease; }
+        .quiz-option.disabled { pointer-events: none; }
+        @keyframes popCorrect {
+            0% { transform: scale(1); } 40% { transform: scale(1.035); } 100% { transform: scale(1); }
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); } 75% { transform: translateX(6px); }
+        }
+
+        .feedback-box {
+            background: var(--panel);
+            border-radius: 12px;
+            padding: 16px;
+            margin: 12px 0;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        .feedback-box.show { display: block; }
+        .feedback-box.correct-fb { border-left: 4px solid var(--green); }
+        .feedback-box.wrong-fb { border-left: 4px solid var(--wrong); }
+        .feedback-box p { margin-bottom: 0; font-size: 14px; }
+
+        /* ═══ Game (guess the substance) ═══ */
+        .detective-stage {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 18px;
+            margin-bottom: 16px;
+        }
+        .detective-round { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--fire-l); margin-bottom: 12px; text-align: center; }
+        .detective-options { display: flex; gap: 10px; }
+        .det-option {
+            flex: 1; padding: 14px 6px;
+            border-radius: 14px;
+            border: 2px solid var(--border);
+            background: #181830;
+            color: var(--text);
+            font-size: 15px; font-weight: 700;
+            cursor: pointer; transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .det-option small { display: block; font-size: 11px; color: #77778a; font-weight: 500; margin-top: 4px; }
+        .det-option:hover { border-color: var(--fire); }
+        .det-option.correct { border-color: var(--green); background: #00b89420; }
+        .det-option.wrong { border-color: var(--wrong); background: #ff525220; animation: shake 0.4s ease; }
+        .det-option:disabled { pointer-events: none; }
+        .detective-feedback { min-height: 22px; font-size: 14px; margin-top: 14px; color: var(--muted); text-align: center; }
+
+        /* ═══ Challenge (OGE tasks) ═══ */
+        .challenge-box {
+            background: linear-gradient(135deg, #301a1ae0, #12122ae0);
+            border: 1px solid #e1705535;
+            border-radius: 16px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            transition: all 0.3s;
+        }
+        .challenge-box h3 { color: var(--fire-l); font-size: 15px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+        .challenge-box p { margin-bottom: 0; font-size: 15px; color: #fff; }
+        .challenge-box.success { border-color: #00b89470; box-shadow: 0 0 26px #00b89425; }
+        .challenge-box.success h3 { color: var(--green); }
+        .challenge-progress { display: flex; gap: 5px; margin-top: 12px; }
+        .challenge-progress .cp-dot {
+            height: 5px; flex: 1; border-radius: 3px;
+            background: #2a2a3e; transition: background 0.3s;
+        }
+        .challenge-progress .cp-dot.done { background: var(--green); box-shadow: 0 0 8px #00b89460; }
+        .challenge-progress .cp-dot.miss { background: var(--wrong); }
+
+        /* ═══ Info tiles ═══ */
+        .wave-info { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 4px; }
+        .wave-info-item {
+            background: var(--panel); border: 1px solid #1f1f36;
+            border-radius: 13px;
+            padding: 13px 8px; text-align: center;
+        }
+        .wave-info-item .label { font-size: 11px; color: #77778a; margin-bottom: 3px; }
+        .wave-info-item .val { font-size: 16px; font-weight: 800; color: var(--ice-l); font-variant-numeric: tabular-nums; }
+        .wave-info-item .val.hot { color: var(--fire-l); }
+
+        /* ═══ Melting temps table ═══ */
+        .melt-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 4px; }
+        .melt-table th {
+            text-align: left; padding: 8px 10px; font-size: 11px;
+            text-transform: uppercase; letter-spacing: 1.5px; color: #77778a;
+            border-bottom: 1px solid var(--border);
+        }
+        .melt-table td { padding: 9px 10px; border-bottom: 1px solid #1f1f36; color: var(--text); }
+        .melt-table td:last-child, .melt-table th:last-child { text-align: right; }
+        .melt-table td:last-child { color: var(--fire-l); font-weight: 700; font-variant-numeric: tabular-nums; }
+        .melt-table tr.hl td { background: #e1705512; }
+
+        .nav-row { display: flex; gap: 10px; margin-top: auto; padding-top: 16px; }
+        .nav-row .btn { flex: 1; margin-top: 0; }
+
+        /* ═══ Results ═══ */
+        .stars-row { display: flex; justify-content: center; gap: 14px; margin: 6px 0 20px; }
+        .star {
+            font-size: 52px;
+            filter: grayscale(1) brightness(0.4);
+            transform: scale(0.8);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .star.lit {
+            filter: none;
+            transform: scale(1);
+            text-shadow: 0 0 26px #fdcb6e90;
+            animation: starPop 0.5s cubic-bezier(0.34, 1.8, 0.64, 1);
+        }
+        @keyframes starPop {
+            0% { transform: scale(0.3) rotate(-30deg); }
+            70% { transform: scale(1.25) rotate(8deg); }
+            100% { transform: scale(1) rotate(0); }
+        }
+        .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+        .result-card {
+            background: var(--panel); border: 1px solid #1f1f36;
+            border-radius: 14px; padding: 18px; text-align: center;
+        }
+        .result-card .big-num { font-size: 30px; font-weight: 800; color: var(--fire-l); font-variant-numeric: tabular-nums; }
+        .result-card .label { font-size: 12px; color: #77778a; margin-top: 4px; }
+
+        /* ═══ Mobile ═══ */
+        @media (max-width: 480px) {
+            .container { padding: 36px 16px 28px; }
+            h1 { font-size: 22px; margin-bottom: 14px; }
+            h2 { font-size: 18px; }
+            p { font-size: 15px; margin-bottom: 12px; }
+            .promo-title { font-size: 25px; }
+            .promo-subtitle { font-size: 15px; margin-bottom: 20px; }
+            .promo-icon-wrap, .promo-icon { width: 88px; height: 88px; }
+            .promo-icon { font-size: 38px; border-radius: 24px; }
+            .promo-feature { padding: 14px 12px; gap: 12px; }
+            .promo-feature-icon { width: 38px; height: 38px; font-size: 18px; }
+            .promo-meta { gap: 14px; font-size: 12px; }
+            .concept-card { padding: 16px; }
+            .concept-card h3 { font-size: 15px; }
+            .concept-card p { font-size: 13px; }
+            .btn { padding: 14px 20px; font-size: 15px; }
+            .quiz-option { padding: 14px 16px; font-size: 14px; }
+            .wave-info { gap: 6px; }
+            .wave-info-item { padding: 10px 6px; }
+            .wave-info-item .val { font-size: 14px; }
+            .wave-info-item .label { font-size: 10px; }
+            .canvas-panel { padding: 8px; }
+            .feedback-box { padding: 14px; }
+            .feedback-box p { font-size: 13px; }
+            .nav-row { gap: 8px; }
+            .nav-row .btn { padding: 14px 12px; font-size: 14px; }
+            .steps-indicator { gap: 4px; margin-bottom: 22px; }
+            .step-dot { width: 7px; height: 7px; }
+            .det-option { font-size: 13px; padding: 12px 4px; }
+            .star { font-size: 44px; }
+            #hud { top: 10px; right: 10px; padding: 6px 11px; font-size: 13px; }
+            .melt-table { font-size: 13px; }
+            .phase-label { font-size: 13px; }
+        }
+        @media (max-width: 360px) {
+            .container { padding: 32px 12px 24px; }
+            h1 { font-size: 20px; }
+            .promo-title { font-size: 22px; }
+            .detective-options { gap: 6px; }
+        }
+    </style>
+</head>
+<body>
+<a href="../" style="position:fixed;top:12px;left:12px;z-index:400;background:rgba(11,17,48,.85);border:1px solid rgba(255,255,255,.18);color:#eef1fb;text-decoration:none;font:600 13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:7px 13px;border-radius:999px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);">⚡ Все тренажёры</a>
+
+    <canvas id="bgCanvas"></canvas>
+    <div class="aurora aurora-1"></div>
+    <div class="aurora aurora-2"></div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div id="hud">⚡ <span id="hudScore">0</span></div>
+    <canvas id="confettiCanvas"></canvas>
+
+    <div class="container">
+        <div class="steps-indicator" id="stepsIndicator"></div>
+
+        <!-- ═══ SCREEN 0: Promo ═══ -->
+        <div class="screen active" id="screen-0">
+            <div class="promo-icon-wrap">
+                <div class="pulse-ring"></div>
+                <div class="pulse-ring"></div>
+                <div class="promo-icon">🔥🧊</div>
+            </div>
+            <h1 class="promo-title">Нагревание и плавление</h1>
+            <p class="promo-subtitle">Интерактивный микротренажёр · 8 класс</p>
+
+            <div class="hero-canvas-wrap canvas-panel">
+                <canvas id="heroCanvas" height="120"></canvas>
+            </div>
+
+            <div class="promo-features">
+                <div class="promo-feature">
+                    <div class="promo-feature-icon" style="background:#e1705522;">🔬</div>
+                    <div class="promo-feature-text">
+                        <h4>Увидишь молекулы при нагреве</h4>
+                        <p>Что на самом деле происходит с частицами, когда включаешь горелку</p>
+                    </div>
+                </div>
+                <div class="promo-feature">
+                    <div class="promo-feature-icon" style="background:#74b9ff22;">📈</div>
+                    <div class="promo-feature-text">
+                        <h4>Поймёшь, почему температура «застревает»</h4>
+                        <p>Главная загадка плавления: горелка работает, а термометр стоит на месте</p>
+                    </div>
+                </div>
+                <div class="promo-feature">
+                    <div class="promo-feature-icon" style="background:#00b89422;">🎯</div>
+                    <div class="promo-feature-text">
+                        <h4>Научишься читать графики как в ОГЭ</h4>
+                        <p>График нагревания и плавления — реальное задание из первой части ОГЭ по физике</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="promo-meta">
+                <span>⏱ ~8 минут</span>
+                <span>📝 13 заданий</span>
+                <span>🎯 13 очков</span>
+            </div>
+
+            <button class="btn btn-primary" onclick="goTo(1)" style="width:100%; padding:18px;">Начать тренажёр →</button>
+        </div>
+
+        <!-- ═══ SCREEN 1: Hook ═══ -->
+        <div class="screen" id="screen-1">
+            <div class="screen-label">Зацепка</div>
+            <h1>Почему лёд в лимонаде не даёт ему нагреться?</h1>
+            <p>Жара. Солнце лупит по стакану. А лимонад со льдом стоит и держит <span class="highlight-ice">0 °C</span> — минуту, пять, десять... Термометр как будто сломался.</p>
+
+            <div class="canvas-panel">
+                <canvas id="hookCanvas" height="190"></canvas>
+            </div>
+            <p class="canvas-hint">Солнце греет изо всех сил, а температура — ни с места</p>
+
+            <p>Куда девается всё тепло от солнца? Оно же не может просто исчезнуть! <span class="highlight">Разгадка</span> — в том, что происходит с молекулами льда. Сейчас разберёмся.</p>
+            <button class="btn btn-primary" onclick="goTo(2)">Разобраться →</button>
+        </div>
+
+        <!-- ═══ SCREEN 2: Heating = faster molecules ═══ -->
+        <div class="screen" id="screen-2">
+            <div class="screen-label">Базовая модель · 1 / 3</div>
+            <h1>Нагревание — это разгон молекул</h1>
+
+            <p>Температура — это <span class="highlight">скорость движения молекул</span>. Греешь воду — молекулы носятся быстрее. Больше скорость → выше температура. Всё.</p>
+
+            <div class="concept-card">
+                <h3>Попробуй: крути мощность горелки</h3>
+                <div class="canvas-panel" style="margin-bottom:0;">
+                    <canvas id="heatCanvas" height="200"></canvas>
+                </div>
+                <div class="mini-control">
+                    <div class="mini-control-label">
+                        <span>Мощность горелки 🔥</span>
+                        <span class="mc-value" id="powerVal">слабая</span>
+                    </div>
+                    <input type="range" id="powerSlider" min="0" max="10" value="3" step="1">
+                </div>
+                <p style="margin-top:12px;" id="heatCaption">Молекулы лениво покачиваются — вода прохладная.</p>
+            </div>
+
+            <div class="note-box">
+                <p><span class="highlight">Запомни:</span> подводим энергию → молекулы разгоняются → термометр ползёт вверх. Пока что всё логично. Но с плавлением будет сюрприз...</p>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(1)">← Назад</button>
+                <button class="btn btn-primary" onclick="goTo(3)">Дальше: плавим лёд →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 3: MAIN — melting with live graph ═══ -->
+        <div class="screen" id="screen-3">
+            <div class="screen-label">Базовая модель · 2 / 3</div>
+            <h1>Плавим лёд и рисуем график</h1>
+
+            <p>Берём лёд при <span class="highlight-ice">−20 °C</span>, ставим на горелку и следим за термометром. Справа график <span class="highlight">T(t)</span> будет рисоваться сам — смотри внимательно, что случится на 0 °C.</p>
+
+            <div class="concept-card">
+                <div class="canvas-panel" style="margin-top:4px;">
+                    <canvas id="meltCanvas" height="230"></canvas>
+                </div>
+                <div class="sim-controls">
+                    <button class="sim-btn" id="meltStartBtn" onclick="toggleMelt()">▶ Начать нагрев</button>
+                    <button class="sim-btn" id="meltResetBtn" onclick="resetMelt(true)" style="flex:0 0 auto;">↺ Сначала</button>
+                </div>
+                <div class="preset-chips">
+                    <span style="font-size:12px; color:#77778a; align-self:center;">Скорость:</span>
+                    <button class="chip active" id="spd1" onclick="setMeltSpeed(1, this)">×1</button>
+                    <button class="chip" id="spd2" onclick="setMeltSpeed(2, this)">×2</button>
+                    <button class="chip" id="spd4" onclick="setMeltSpeed(4, this)">×4</button>
+                </div>
+                <div class="phase-label" id="meltPhaseLabel">Нажми «Начать нагрев» — и следи за графиком справа</div>
+            </div>
+
+            <div class="note-box">
+                <p><span class="highlight">Видишь полочку?</span> Пока лёд плавится, температура стоит на 0 °C, хотя горелка работает на полную. Это не глюк термометра. Почему так — на следующем экране.</p>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(2)">← Назад</button>
+                <button class="btn btn-primary" onclick="goTo(4)">Почему полочка? →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 4: Where does energy go ═══ -->
+        <div class="screen" id="screen-4">
+            <div class="screen-label">Базовая модель · 3 / 3</div>
+            <h1>Куда девается энергия на «полочке»?</h1>
+
+            <p>В твёрдом льде молекулы сидят в <span class="highlight-ice">кристаллической решётке</span> — держатся друг за друга связями, как пружинками. Чтобы лёд стал водой, эти связи надо <span class="highlight">порвать</span>.</p>
+
+            <div class="concept-card">
+                <h3>Подводи энергию и смотри на связи</h3>
+                <div class="canvas-panel" style="margin-bottom:0;">
+                    <canvas id="latticeCanvas" height="210"></canvas>
+                </div>
+                <div class="mini-control">
+                    <div class="mini-control-label">
+                        <span>Подведено энергии 🔥</span>
+                        <span class="mc-value" id="energyVal">0%</span>
+                    </div>
+                    <input type="range" id="energySlider" min="0" max="100" value="0" step="1">
+                </div>
+                <div class="wave-info">
+                    <div class="wave-info-item">
+                        <div class="label">Скорость молекул</div>
+                        <div class="val" id="latSpeedVal">не растёт · 0 °C</div>
+                    </div>
+                    <div class="wave-info-item">
+                        <div class="label">Связей разрушено</div>
+                        <div class="val hot" id="latBondsVal">0%</div>
+                    </div>
+                </div>
+                <p style="margin-top:10px;" id="latticeMsg">Двигай ползунок — подводи энергию к решётке.</p>
+            </div>
+
+            <div class="note-box">
+                <p><span class="highlight">Ключевая мысль:</span> во время плавления энергия идёт на <b style="color:#fff;">разрушение решётки</b>, а не на разгон молекул. Скорость молекул не растёт — поэтому и температура стоит на месте.</p>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(3)">← Назад</button>
+                <button class="btn btn-primary" onclick="goTo(5)">Проверь себя →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 5: Quiz 1 ═══ -->
+        <div class="screen" id="screen-5">
+            <div class="screen-label">Проверка понимания</div>
+            <h2>Вопрос 1 из 2</h2>
+            <p>Лёд достали из морозилки и поставили на горелку. Он нагрелся до 0 °C и начал плавиться. Что происходит с его температурой <b style="color:#fff;">во время плавления</b>?</p>
+            <div id="quiz1">
+                <button class="quiz-option" onclick="checkAnswer(1, 0, false)">Растёт — горелка же работает!</button>
+                <button class="quiz-option" onclick="checkAnswer(1, 1, true)">Не меняется — стоит на 0 °C, пока весь лёд не растает</button>
+                <button class="quiz-option" onclick="checkAnswer(1, 2, false)">Сначала растёт, потом резко падает</button>
+            </div>
+            <div class="feedback-box" id="feedback1"><p id="feedback1-text"></p></div>
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(4)">← Назад</button>
+                <button class="btn btn-primary" id="nextQ1" onclick="goTo(6)" disabled>Дальше →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 6: Quiz 2 ═══ -->
+        <div class="screen" id="screen-6">
+            <div class="screen-label">Проверка понимания</div>
+            <h2>Вопрос 2 из 2</h2>
+            <p>Горелка продолжает работать, лёд плавится, а температура стоит на 0 °C. <b style="color:#fff;">На что идёт энергия горелки?</b></p>
+            <div id="quiz2">
+                <button class="quiz-option" onclick="checkAnswer(2, 0, false)">На увеличение скорости молекул</button>
+                <button class="quiz-option" onclick="checkAnswer(2, 1, true)">На разрушение кристаллической решётки</button>
+                <button class="quiz-option" onclick="checkAnswer(2, 2, false)">Никуда — она просто теряется</button>
+            </div>
+            <div class="feedback-box" id="feedback2"><p id="feedback2-text"></p></div>
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(5)">← Назад</button>
+                <button class="btn btn-primary" id="nextQ2" onclick="goTo(7)" disabled>Дальше →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 7: Different substances ═══ -->
+        <div class="screen" id="screen-7">
+            <div class="screen-label">Углубление</div>
+            <h1>У каждого вещества — своя полочка</h1>
+
+            <p>Температура плавления — это <span class="highlight">паспорт вещества</span>. Лёд сдаётся уже при 0 °C, а железо держится до 1539 °C. Выбери вещество — график перестроится:</p>
+
+            <div class="concept-card">
+                <div class="preset-chips" style="margin-top:0; margin-bottom:10px;">
+                    <button class="chip active" id="subst0" onclick="setSubst(0, this)">🧊 Лёд</button>
+                    <button class="chip" id="subst1" onclick="setSubst(1, this)">🕯 Парафин</button>
+                    <button class="chip" id="subst2" onclick="setSubst(2, this)">🔩 Свинец</button>
+                    <button class="chip" id="subst3" onclick="setSubst(3, this)">⚙️ Железо</button>
+                </div>
+                <div class="canvas-panel" style="margin-top:0;">
+                    <canvas id="substCanvas" height="200"></canvas>
+                </div>
+                <p id="substNote" style="margin-top:8px;">Лёд: полочка на 0 °C. Поэтому лимонад со льдом и держит ноль!</p>
+            </div>
+
+            <div class="concept-card">
+                <h3>📋 Шпаргалка: температуры плавления</h3>
+                <table class="melt-table">
+                    <tr><th>Вещество</th><th>t плавления</th></tr>
+                    <tr class="hl"><td>🧊 Лёд</td><td>0 °C</td></tr>
+                    <tr class="hl"><td>🕯 Парафин</td><td>≈ 55 °C</td></tr>
+                    <tr><td>Олово</td><td>232 °C</td></tr>
+                    <tr class="hl"><td>🔩 Свинец</td><td>327 °C</td></tr>
+                    <tr><td>Цинк</td><td>420 °C</td></tr>
+                    <tr><td>Медь</td><td>1085 °C</td></tr>
+                    <tr class="hl"><td>⚙️ Железо</td><td>1539 °C</td></tr>
+                    <tr><td>Вольфрам</td><td>3422 °C</td></tr>
+                </table>
+                <p style="margin-top:10px; font-size:13px; color:#8888a0;">Запомни четвёрку с эмодзи — она встретится в игре через минуту 😉</p>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(6)">← Назад</button>
+                <button class="btn btn-primary" onclick="goTo(8)">В игру →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 8: Game — guess the substance ═══ -->
+        <div class="screen" id="screen-8">
+            <div class="screen-label">Игра</div>
+            <h1>🕵️ Угадай вещество</h1>
+            <p>Перед тобой график нагревания неизвестного вещества. Найди <span class="highlight">полочку</span>, прочитай её высоту по оси температуры — и определи, что это.</p>
+
+            <div class="detective-stage">
+                <div class="detective-round" id="gRound">Раунд 1 из 4</div>
+                <div class="canvas-panel" style="margin-top:0;">
+                    <canvas id="guessCanvas" height="190"></canvas>
+                </div>
+                <div class="detective-options" id="gOptions"></div>
+                <div class="detective-feedback" id="gFeedback"></div>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(7)">← Назад</button>
+                <button class="btn btn-primary" id="gNextBtn" onclick="goTo(9)" disabled>К задачам ОГЭ →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 9: Challenge — OGE graph reading ═══ -->
+        <div class="screen" id="screen-9">
+            <div class="screen-label">Тренажёр · задачи ОГЭ</div>
+            <h1>Прочитай график как на экзамене</h1>
+
+            <p>Вещество нагревали на горелке и записывали температуру. Все 5 задач — про этот график:</p>
+
+            <div class="canvas-panel">
+                <canvas id="ogeCanvas" height="220"></canvas>
+            </div>
+            <p class="canvas-hint">Участок ① — синий, участок ② — жёлтый, участок ③ — красный</p>
+
+            <div class="challenge-box" id="chalBox">
+                <h3 id="chalTitle">🎯 Задача 1 из 5</h3>
+                <p id="chalText"></p>
+                <div class="challenge-progress" id="chalProgress">
+                    <div class="cp-dot"></div><div class="cp-dot"></div><div class="cp-dot"></div><div class="cp-dot"></div><div class="cp-dot"></div>
+                </div>
+            </div>
+
+            <div id="chalOptions"></div>
+            <div class="feedback-box" id="chalFeedback"><p id="chalFeedback-text"></p></div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(8)">← Назад</button>
+                <button class="btn btn-primary" id="chalNextBtn" onclick="goTo(10)" disabled>Финальная проверка →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 10: Final quiz ═══ -->
+        <div class="screen" id="screen-10">
+            <div class="screen-label">Финальная проверка</div>
+            <h1>Последний рывок</h1>
+            <p>Два вопроса — и звание твоё.</p>
+
+            <div id="finalQuiz">
+                <div class="fq-block" id="fqBlock1">
+                    <p style="color:#fff; font-weight:600; margin-bottom:10px;">1. Теперь обратный процесс: вода при 0 °C начинает замерзать (кристаллизоваться). Что при этом происходит?</p>
+                    <div id="fq1">
+                        <button class="quiz-option" onclick="checkFinal(1, 0, false)">Температура резко падает ниже нуля</button>
+                        <button class="quiz-option" onclick="checkFinal(1, 1, true)">Температура держится на 0 °C, и вода отдаёт энергию</button>
+                        <button class="quiz-option" onclick="checkFinal(1, 2, false)">Вода поглощает энергию из воздуха</button>
+                    </div>
+                    <div class="feedback-box" id="fqFb1"><p id="fqFb1-text"></p></div>
+                </div>
+
+                <div class="fq-block" id="fqBlock2" style="display:none;">
+                    <p style="color:#fff; font-weight:600; margin-bottom:10px;">2. Вернёмся к зацепке: почему лёд в лимонаде не даёт ему нагреться, пока весь не растает?</p>
+                    <div id="fq2">
+                        <button class="quiz-option" onclick="checkFinal(2, 0, false)">Лёд отражает солнечные лучи от стакана</button>
+                        <button class="quiz-option" onclick="checkFinal(2, 1, false)">Лёд делает стекло холодным, и тепло не проходит внутрь</button>
+                        <button class="quiz-option" onclick="checkFinal(2, 2, true)">Всё приходящее тепло уходит на плавление льда, температура стоит на 0 °C</button>
+                    </div>
+                    <div class="feedback-box" id="fqFb2"><p id="fqFb2-text"></p></div>
+                </div>
+            </div>
+
+            <div class="nav-row">
+                <button class="btn btn-secondary" onclick="goTo(9)">← Назад</button>
+                <button class="btn btn-primary" id="toResultsBtn" onclick="goTo(11)" disabled style="display:none;">Завершить →</button>
+            </div>
+        </div>
+
+        <!-- ═══ SCREEN 11: Results ═══ -->
+        <div class="screen" id="screen-11">
+            <div class="screen-label">Завершение</div>
+
+            <div style="text-align:center; font-size:60px; margin: 4px 0 10px;">🔥</div>
+            <h1 style="text-align:center;" id="resultTitle">Тренажёр пройден!</h1>
+
+            <div class="stars-row">
+                <span class="star" id="star1">⭐</span>
+                <span class="star" id="star2">⭐</span>
+                <span class="star" id="star3">⭐</span>
+            </div>
+
+            <div class="results-grid">
+                <div class="result-card">
+                    <div class="big-num" id="resultTheory">0</div>
+                    <div class="label">теория</div>
+                </div>
+                <div class="result-card">
+                    <div class="big-num" id="resultGame">0</div>
+                    <div class="label">угадай вещество</div>
+                </div>
+                <div class="result-card">
+                    <div class="big-num" id="resultChal">0</div>
+                    <div class="label">задачи ОГЭ</div>
+                </div>
+                <div class="result-card">
+                    <div class="big-num" id="resultFinal">0</div>
+                    <div class="label">финальный квиз</div>
+                </div>
+            </div>
+            <div class="note-box" style="text-align:center;">
+                <p>Общий итог: <span class="highlight" id="resultTotal" style="font-size:18px;">0 / 13</span></p>
+            </div>
+
+            <div class="concept-card" style="border-color: #e1705540;">
+                <h3 style="font-size:17px; margin-bottom:10px;">Что ты теперь знаешь</h3>
+                <p><span class="highlight">Нагревание</span> — это разгон молекул: подвёл энергию → молекулы быстрее → температура выше.</p>
+                <p><span class="highlight">Плавление</span> идёт при постоянной температуре: вся энергия рушит кристаллическую решётку, а не разгоняет молекулы. На графике — полочка.</p>
+                <p><span class="highlight-ice">Кристаллизация</span> — обратный процесс: идёт при той же температуре, но энергия выделяется.</p>
+                <p><span class="highlight">Температура плавления</span> у каждого вещества своя: лёд 0 °C, парафин ≈55 °C, свинец 327 °C, железо 1539 °C.</p>
+            </div>
+
+            <div class="concept-card" style="border-color: #00b89440;">
+                <h3 style="color:#00b894; font-size:16px; margin-bottom:8px;">Где это пригодится</h3>
+                <p>График нагревания и плавления — реальное задание первой части ОГЭ по физике. А ещё это металлургия, готовка, айсберги и то, почему в лёд для напитков верят бармены всего мира.</p>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:8px;">
+                <button class="btn btn-secondary" onclick="restart()" style="flex:1; margin-top:0;">Пройти ещё раз</button>
+                <button class="btn btn-primary" onclick="goTo(3)" style="flex:1; margin-top:0;">🔥 К плавлению льда</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    'use strict';
+    // ══════════════════ STATE ══════════════════
+    const TOTAL_SCREENS = 12;
+    const MAX_SCORE = 13;
+    let currentScreen = 0;
+    let score = 0;
+    let theoryScore = 0;   // screens 5-6: 2
+    let gameScore = 0;     // screen 8: 4
+    let chalScore = 0;     // screen 9: 5
+    let finalScore = 0;    // screen 10: 2
+    let finalAnswered = 0;
+
+    // ══════════════════ AUDIO (short sfx only) ══════════════════
+    let actx = null, master = null, audioUnlocked = false;
+
+    function ac() {
+        if (!actx) {
+            actx = new (window.AudioContext || window.webkitAudioContext)();
+            const comp = actx.createDynamicsCompressor();
+            comp.threshold.value = -18;
+            comp.ratio.value = 6;
+            master = actx.createGain();
+            master.gain.value = 0.9;
+            master.connect(comp);
+            comp.connect(actx.destination);
+        }
+        if (actx.state === 'suspended') actx.resume().catch(() => {});
+        if (!audioUnlocked) {
+            const o = actx.createOscillator(), g = actx.createGain();
+            g.gain.value = 0.0001;
+            o.connect(g); g.connect(actx.destination);
+            o.start(0); o.stop(actx.currentTime + 0.05);
+            audioUnlocked = true;
+        }
+        return actx;
+    }
+    document.addEventListener('touchend', function unlockT() {
+        ac();
+        document.removeEventListener('touchend', unlockT);
+    }, { passive: true });
+    document.addEventListener('click', function unlockC() {
+        ac();
+        document.removeEventListener('click', unlockC);
+    });
+
+    function tone({ freq = 440, type = 'sine', gain = 0.12, dur = 0.2, when = 0, attack = 0.01, release = 0.1, filterFreq = null, sweepTo = null }) {
+        ac();
+        const t0 = actx.currentTime + when;
+        const o = actx.createOscillator();
+        const g = actx.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(freq, t0);
+        if (sweepTo) { try { o.frequency.exponentialRampToValueAtTime(sweepTo, t0 + dur * 0.85); } catch (e) {} }
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(Math.max(gain, 0.0001), t0 + attack);
+        g.gain.setValueAtTime(Math.max(gain, 0.0001), t0 + Math.max(attack, dur - release));
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        if (filterFreq) {
+            const f = actx.createBiquadFilter();
+            f.type = 'lowpass';
+            f.frequency.value = filterFreq;
+            o.connect(f); f.connect(g);
+        } else {
+            o.connect(g);
+        }
+        g.connect(master);
+        o.start(t0);
+        o.stop(t0 + dur + 0.05);
+    }
+
+    const sfx = {
+        click() { tone({ freq: 740, type: 'triangle', gain: 0.05, dur: 0.07, attack: 0.005, release: 0.05 }); },
+        correct() {
+            [523.25, 659.25, 783.99].forEach((f, i) =>
+                tone({ freq: f, type: 'sine', gain: 0.13, dur: 0.22, when: i * 0.09, attack: 0.008, release: 0.12 }));
+            if (navigator.vibrate) navigator.vibrate(30);
+        },
+        wrong() {
+            tone({ freq: 170, type: 'sawtooth', gain: 0.07, dur: 0.12, attack: 0.006, release: 0.07, filterFreq: 600 });
+            tone({ freq: 140, type: 'sawtooth', gain: 0.07, dur: 0.16, when: 0.14, attack: 0.006, release: 0.09, filterFreq: 600 });
+        },
+        complete() {
+            tone({ freq: 320, type: 'triangle', gain: 0.12, dur: 0.4, attack: 0.01, release: 0.18, sweepTo: 960 });
+            tone({ freq: 1046.5, type: 'sine', gain: 0.12, dur: 0.5, when: 0.34, attack: 0.01, release: 0.3 });
+            if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+        },
+        fanfare() {
+            const notes = [523.25, 659.25, 783.99, 1046.5];
+            notes.forEach((f, i) => tone({ freq: f, type: 'triangle', gain: 0.12, dur: 0.3, when: i * 0.13, attack: 0.01, release: 0.15 }));
+            notes.forEach(f => tone({ freq: f, type: 'sine', gain: 0.09, dur: 1.2, when: 0.55, attack: 0.02, release: 0.8 }));
+        }
+    };
+
+    // ══════════════════ SCORE HUD ══════════════════
+    function addPoint() {
+        score++;
+        const hud = document.getElementById('hud');
+        document.getElementById('hudScore').textContent = score;
+        hud.classList.add('bump');
+        setTimeout(() => hud.classList.remove('bump'), 220);
+        const fp = document.createElement('div');
+        fp.className = 'float-point';
+        fp.textContent = '+1';
+        const r = hud.getBoundingClientRect();
+        fp.style.left = (r.left + r.width / 2 - 10) + 'px';
+        fp.style.top = (r.bottom + 6) + 'px';
+        document.body.appendChild(fp);
+        setTimeout(() => fp.remove(), 950);
+    }
+
+    // ══════════════════ CONFETTI ══════════════════
+    const confettiCanvas = document.getElementById('confettiCanvas');
+    const confettiCtx = confettiCanvas.getContext('2d');
+    let confetti = [];
+    const CONF_COLORS = ['#e17055', '#ff7675', '#fdcb6e', '#74b9ff', '#a8d4ff', '#00b894', '#ffeaa7'];
+
+    function fitConfetti() {
+        confettiCanvas.width = window.innerWidth;
+        confettiCanvas.height = window.innerHeight;
+    }
+    fitConfetti();
+    window.addEventListener('resize', fitConfetti);
+
+    function confettiBurst(n = 60, xN = 0.5, yN = 0.35) {
+        const W = confettiCanvas.width, H = confettiCanvas.height;
+        for (let i = 0; i < n; i++) {
+            const a = Math.random() * Math.PI * 2, sp = 3 + Math.random() * 7;
+            confetti.push({
+                x: W * xN, y: H * yN,
+                vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 4,
+                w: 5 + Math.random() * 6, h: 3 + Math.random() * 5,
+                rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.3,
+                color: CONF_COLORS[(Math.random() * CONF_COLORS.length) | 0],
+                life: 1
+            });
+        }
+    }
+    function confettiRain(n = 130) {
+        const W = confettiCanvas.width;
+        for (let i = 0; i < n; i++) {
+            confetti.push({
+                x: Math.random() * W, y: -20 - Math.random() * 360,
+                vx: (Math.random() - 0.5) * 1.6, vy: 2 + Math.random() * 3,
+                w: 5 + Math.random() * 6, h: 3 + Math.random() * 5,
+                rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.25,
+                color: CONF_COLORS[(Math.random() * CONF_COLORS.length) | 0],
+                life: 1
+            });
+        }
+    }
+    function drawConfetti() {
+        if (!confetti.length) {
+            confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+            return;
+        }
+        const W = confettiCanvas.width, H = confettiCanvas.height;
+        confettiCtx.clearRect(0, 0, W, H);
+        confetti.forEach(p => {
+            p.x += p.vx; p.y += p.vy;
+            p.vy += 0.12; p.vx *= 0.99;
+            p.rot += p.vr;
+            p.life -= 0.004;
+            confettiCtx.save();
+            confettiCtx.translate(p.x, p.y);
+            confettiCtx.rotate(p.rot);
+            confettiCtx.globalAlpha = Math.max(0, Math.min(1, p.life));
+            confettiCtx.fillStyle = p.color;
+            confettiCtx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+            confettiCtx.restore();
+        });
+        confetti = confetti.filter(p => p.y < H + 30 && p.life > 0);
+    }
+
+    // ══════════════════ CANVAS HELPERS ══════════════════
+    function fit(c, cssH) {
+        const w = c.offsetWidth * 2;
+        if (c.width !== w) c.width = w;
+        const h = cssH * 2;
+        if (c.height !== h) c.height = h;
+        return { w: c.width, h: c.height };
+    }
+
+    // Thermometer (device px). T in °C
+    function drawThermo(ctx, cx, top, len, T, Tmin, Tmax, label) {
+        const frac = Math.max(0, Math.min(1, (T - Tmin) / (Tmax - Tmin)));
+        const tubeW = 12, bulbR = 15;
+        const bottom = top + len;
+        // tube
+        ctx.beginPath();
+        ctx.roundRect(cx - tubeW / 2, top, tubeW, len, 6);
+        ctx.fillStyle = '#1a1a30';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff30';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // column
+        const colH = frac * (len - 8);
+        ctx.beginPath();
+        ctx.roundRect(cx - 4, bottom - 4 - colH, 8, colH + 4, 4);
+        ctx.fillStyle = '#ff5252';
+        ctx.fill();
+        // bulb
+        ctx.beginPath();
+        ctx.arc(cx, bottom + bulbR - 4, bulbR, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff5252';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff30';
+        ctx.stroke();
+        // label
+        ctx.font = '700 22px -apple-system, sans-serif';
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.fillText((label !== undefined ? label : Math.round(T) + ' °C'), cx, top - 12);
+        ctx.textAlign = 'start';
+    }
+
+    // Flame (device px), size ~ height
+    function drawFlame(ctx, cx, cy, size, t, intensity) {
+        if (size <= 1 || intensity <= 0) return;
+        const flick = 1 + Math.sin(t * 13 + cx) * 0.09 + Math.sin(t * 29) * 0.05;
+        const layers = [
+            { r: 1.0, color: 'rgba(225,112,85,0.55)' },
+            { r: 0.68, color: 'rgba(253,203,110,0.75)' },
+            { r: 0.36, color: 'rgba(255,245,220,0.9)' }
+        ];
+        layers.forEach(L => {
+            const hgt = size * L.r * flick;
+            const wdt = size * 0.55 * L.r;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - hgt);
+            ctx.bezierCurveTo(cx + wdt, cy - hgt * 0.45, cx + wdt * 0.8, cy, cx, cy);
+            ctx.bezierCurveTo(cx - wdt * 0.8, cy, cx - wdt, cy - hgt * 0.45, cx, cy - hgt);
+            ctx.fillStyle = L.color;
+            ctx.fill();
+        });
+    }
+
+    // Graph frame with axes/ticks; returns coordinate mappers
+    function graphFrame(ctx, X0, Y0, W, H, o) {
+        const L = X0 + o.left, R = X0 + W - (o.right || 16);
+        const T = Y0 + (o.top || 16), B = Y0 + H - (o.bottom || 46);
+        const gx = v => L + (v / o.xMax) * (R - L);
+        const gy = v => B - ((v - o.yMin) / (o.yMax - o.yMin)) * (B - T);
+        // grid + y ticks
+        ctx.font = '20px -apple-system, sans-serif';
+        ctx.textAlign = 'right';
+        (o.yTicks || []).forEach(v => {
+            const y = gy(v);
+            ctx.strokeStyle = '#ffffff10';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(R, y); ctx.stroke();
+            ctx.fillStyle = '#8888a0';
+            ctx.fillText(String(v), L - 8, y + 7);
+        });
+        ctx.textAlign = 'center';
+        (o.xTicks || []).forEach(tk => {
+            const x = gx(tk.v);
+            ctx.strokeStyle = '#ffffff08';
+            ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, B); ctx.stroke();
+            ctx.fillStyle = '#8888a0';
+            ctx.fillText(tk.l, x, B + 26);
+        });
+        // axes
+        ctx.strokeStyle = '#ffffff35';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(L, T); ctx.lineTo(L, B); ctx.lineTo(R, B); ctx.stroke();
+        // labels
+        ctx.fillStyle = '#77778a';
+        if (o.xLabel) ctx.fillText(o.xLabel, (L + R) / 2, Y0 + H - 4);
+        if (o.yLabel) {
+            ctx.save();
+            ctx.translate(X0 + 18, (T + B) / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText(o.yLabel, 0, 0);
+            ctx.restore();
+        }
+        ctx.textAlign = 'start';
+        return { gx, gy, L, R, T, B };
+    }
+
+    // Substance heating curve: T(x) for x in [0,1]; plateau between 0.35 and 0.65
+    function substTAt(x, cfg) {
+        if (x < 0.35) return cfg.start + (cfg.melt - cfg.start) * (x / 0.35);
+        if (x < 0.65) return cfg.melt;
+        return cfg.melt + (cfg.end - cfg.melt) * ((x - 0.65) / 0.35);
+    }
+
+    function drawSubstGraph(ctx, w, h, cfg, animProg, opts) {
+        opts = opts || {};
+        const fr = graphFrame(ctx, 0, 0, w, h, {
+            left: opts.left || 84, right: 20, top: 20, bottom: 52,
+            yMin: cfg.yMin, yMax: cfg.yMax, yTicks: cfg.ticks,
+            xMax: 1, xTicks: [], xLabel: 'время →', yLabel: 't, °C'
+        });
+        // dashed melt line
+        const my = fr.gy(cfg.melt);
+        ctx.setLineDash([7, 7]);
+        ctx.strokeStyle = opts.color ? opts.color + '70' : '#fdcb6e70';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(fr.L, my); ctx.lineTo(fr.R, my); ctx.stroke();
+        ctx.setLineDash([]);
+        if (opts.showMeltLabel) {
+            ctx.font = '700 21px -apple-system, sans-serif';
+            ctx.fillStyle = '#fdcb6e';
+            ctx.textAlign = 'right';
+            ctx.fillText('t пл = ' + cfg.melt + ' °C', fr.R - 6, my - 10);
+            ctx.textAlign = 'start';
+        }
+        // curve up to animProg
+        ctx.beginPath();
+        ctx.strokeStyle = opts.color || '#ff7675';
+        ctx.lineWidth = 4;
+        ctx.shadowColor = opts.color || '#ff7675';
+        ctx.shadowBlur = 12;
+        const steps = 120;
+        let started = false;
+        for (let i = 0; i <= steps; i++) {
+            const x = i / steps;
+            if (x > animProg) break;
+            const px = fr.gx(x), py = fr.gy(substTAt(x, cfg));
+            if (!started) { ctx.moveTo(px, py); started = true; }
+            else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        // moving tip
+        if (animProg > 0 && animProg < 1) {
+            const px = fr.gx(animProg), py = fr.gy(substTAt(animProg, cfg));
+            ctx.beginPath();
+            ctx.arc(px, py, 7, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff';
+            ctx.shadowColor = opts.color || '#ff7675';
+            ctx.shadowBlur = 14;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+        return fr;
+    }
+
+    // Ice crystals: block of little diamonds
+    function drawIceBlock(ctx, cx, bottomY, cols, rows, cell, amp, t, alpha) {
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const jx = Math.sin(t * 7 + r * 3.1 + c * 1.7) * amp;
+                const jy = Math.cos(t * 6.3 + r * 1.3 + c * 2.9) * amp;
+                const x = cx + (c - (cols - 1) / 2) * cell + jx;
+                const y = bottomY - r * cell - cell / 2 + jy;
+                const s = cell * 0.34;
+                ctx.beginPath();
+                ctx.moveTo(x, y - s);
+                ctx.lineTo(x + s, y);
+                ctx.lineTo(x, y + s);
+                ctx.lineTo(x - s, y);
+                ctx.closePath();
+                ctx.fillStyle = `rgba(168,212,255,${0.75 * alpha})`;
+                ctx.fill();
+                ctx.strokeStyle = `rgba(255,255,255,${0.4 * alpha})`;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+    }
+
+    // ══════════════════ BG: embers up + snow down ══════════════════
+    const bgCanvas = document.getElementById('bgCanvas');
+    const bgCtx = bgCanvas.getContext('2d');
+    let motes = [];
+    function initMotes() {
+        bgCanvas.width = window.innerWidth;
+        bgCanvas.height = window.innerHeight;
+        motes = [];
+        const n = Math.min(90, (bgCanvas.width * bgCanvas.height) / 11000);
+        for (let i = 0; i < n; i++) {
+            const fire = Math.random() < 0.55;
+            motes.push({
+                x: Math.random() * bgCanvas.width,
+                y: Math.random() * bgCanvas.height,
+                r: 0.5 + Math.random() * 1.5,
+                tw: Math.random() * Math.PI * 2,
+                sp: (0.08 + Math.random() * 0.22) * (fire ? -1 : 1),
+                drift: (Math.random() - 0.5) * 0.15,
+                fire
+            });
+        }
+    }
+    initMotes();
+    window.addEventListener('resize', initMotes);
+    function drawBg(t) {
+        bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+        motes.forEach(m => {
+            const a = 0.18 + 0.4 * (0.5 + 0.5 * Math.sin(t * 1.6 + m.tw));
+            bgCtx.beginPath();
+            bgCtx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+            bgCtx.fillStyle = m.fire ? `rgba(255,150,110,${a})` : `rgba(150,200,255,${a})`;
+            bgCtx.fill();
+            m.y += m.sp;
+            m.x += m.drift + Math.sin(t + m.tw) * 0.06;
+            if (m.y < -3) m.y = bgCanvas.height + 3;
+            if (m.y > bgCanvas.height + 3) m.y = -3;
+            if (m.x < -3) m.x = bgCanvas.width + 3;
+            if (m.x > bgCanvas.width + 3) m.x = -3;
+        });
+    }
+
+    // ══════════════════ SCREEN 0: hero — cold→hot particles ══════════════════
+    const heroCanvas = document.getElementById('heroCanvas');
+    const heroCtx = heroCanvas.getContext('2d');
+    function drawHero(t) {
+        const { w, h } = fit(heroCanvas, 120);
+        heroCtx.clearRect(0, 0, w, h);
+        // gradient hint
+        const grad = heroCtx.createLinearGradient(0, 0, w, 0);
+        grad.addColorStop(0, 'rgba(116,185,255,0.06)');
+        grad.addColorStop(1, 'rgba(225,112,85,0.08)');
+        heroCtx.fillStyle = grad;
+        heroCtx.fillRect(0, 0, w, h);
+
+        const cols = 16, rows = 4;
+        for (let c = 0; c < cols; c++) {
+            const xn = c / (cols - 1);
+            const amp = 1.5 + xn * xn * 12;
+            const speed = 3 + xn * 9;
+            for (let r = 0; r < rows; r++) {
+                const bx = w * 0.05 + xn * w * 0.9;
+                const by = h * 0.22 + (r / (rows - 1)) * h * 0.56;
+                const jx = Math.sin(t * speed + c * 2.1 + r * 1.3) * amp;
+                const jy = Math.cos(t * speed * 0.9 + c * 1.7 + r * 2.9) * amp;
+                const R = Math.round(116 + xn * (255 - 116));
+                const G = Math.round(185 - xn * 73);
+                const B = Math.round(255 - xn * 138);
+                heroCtx.beginPath();
+                heroCtx.arc(bx + jx, by + jy, 5 - xn * 0.5, 0, Math.PI * 2);
+                heroCtx.fillStyle = `rgba(${R},${G},${B},0.85)`;
+                if (xn > 0.8) { heroCtx.shadowColor = '#e17055'; heroCtx.shadowBlur = 10; }
+                heroCtx.fill();
+                heroCtx.shadowBlur = 0;
+            }
+        }
+        heroCtx.font = '600 20px -apple-system, sans-serif';
+        heroCtx.textAlign = 'left';
+        heroCtx.fillStyle = 'rgba(168,212,255,0.7)';
+        heroCtx.fillText('🧊 холодно', w * 0.04, h * 0.94);
+        heroCtx.textAlign = 'right';
+        heroCtx.fillStyle = 'rgba(255,118,117,0.8)';
+        heroCtx.fillText('жарко 🔥', w * 0.96, h * 0.94);
+        heroCtx.textAlign = 'start';
+    }
+
+    // ══════════════════ SCREEN 1: hook — lemonade under the sun ══════════════════
+    const hookCanvas = document.getElementById('hookCanvas');
+    const hookCtx = hookCanvas.getContext('2d');
+    function drawHook(t) {
+        const { w, h } = fit(hookCanvas, 190);
+        hookCtx.clearRect(0, 0, w, h);
+
+        // ── sun (top right) ──
+        const sx = w * 0.82, sy = h * 0.2, sr = h * 0.11;
+        const pulse = 1 + Math.sin(t * 2) * 0.06;
+        for (let i = 0; i < 10; i++) {
+            const a = t * 0.3 + (i / 10) * Math.PI * 2;
+            hookCtx.beginPath();
+            hookCtx.moveTo(sx + Math.cos(a) * sr * 1.35 * pulse, sy + Math.sin(a) * sr * 1.35 * pulse);
+            hookCtx.lineTo(sx + Math.cos(a) * sr * (1.75 + Math.sin(t * 3 + i) * 0.12), sy + Math.sin(a) * sr * (1.75 + Math.sin(t * 3 + i) * 0.12));
+            hookCtx.strokeStyle = 'rgba(253,203,110,0.8)';
+            hookCtx.lineWidth = 4;
+            hookCtx.stroke();
+        }
+        hookCtx.beginPath();
+        hookCtx.arc(sx, sy, sr * pulse, 0, Math.PI * 2);
+        hookCtx.fillStyle = '#fdcb6e';
+        hookCtx.shadowColor = '#fdcb6e';
+        hookCtx.shadowBlur = 26;
+        hookCtx.fill();
+        hookCtx.shadowBlur = 0;
+
+        // ── heat waves from sun to glass ──
+        const gx0 = w * 0.38, gy0 = h * 0.45;
+        for (let k = 0; k < 3; k++) {
+            const prog = ((t * 0.4 + k / 3) % 1);
+            const px = sx + (gx0 - sx) * prog;
+            const py = sy + (gy0 - sy) * prog + Math.sin(prog * 10 + t * 3) * 6;
+            hookCtx.font = '22px serif';
+            hookCtx.globalAlpha = 0.5 * Math.sin(prog * Math.PI);
+            hookCtx.fillText('〜', px, py);
+            hookCtx.globalAlpha = 1;
+        }
+
+        // ── glass (center-left) ──
+        const gcx = w * 0.32, gTop = h * 0.22, gBot = h * 0.9;
+        const gwTop = w * 0.20, gwBot = w * 0.16;
+        // lemonade fill
+        hookCtx.beginPath();
+        const lemTop = gTop + (gBot - gTop) * 0.18;
+        const lw1 = gwTop - (gwTop - gwBot) * 0.18;
+        hookCtx.moveTo(gcx - lw1 / 2, lemTop);
+        hookCtx.lineTo(gcx - gwBot / 2, gBot - 4);
+        hookCtx.lineTo(gcx + gwBot / 2, gBot - 4);
+        hookCtx.lineTo(gcx + lw1 / 2, lemTop);
+        hookCtx.closePath();
+        hookCtx.fillStyle = 'rgba(253,203,110,0.22)';
+        hookCtx.fill();
+        // bubbles
+        for (let k = 0; k < 5; k++) {
+            const bp = ((t * 0.25 + k * 0.21) % 1);
+            const bx = gcx + Math.sin(k * 7.3) * gwBot * 0.32;
+            const by = gBot - 10 - bp * (gBot - lemTop - 24);
+            hookCtx.beginPath();
+            hookCtx.arc(bx, by, 2.5 + (k % 3), 0, Math.PI * 2);
+            hookCtx.strokeStyle = 'rgba(255,255,255,0.3)';
+            hookCtx.lineWidth = 1.5;
+            hookCtx.stroke();
+        }
+        // ice cubes bobbing near surface
+        [[-0.28, 0.06, 0], [0.1, 0.02, 1.9], [0.3, 0.1, 4.1]].forEach(([dx, dy, ph], i) => {
+            const ix = gcx + dx * gwTop;
+            const iy = lemTop + (0.06 + dy) * (gBot - gTop) + Math.sin(t * 1.6 + ph) * 3;
+            const s = w * 0.035;
+            hookCtx.save();
+            hookCtx.translate(ix, iy);
+            hookCtx.rotate(Math.sin(t * 0.9 + ph) * 0.14 + ph * 0.2);
+            hookCtx.beginPath();
+            hookCtx.roundRect(-s / 2, -s / 2, s, s, 5);
+            hookCtx.fillStyle = 'rgba(168,212,255,0.75)';
+            hookCtx.fill();
+            hookCtx.strokeStyle = 'rgba(255,255,255,0.55)';
+            hookCtx.lineWidth = 2;
+            hookCtx.stroke();
+            hookCtx.restore();
+        });
+        // glass walls
+        hookCtx.beginPath();
+        hookCtx.moveTo(gcx - gwTop / 2, gTop);
+        hookCtx.lineTo(gcx - gwBot / 2, gBot);
+        hookCtx.lineTo(gcx + gwBot / 2, gBot);
+        hookCtx.lineTo(gcx + gwTop / 2, gTop);
+        hookCtx.strokeStyle = 'rgba(200,225,255,0.55)';
+        hookCtx.lineWidth = 3;
+        hookCtx.stroke();
+        // straw
+        hookCtx.beginPath();
+        hookCtx.moveTo(gcx + gwTop * 0.18, lemTop + 10);
+        hookCtx.lineTo(gcx + gwTop * 0.42, gTop - h * 0.06);
+        hookCtx.strokeStyle = '#ff7675';
+        hookCtx.lineWidth = 6;
+        hookCtx.stroke();
+
+        // ── thermometer stuck at 0 ──
+        drawThermo(hookCtx, w * 0.58, h * 0.3, h * 0.42, 0, -20, 40, '0 °C');
+        hookCtx.font = '600 20px -apple-system, sans-serif';
+        hookCtx.fillStyle = 'rgba(168,212,255,0.85)';
+        hookCtx.textAlign = 'center';
+        hookCtx.fillText('и не растёт! 🤔', w * 0.58, h * 0.92);
+        hookCtx.textAlign = 'start';
+    }
+
+    // ══════════════════ SCREEN 2: heating particles ══════════════════
+    const heatCanvas = document.getElementById('heatCanvas');
+    const heatCtx = heatCanvas.getContext('2d');
+    const powerSlider = document.getElementById('powerSlider');
+    let heatT = 20;             // current temperature
+    let heatParts = [];
+    let heatPrevT = null;
+    let heatCaptionBucket = -1;
+
+    for (let i = 0; i < 34; i++) {
+        const a = Math.random() * Math.PI * 2;
+        heatParts.push({ x: Math.random(), y: Math.random(), dx: Math.cos(a), dy: Math.sin(a) });
+    }
+
+    powerSlider.addEventListener('input', () => {
+        const v = +powerSlider.value;
+        document.getElementById('powerVal').textContent = v <= 3 ? 'слабая' : v <= 7 ? 'средняя' : 'сильная';
+    });
+
+    function drawHeat(t) {
+        const { w, h } = fit(heatCanvas, 200);
+        heatCtx.clearRect(0, 0, w, h);
+
+        // dt
+        let dt = 0.016;
+        if (heatPrevT !== null) dt = Math.min(0.05, Math.max(0, t - heatPrevT));
+        heatPrevT = t;
+
+        const power = +powerSlider.value;
+        const target = 20 + power * 8;   // 20..100 °C
+        heatT += (target - heatT) * Math.min(1, dt * 0.6);
+
+        // vessel
+        const bx = w * 0.1, byT = h * 0.08, bw = w * 0.6, bh = h * 0.62;
+        heatCtx.beginPath();
+        heatCtx.roundRect(bx, byT, bw, bh, 10);
+        heatCtx.fillStyle = 'rgba(116,185,255,0.07)';
+        heatCtx.fill();
+        heatCtx.strokeStyle = 'rgba(200,225,255,0.4)';
+        heatCtx.lineWidth = 3;
+        heatCtx.stroke();
+
+        // particles
+        const sp = (0.06 + (heatT / 100) * 0.55) * dt * 60;
+        heatParts.forEach((p, i) => {
+            p.x += p.dx * sp * 0.016;
+            p.y += p.dy * sp * 0.016;
+            if (p.x < 0.03) { p.x = 0.03; p.dx = Math.abs(p.dx); }
+            if (p.x > 0.97) { p.x = 0.97; p.dx = -Math.abs(p.dx); }
+            if (p.y < 0.05) { p.y = 0.05; p.dy = Math.abs(p.dy); }
+            if (p.y > 0.95) { p.y = 0.95; p.dy = -Math.abs(p.dy); }
+            // slight random steering
+            const ang = Math.sin(t * 3 + i * 13.7) * 0.06;
+            const ndx = p.dx * Math.cos(ang) - p.dy * Math.sin(ang);
+            const ndy = p.dx * Math.sin(ang) + p.dy * Math.cos(ang);
+            p.dx = ndx; p.dy = ndy;
+
+            const hot = heatT / 100;
+            const R = Math.round(116 + hot * 139);
+            const G = Math.round(185 - hot * 73);
+            const B = Math.round(255 - hot * 138);
+            heatCtx.beginPath();
+            heatCtx.arc(bx + 8 + p.x * (bw - 16), byT + 8 + p.y * (bh - 16), 5.5, 0, Math.PI * 2);
+            heatCtx.fillStyle = `rgba(${R},${G},${B},0.9)`;
+            if (hot > 0.6) { heatCtx.shadowColor = '#e17055'; heatCtx.shadowBlur = 8; }
+            heatCtx.fill();
+            heatCtx.shadowBlur = 0;
+        });
+
+        // burner + flame
+        const fy = byT + bh + h * 0.21;
+        heatCtx.beginPath();
+        heatCtx.roundRect(bx + bw * 0.3, fy, bw * 0.4, 8, 4);
+        heatCtx.fillStyle = '#3a3a52';
+        heatCtx.fill();
+        drawFlame(heatCtx, bx + bw / 2, fy, h * 0.06 + power * h * 0.016, t, power);
+
+        // thermometer
+        drawThermo(heatCtx, w * 0.85, h * 0.12, h * 0.55, heatT, 0, 110);
+
+        // caption update
+        const bucket = heatT < 35 ? 0 : heatT < 65 ? 1 : 2;
+        if (bucket !== heatCaptionBucket) {
+            heatCaptionBucket = bucket;
+            document.getElementById('heatCaption').textContent = [
+                'Молекулы лениво покачиваются — вода прохладная.',
+                'Молекулы двигаются заметно быстрее — вода нагрелась.',
+                'Молекулы носятся как угорелые — почти кипяток!'
+            ][bucket];
+        }
+    }
+
+    // ══════════════════ SCREEN 3: MELT SIM ══════════════════
+    const meltCanvas = document.getElementById('meltCanvas');
+    const meltCtx = meltCanvas.getContext('2d');
+    const melt = {
+        running: false, speed: 1, time: 0, T: -20,
+        phase: 'idle', prog: 0, hist: [], prevT: null, shownPhase: ''
+    };
+    const MELT_XMAX = 21; // sim seconds on graph
+
+    function setMeltSpeed(s, el) {
+        sfx.click();
+        melt.speed = s;
+        ['spd1', 'spd2', 'spd4'].forEach(id => document.getElementById(id).classList.remove('active'));
+        if (el) el.classList.add('active');
+    }
+
+    function toggleMelt() {
+        sfx.click();
+        if (melt.phase === 'done') { resetMelt(false); }
+        melt.running = !melt.running;
+        if (melt.running && melt.phase === 'idle') {
+            melt.phase = 'ice';
+            melt.hist.push({ x: 0, y: melt.T });
+        }
+        updateMeltBtn();
+    }
+
+    function updateMeltBtn() {
+        const btn = document.getElementById('meltStartBtn');
+        if (melt.running) { btn.textContent = '⏸ Пауза'; btn.classList.add('running'); }
+        else {
+            btn.textContent = melt.phase === 'idle' ? '▶ Начать нагрев'
+                : melt.phase === 'done' ? '↺ Ещё раз' : '▶ Продолжить';
+            btn.classList.remove('running');
+        }
+    }
+
+    function resetMelt(click) {
+        if (click) sfx.click();
+        melt.running = false; melt.time = 0; melt.T = -20;
+        melt.phase = 'idle'; melt.prog = 0; melt.hist = []; melt.shownPhase = '';
+        updateMeltBtn();
+        setMeltPhaseLabel();
+    }
+
+    function setMeltPhaseLabel() {
+        if (melt.shownPhase === melt.phase) return;
+        melt.shownPhase = melt.phase;
+        const el = document.getElementById('meltPhaseLabel');
+        el.classList.remove('ice-mode', 'melt-mode');
+        const texts = {
+            idle: 'Нажми «Начать нагрев» — и следи за графиком справа',
+            ice: '🔥 Лёд нагревается: −20 °C → 0 °C. Молекулы дрожат всё сильнее',
+            melt: '🧊→💧 ПЛАВЛЕНИЕ: температура замерла на 0 °C! Вся энергия рушит решётку',
+            water: '💧 Весь лёд растаял — теперь энергия снова разгоняет молекулы, температура растёт',
+            done: '✅ Готово! Рост → полочка → рост. Это и есть график плавления'
+        };
+        el.textContent = texts[melt.phase];
+        if (melt.phase === 'ice') el.classList.add('ice-mode');
+        if (melt.phase === 'melt') el.classList.add('melt-mode');
+        if (melt.phase === 'water' && currentScreen === 3) sfx.complete();
+    }
+
+    function updateMeltSim(t) {
+        let dt = 0;
+        if (melt.prevT !== null) dt = Math.min(0.05, Math.max(0, t - melt.prevT));
+        melt.prevT = t;
+        if (!melt.running) return;
+        const d = dt * melt.speed;
+        if (melt.phase === 'ice') {
+            melt.T += 10 * d;
+            if (melt.T >= 0) { melt.T = 0; melt.phase = 'melt'; }
+        } else if (melt.phase === 'melt') {
+            melt.prog += d / 8;
+            melt.T = 0;
+            if (melt.prog >= 1) { melt.prog = 1; melt.phase = 'water'; }
+        } else if (melt.phase === 'water') {
+            melt.T += 6 * d;
+            if (melt.T >= 60) { melt.T = 60; melt.phase = 'done'; melt.running = false; updateMeltBtn(); }
+        }
+        melt.time += d;
+        const last = melt.hist[melt.hist.length - 1];
+        if (!last || melt.time - last.x >= 0.12 || melt.phase === 'done') {
+            melt.hist.push({ x: melt.time, y: melt.T });
+        }
+        setMeltPhaseLabel();
+    }
+
+    function drawMelt(t) {
+        const { w, h } = fit(meltCanvas, 230);
+        meltCtx.clearRect(0, 0, w, h);
+        updateMeltSim(t);
+
+        // ── left: beaker ──
+        const bx = w * 0.035, bw = w * 0.24;
+        const byT = h * 0.12, bh = h * 0.56;
+        const bcx = bx + bw / 2, bBot = byT + bh;
+        // water (if any)
+        const waterFrac = melt.phase === 'ice' || melt.phase === 'idle' ? 0 : (melt.phase === 'melt' ? melt.prog : 1);
+        const waterH = waterFrac * bh * 0.72;
+        if (waterH > 1) {
+            const warm = Math.max(0, melt.T) / 60;
+            meltCtx.beginPath();
+            meltCtx.rect(bx + 4, bBot - 4 - waterH, bw - 8, waterH);
+            meltCtx.fillStyle = `rgba(${Math.round(116 + warm * 60)},${Math.round(185 - warm * 30)},255,0.35)`;
+            meltCtx.fill();
+            // bubbles in hot water
+            if (melt.T > 30) {
+                for (let k = 0; k < 4; k++) {
+                    const bp = ((t * 0.5 + k * 0.26) % 1);
+                    meltCtx.beginPath();
+                    meltCtx.arc(bcx + Math.sin(k * 5.1) * bw * 0.28, bBot - 8 - bp * (waterH - 12), 2.5, 0, Math.PI * 2);
+                    meltCtx.strokeStyle = 'rgba(255,255,255,0.35)';
+                    meltCtx.lineWidth = 1.5;
+                    meltCtx.stroke();
+                }
+            }
+        }
+        // ice
+        if (melt.phase === 'idle' || melt.phase === 'ice') {
+            const amp = 1 + ((melt.T + 20) / 20) * 2.2;
+            drawIceBlock(meltCtx, bcx, bBot - 8, 5, 4, bw / 6, melt.running ? amp : 1, t, 1);
+        } else if (melt.phase === 'melt') {
+            const remain = 1 - melt.prog;
+            const rows = Math.max(1, Math.round(4 * remain));
+            const cols = Math.max(1, Math.round(5 * remain));
+            drawIceBlock(meltCtx, bcx, bBot - 6 - waterH, cols, rows, bw / 6, 2.6, t, 0.4 + remain * 0.6);
+        }
+        // beaker walls
+        meltCtx.beginPath();
+        meltCtx.moveTo(bx, byT);
+        meltCtx.lineTo(bx, bBot);
+        meltCtx.lineTo(bx + bw, bBot);
+        meltCtx.lineTo(bx + bw, byT);
+        meltCtx.strokeStyle = 'rgba(200,225,255,0.5)';
+        meltCtx.lineWidth = 3;
+        meltCtx.stroke();
+        // burner + flame
+        const fy = h * 0.87;
+        meltCtx.beginPath();
+        meltCtx.roundRect(bx + bw * 0.25, fy, bw * 0.5, 7, 4);
+        meltCtx.fillStyle = '#3a3a52';
+        meltCtx.fill();
+        if (melt.running || (melt.phase !== 'idle' && melt.phase !== 'done')) {
+            drawFlame(meltCtx, bcx, fy, h * 0.11 * (melt.running ? 1 : 0.4), t, 1);
+        }
+
+        // thermometer
+        drawThermo(meltCtx, w * 0.335, h * 0.14, h * 0.52, melt.T, -30, 80);
+
+        // ── right: live graph ──
+        const gX = w * 0.40, gW = w * 0.60;
+        const fr = graphFrame(meltCtx, gX, 0, gW, h, {
+            left: 62, right: 14, top: 18, bottom: 50,
+            yMin: -30, yMax: 80, yTicks: [-20, 0, 20, 40, 60, 80],
+            xMax: MELT_XMAX,
+            xTicks: [{ v: 0, l: '0' }, { v: 5, l: '5' }, { v: 10, l: '10' }, { v: 15, l: '15' }, { v: 20, l: '20' }],
+            xLabel: 'время, с', yLabel: 't, °C'
+        });
+        // dashed 0 °C line
+        const zy = fr.gy(0);
+        meltCtx.setLineDash([6, 6]);
+        meltCtx.strokeStyle = '#74b9ff50';
+        meltCtx.lineWidth = 2;
+        meltCtx.beginPath(); meltCtx.moveTo(fr.L, zy); meltCtx.lineTo(fr.R, zy); meltCtx.stroke();
+        meltCtx.setLineDash([]);
+        // history line
+        if (melt.hist.length > 1) {
+            meltCtx.beginPath();
+            meltCtx.strokeStyle = '#ff7675';
+            meltCtx.lineWidth = 4;
+            meltCtx.shadowColor = '#ff7675';
+            meltCtx.shadowBlur = 10;
+            melt.hist.forEach((p, i) => {
+                const px = fr.gx(Math.min(p.x, MELT_XMAX)), py = fr.gy(p.y);
+                i === 0 ? meltCtx.moveTo(px, py) : meltCtx.lineTo(px, py);
+            });
+            meltCtx.stroke();
+            meltCtx.shadowBlur = 0;
+            // current point
+            const lastP = melt.hist[melt.hist.length - 1];
+            meltCtx.beginPath();
+            meltCtx.arc(fr.gx(Math.min(lastP.x, MELT_XMAX)), fr.gy(lastP.y), 7, 0, Math.PI * 2);
+            meltCtx.fillStyle = '#fff';
+            meltCtx.shadowColor = '#ff7675';
+            meltCtx.shadowBlur = 14;
+            meltCtx.fill();
+            meltCtx.shadowBlur = 0;
+        }
+        // plateau annotation
+        if (melt.phase === 'melt' || melt.phase === 'water' || melt.phase === 'done') {
+            meltCtx.font = '700 21px -apple-system, sans-serif';
+            meltCtx.fillStyle = '#fdcb6e';
+            meltCtx.fillText('полочка 0 °C', fr.gx(4.5), zy - 12);
+        }
+    }
+
+    // ══════════════════ SCREEN 4: crystal lattice ══════════════════
+    const latticeCanvas = document.getElementById('latticeCanvas');
+    const latCtx = latticeCanvas.getContext('2d');
+    const energySlider = document.getElementById('energySlider');
+    const LAT_COLS = 8, LAT_ROWS = 4, LAT_N = LAT_COLS * LAT_ROWS;
+    // deterministic permutation for break order
+    const latOrder = [];
+    for (let i = 0; i < LAT_N; i++) latOrder.push((i * 13 + 7) % LAT_N);
+    const latFree = [];
+    for (let i = 0; i < LAT_N; i++) latFree.push({ free: false, x: 0, y: 0, vx: 0, vy: 0 });
+    let latPrevT = null;
+    let latMsgBucket = -1;
+
+    energySlider.addEventListener('input', () => {
+        const e = +energySlider.value;
+        document.getElementById('energyVal').textContent = e + '%';
+        const nBroken = Math.round(LAT_N * e / 100);
+        document.getElementById('latBondsVal').textContent = Math.round(nBroken / LAT_N * 100) + '%';
+        const bucket = e === 0 ? 0 : e < 50 ? 1 : e < 100 ? 2 : 3;
+        if (bucket !== latMsgBucket) {
+            latMsgBucket = bucket;
+            document.getElementById('latticeMsg').textContent = [
+                'Двигай ползунок — подводи энергию к решётке.',
+                'Связи рвутся! А скорость частиц — та же самая. Термометр стоит на 0 °C.',
+                'Уже половина решётки разрушена. Температура всё ещё 0 °C!',
+                'Решётка разрушена — лёд стал водой! Теперь энергия снова будет разгонять молекулы.'
+            ][bucket];
+            if (bucket === 3) { sfx.complete(); confettiBurst(24, 0.5, 0.45); }
+        }
+    });
+
+    function latSite(i, w, h) {
+        const c = i % LAT_COLS, r = (i / LAT_COLS) | 0;
+        return {
+            x: w * 0.14 + (c / (LAT_COLS - 1)) * w * 0.72,
+            y: h * 0.16 + (r / (LAT_ROWS - 1)) * h * 0.44
+        };
+    }
+
+    function drawLattice(t) {
+        const { w, h } = fit(latticeCanvas, 210);
+        latCtx.clearRect(0, 0, w, h);
+        let dt = 0.016;
+        if (latPrevT !== null) dt = Math.min(0.05, Math.max(0, t - latPrevT));
+        latPrevT = t;
+
+        const e = +energySlider.value;
+        const nBroken = Math.round(LAT_N * e / 100);
+        const isBroken = i => latOrder[i] < nBroken;
+
+        // bonds between adjacent bound nodes (springy)
+        latCtx.lineWidth = 2;
+        for (let i = 0; i < LAT_N; i++) {
+            if (isBroken(i)) continue;
+            const c = i % LAT_COLS, r = (i / LAT_COLS) | 0;
+            const s1 = latSite(i, w, h);
+            [[c + 1, r], [c, r + 1]].forEach(([nc, nr]) => {
+                if (nc >= LAT_COLS || nr >= LAT_ROWS) return;
+                const j = nr * LAT_COLS + nc;
+                if (isBroken(j)) return;
+                const s2 = latSite(j, w, h);
+                const mx = (s1.x + s2.x) / 2 + Math.sin(t * 8 + i * 1.3) * 2;
+                const my = (s1.y + s2.y) / 2 + Math.cos(t * 7 + i * 2.1) * 2;
+                latCtx.beginPath();
+                latCtx.moveTo(s1.x, s1.y);
+                latCtx.quadraticCurveTo(mx, my, s2.x, s2.y);
+                latCtx.strokeStyle = 'rgba(168,212,255,0.35)';
+                latCtx.stroke();
+            });
+        }
+
+        // nodes
+        const JIT = 3.2;                       // constant jitter amp = constant temperature
+        const FREE_SPEED = 55;                 // device px / s — same "energy of motion"
+        for (let i = 0; i < LAT_N; i++) {
+            const site = latSite(i, w, h);
+            const st = latFree[i];
+            let px, py, freeNow = isBroken(i);
+            if (freeNow && !st.free) {
+                st.free = true;
+                st.x = site.x; st.y = site.y;
+                const a = (i * 2.39996) % (Math.PI * 2);
+                st.vx = Math.cos(a) * FREE_SPEED;
+                st.vy = Math.sin(a) * FREE_SPEED;
+            }
+            if (!freeNow && st.free) st.free = false;
+
+            if (st.free) {
+                st.x += st.vx * dt;
+                st.y += st.vy * dt;
+                const pad = 14;
+                if (st.x < pad) { st.x = pad; st.vx = Math.abs(st.vx); }
+                if (st.x > w - pad) { st.x = w - pad; st.vx = -Math.abs(st.vx); }
+                if (st.y < pad) { st.y = pad; st.vy = Math.abs(st.vy); }
+                if (st.y > h * 0.72) { st.y = h * 0.72; st.vy = -Math.abs(st.vy); }
+                px = st.x + Math.sin(t * 9 + i) * JIT;
+                py = st.y + Math.cos(t * 8 + i * 1.7) * JIT;
+            } else {
+                px = site.x + Math.sin(t * 9 + i * 2.3) * JIT;
+                py = site.y + Math.cos(t * 8 + i * 1.7) * JIT;
+            }
+            latCtx.beginPath();
+            latCtx.arc(px, py, 8, 0, Math.PI * 2);
+            latCtx.fillStyle = st.free ? 'rgba(116,185,255,0.95)' : 'rgba(168,212,255,0.8)';
+            if (st.free) { latCtx.shadowColor = '#74b9ff'; latCtx.shadowBlur = 10; }
+            latCtx.fill();
+            latCtx.shadowBlur = 0;
+        }
+
+        // energy sparks from below
+        if (e > 0) {
+            const nSp = Math.min(9, 1 + (e / 12) | 0);
+            for (let k = 0; k < nSp; k++) {
+                const cycle = h * 0.35;
+                const yy = h * 0.98 - ((t * 60 + k * 91) % cycle);
+                const xx = w * 0.1 + ((k * 137) % (w * 0.8 | 0)) + Math.sin(t * 4 + k) * 8;
+                const alpha = (h * 0.98 - yy) / cycle;
+                latCtx.beginPath();
+                latCtx.arc(xx, yy, 3.5, 0, Math.PI * 2);
+                latCtx.fillStyle = `rgba(255,150,90,${0.9 - alpha * 0.7})`;
+                latCtx.fill();
+            }
+            drawFlame(latCtx, w * 0.5, h * 0.995, h * 0.07 + e * h * 0.0007, t, 1);
+        }
+        latCtx.font = '600 19px -apple-system, sans-serif';
+        latCtx.fillStyle = '#ffffff40';
+        latCtx.textAlign = 'center';
+        latCtx.fillText('кристаллическая решётка льда · 0 °C', w / 2, h * 0.86);
+        latCtx.textAlign = 'start';
+    }
+
+    // ══════════════════ SCREEN 7: substances ══════════════════
+    const SUBSTANCES = [
+        { name: 'Лёд', melt: 0, start: -20, end: 40, yMin: -30, yMax: 50, ticks: [-20, 0, 20, 40], color: '#74b9ff',
+          note: 'Лёд: полочка на 0 °C. Поэтому лимонад со льдом и держит ноль!' },
+        { name: 'Парафин', melt: 55, start: 20, end: 90, yMin: 0, yMax: 100, ticks: [0, 25, 50, 75, 100], color: '#fdcb6e',
+          note: 'Парафин плавится примерно при 55 °C — поэтому свечка «плачет» уже от пламени фитиля.' },
+        { name: 'Свинец', melt: 327, start: 20, end: 450, yMin: 0, yMax: 480, ticks: [0, 100, 200, 300, 400], color: '#b2bec3',
+          note: 'Свинец: 327 °C. Его можно расплавить даже на плите — этим пользуются рыбаки, отливая грузила.' },
+        { name: 'Железо', melt: 1539, start: 20, end: 1800, yMin: 0, yMax: 1900, ticks: [0, 500, 1000, 1500], color: '#ff7675',
+          note: 'Железо держится до 1539 °C — вот зачем металлургам домны и защитные костюмы.' }
+    ];
+    const substCanvas = document.getElementById('substCanvas');
+    const substCtx = substCanvas.getContext('2d');
+    let substSel = 0, substAnimStart = 0;
+
+    function setSubst(i, el) {
+        sfx.click();
+        substSel = i;
+        substAnimStart = performance.now() / 1000;
+        for (let k = 0; k < 4; k++) document.getElementById('subst' + k).classList.remove('active');
+        if (el) el.classList.add('active');
+        document.getElementById('substNote').textContent = SUBSTANCES[i].note;
+    }
+
+    function drawSubst(t) {
+        const { w, h } = fit(substCanvas, 200);
+        substCtx.clearRect(0, 0, w, h);
+        const cfg = SUBSTANCES[substSel];
+        const anim = substAnimStart === 0 ? 1 : Math.min(1, (t - substAnimStart) / 1.2);
+        drawSubstGraph(substCtx, w, h, cfg, anim, { color: cfg.color, showMeltLabel: true, left: 88 });
+    }
+
+    // ══════════════════ SCREEN 8: guess the substance ══════════════════
+    const guessRounds = [
+        { melt: 0, start: -20, end: 40, yMin: -30, yMax: 50, ticks: [-20, 0, 20, 40],
+          options: [{ n: 'Лёд', t: 0, ok: true }, { n: 'Парафин', t: 55 }, { n: 'Свинец', t: 327 }],
+          hint: 'Разогрев начался с минусовой температуры... 🥶' },
+        { melt: 327, start: 20, end: 450, yMin: 0, yMax: 480, ticks: [0, 100, 200, 300, 400],
+          options: [{ n: 'Олово', t: 232 }, { n: 'Свинец', t: 327, ok: true }, { n: 'Цинк', t: 420 }],
+          hint: 'Полочка чуть выше линии 300. Кто из троих подходит?' },
+        { melt: 55, start: 0, end: 110, yMin: -10, yMax: 120, ticks: [0, 25, 50, 75, 100],
+          options: [{ n: 'Лёд', t: 0 }, { n: 'Олово', t: 232 }, { n: 'Парафин', t: 55, ok: true }],
+          hint: 'Полочка между 50 и 75. Смотри внимательно!' },
+        { melt: 1539, start: 20, end: 1800, yMin: 0, yMax: 2000, ticks: [0, 500, 1000, 1500, 2000],
+          options: [{ n: 'Железо', t: 1539, ok: true }, { n: 'Медь', t: 1085 }, { n: 'Вольфрам', t: 3422 }],
+          hint: 'Финал! Полочка чуть выше 1500 — это серьёзный металл.' }
+    ];
+    let gRoundIdx = 0, gAnswered = false, gAnimStart = 0;
+    const guessCanvas = document.getElementById('guessCanvas');
+    const guessCtx = guessCanvas.getContext('2d');
+
+    function renderGuessRound() {
+        const r = guessRounds[gRoundIdx];
+        gAnswered = false;
+        gAnimStart = performance.now() / 1000;
+        document.getElementById('gRound').textContent = `Раунд ${gRoundIdx + 1} из 4`;
+        document.getElementById('gFeedback').textContent = r.hint;
+        const wrap = document.getElementById('gOptions');
+        wrap.innerHTML = '';
+        r.options.forEach(opt => {
+            const b = document.createElement('button');
+            b.className = 'det-option';
+            b.innerHTML = `${opt.n}<small>t пл = ${opt.t} °C</small>`;
+            b.onclick = () => answerGuess(opt, b);
+            wrap.appendChild(b);
+        });
+    }
+
+    function answerGuess(opt, btnEl) {
+        if (gAnswered) return;
+        gAnswered = true;
+        const r = guessRounds[gRoundIdx];
+        const right = r.options.find(o => o.ok);
+        const fb = document.getElementById('gFeedback');
+        document.querySelectorAll('#gOptions .det-option').forEach(b => {
+            b.disabled = true;
+            if (b.textContent.indexOf(right.n) === 0) b.classList.add('correct');
+        });
+        if (opt.ok) {
+            sfx.correct();
+            gameScore++;
+            addPoint();
+            confettiBurst(26, 0.5, 0.45);
+            fb.textContent = `✅ Да! Полочка на ${right.t} °C — это ${right.n.toLowerCase()}.`;
+        } else {
+            btnEl.classList.add('wrong');
+            sfx.wrong();
+            fb.textContent = `Полочка на высоте ${right.t} °C — это ${right.n.toLowerCase()}. Сверяй полочку с осью температуры!`;
+        }
+        setTimeout(() => {
+            gRoundIdx++;
+            if (gRoundIdx < guessRounds.length) {
+                renderGuessRound();
+            } else {
+                document.getElementById('gRound').textContent = 'Игра окончена';
+                document.getElementById('gOptions').innerHTML = '';
+                document.getElementById('gFeedback').innerHTML =
+                    `<b style="color:#fff;">Твой результат: ${gameScore} из 4.</b> ${gameScore === 4 ? 'Идеально — глаз-термометр! 🔥' : gameScore >= 2 ? 'Отлично читаешь графики!' : 'Полочка = температура плавления. Потренируйся ещё!'}`;
+                const nb = document.getElementById('gNextBtn');
+                nb.disabled = false;
+                if (gameScore >= 3) confettiBurst(50, 0.5, 0.4);
+            }
+        }, opt.ok ? 1500 : 2800);
+    }
+
+    function drawGuess(t) {
+        const { w, h } = fit(guessCanvas, 190);
+        guessCtx.clearRect(0, 0, w, h);
+        if (gRoundIdx >= guessRounds.length) {
+            guessCtx.font = '80px serif';
+            guessCtx.textAlign = 'center';
+            guessCtx.fillText('🏆', w / 2, h / 2 + 20);
+            guessCtx.font = '600 22px -apple-system, sans-serif';
+            guessCtx.fillStyle = '#8888a0';
+            guessCtx.fillText('Все графики прочитаны!', w / 2, h / 2 + 66);
+            guessCtx.textAlign = 'start';
+            return;
+        }
+        const r = guessRounds[gRoundIdx];
+        const anim = gAnimStart === 0 ? 1 : Math.min(1, (t - gAnimStart) / 1.4);
+        drawSubstGraph(guessCtx, w, h, r, anim, { color: '#ff7675', showMeltLabel: false, left: 84 });
+        guessCtx.font = '700 24px -apple-system, sans-serif';
+        guessCtx.fillStyle = '#ffffff70';
+        guessCtx.textAlign = 'right';
+        guessCtx.fillText('❓', w - 22, 40);
+        guessCtx.textAlign = 'start';
+    }
+
+    // ══════════════════ SCREEN 9: OGE graph + challenge ══════════════════
+    const ogeCanvas = document.getElementById('ogeCanvas');
+    const ogeCtx = ogeCtx0();
+    function ogeCtx0() { return ogeCanvas.getContext('2d'); }
+
+    // Scenario: T(0)=-30 → 0 °C at 4 min; melting 4..10 min; water 0→60 °C at 14 min
+    function ogeTAt(m) {
+        if (m <= 4) return -30 + (30 / 4) * m;
+        if (m <= 10) return 0;
+        return (60 / 4) * (m - 10);
+    }
+
+    function drawOge(t) {
+        const { w, h } = fit(ogeCanvas, 220);
+        ogeCtx.clearRect(0, 0, w, h);
+        const xTicks = [];
+        for (let m = 0; m <= 16; m += 2) xTicks.push({ v: m, l: String(m) });
+        const fr = graphFrame(ogeCtx, 0, 0, w, h, {
+            left: 70, right: 18, top: 20, bottom: 54,
+            yMin: -40, yMax: 70, yTicks: [-30, 0, 30, 60],
+            xMax: 16, xTicks,
+            xLabel: 'время, мин', yLabel: 't, °C'
+        });
+        // dashed 0 line
+        const zy = fr.gy(0);
+        ogeCtx.setLineDash([6, 6]);
+        ogeCtx.strokeStyle = '#ffffff20';
+        ogeCtx.beginPath(); ogeCtx.moveTo(fr.L, zy); ogeCtx.lineTo(fr.R, zy); ogeCtx.stroke();
+        ogeCtx.setLineDash([]);
+        // three segments
+        const segs = [
+            { m0: 0, m1: 4, color: '#74b9ff', label: '①', lx: 2.1, ly: -22 },
+            { m0: 4, m1: 10, color: '#fdcb6e', label: '②', lx: 7, ly: 9 },
+            { m0: 10, m1: 14, color: '#ff7675', label: '③', lx: 12.6, ly: 26 }
+        ];
+        segs.forEach(s => {
+            ogeCtx.beginPath();
+            ogeCtx.strokeStyle = s.color;
+            ogeCtx.lineWidth = 5;
+            ogeCtx.shadowColor = s.color;
+            ogeCtx.shadowBlur = 8;
+            ogeCtx.moveTo(fr.gx(s.m0), fr.gy(ogeTAt(s.m0)));
+            ogeCtx.lineTo(fr.gx(s.m1), fr.gy(ogeTAt(s.m1)));
+            ogeCtx.stroke();
+            ogeCtx.shadowBlur = 0;
+            ogeCtx.font = '700 26px -apple-system, sans-serif';
+            ogeCtx.fillStyle = s.color;
+            ogeCtx.textAlign = 'center';
+            ogeCtx.fillText(s.label, fr.gx(s.lx), fr.gy(s.ly));
+            ogeCtx.textAlign = 'start';
+        });
+        // key points
+        [[4, 0], [10, 0]].forEach(([m, T]) => {
+            ogeCtx.beginPath();
+            ogeCtx.arc(fr.gx(m), fr.gy(T), 6, 0, Math.PI * 2);
+            ogeCtx.fillStyle = '#fff';
+            ogeCtx.fill();
+        });
+    }
+
+    const chalQs = [
+        {
+            q: 'В какой момент вещество начало плавиться?',
+            opts: ['Сразу, в момент t = 0', 'На 4-й минуте, когда температура дошла до 0 °C', 'На 10-й минуте'],
+            ok: 1,
+            fbOk: 'Верно! Плавление началось, когда температура достигла температуры плавления — на 4-й минуте.',
+            fbNo: 'Не совсем. Плавление начинается там, где начинается полочка — на 4-й минуте, при 0 °C.'
+        },
+        {
+            q: 'Сколько минут длилось плавление?',
+            opts: ['6 минут', '4 минуты', '10 минут'],
+            ok: 0,
+            fbOk: 'Точно! Полочка тянется с 4-й по 10-ю минуту: 10 − 4 = 6 минут.',
+            fbNo: 'Смотри на длину полочки: она идёт с 4-й по 10-ю минуту. 10 − 4 = 6 минут.'
+        },
+        {
+            q: 'Какова температура плавления этого вещества?',
+            opts: ['−30 °C', '60 °C', '0 °C'],
+            ok: 2,
+            fbOk: 'Да! Температура плавления — это высота полочки: 0 °C. Кстати, значит это лёд.',
+            fbNo: 'Температура плавления — это высота полочки на графике, а она на 0 °C. Значит, это лёд!'
+        },
+        {
+            q: 'Какой участок графика — нагревание жидкости?',
+            opts: ['Участок ①', 'Участок ②', 'Участок ③'],
+            ok: 2,
+            fbOk: 'Верно! ① — нагрев твёрдого вещества, ② — плавление, ③ — нагрев уже жидкости.',
+            fbNo: 'Жидкость появляется только ПОСЛЕ плавления. ① — нагрев льда, ② — плавление, ③ — нагрев воды.'
+        },
+        {
+            q: 'Если бы горелка была мощнее, как изменился бы график?',
+            opts: ['Полочка была бы выше — плавление при большей температуре', 'Полочка стала бы короче, но осталась бы на 0 °C', 'График не изменился бы совсем'],
+            ok: 1,
+            fbOk: 'Отлично! Температура плавления — свойство вещества, она не зависит от горелки. А вот времени на всё уйдёт меньше — полочка короче.',
+            fbNo: 'Температура плавления не зависит от мощности горелки — полочка останется на 0 °C. Но энергия поступает быстрее, так что плавление закончится раньше: полочка короче.'
+        }
+    ];
+    let chalIdx = 0, chalAnswered = 0, chalBusy = false;
+
+    function renderChal() {
+        const box = document.getElementById('chalBox');
+        const fb = document.getElementById('chalFeedback');
+        fb.classList.remove('show', 'correct-fb', 'wrong-fb');
+        if (chalIdx < chalQs.length) {
+            document.getElementById('chalTitle').textContent = `🎯 Задача ${chalIdx + 1} из 5`;
+            document.getElementById('chalText').textContent = chalQs[chalIdx].q;
+            const wrap = document.getElementById('chalOptions');
+            wrap.innerHTML = '';
+            chalQs[chalIdx].opts.forEach((txt, i) => {
+                const b = document.createElement('button');
+                b.className = 'quiz-option';
+                b.textContent = txt;
+                b.onclick = () => answerChal(i, b);
+                wrap.appendChild(b);
+            });
+            chalBusy = false;
+        } else {
+            box.classList.add('success');
+            document.getElementById('chalTitle').textContent = chalScore === 5 ? '🏆 Все 5 из 5 — как настоящий стобалльник!' : `Задачи решены: ${chalScore} из 5`;
+            document.getElementById('chalText').textContent = chalScore >= 4
+                ? 'На ОГЭ такую задачу ты щёлкнешь за минуту.'
+                : 'Главное запомни: полочка = плавление, её высота = температура плавления, длина = время плавления.';
+            document.getElementById('chalOptions').innerHTML = '';
+            document.getElementById('chalNextBtn').disabled = false;
+            if (chalScore >= 4) { sfx.complete(); confettiBurst(46, 0.5, 0.35); }
+        }
+    }
+
+    function answerChal(idx, btnEl) {
+        if (chalBusy) return;
+        chalBusy = true;
+        const q = chalQs[chalIdx];
+        const correct = idx === q.ok;
+        document.querySelectorAll('#chalOptions .quiz-option').forEach((b, i) => {
+            b.classList.add('disabled');
+            if (i === q.ok) b.classList.add('correct');
+            else if (i === idx) b.classList.add('wrong');
+        });
+        const fb = document.getElementById('chalFeedback');
+        document.getElementById('chalFeedback-text').textContent = correct ? q.fbOk : q.fbNo;
+        fb.classList.add('show', correct ? 'correct-fb' : 'wrong-fb');
+        const dot = document.querySelectorAll('#chalProgress .cp-dot')[chalIdx];
+        if (correct) {
+            chalScore++;
+            addPoint();
+            sfx.correct();
+            confettiBurst(20, 0.5, 0.5);
+            if (dot) dot.classList.add('done');
+        } else {
+            sfx.wrong();
+            if (dot) dot.classList.add('miss');
+        }
+        chalAnswered++;
+        setTimeout(() => { chalIdx++; renderChal(); }, correct ? 1700 : 3400);
+    }
+
+    // ══════════════════ QUIZ (screens 5-6) ══════════════════
+    const feedbackCorrect = {
+        1: 'Верно! Пока идёт плавление, вся энергия рушит кристаллическую решётку, а не разгоняет молекулы — термометр замирает на 0 °C.',
+        2: 'Именно! Энергия рвёт связи между молекулами в решётке. Скорость молекул (а значит и температура) при этом не растёт.'
+    };
+    const feedbackWrong = {
+        1: 'Не совсем. Вспомни полочку на графике: пока лёд плавится, температура стоит на 0 °C — вся энергия уходит на разрушение решётки.',
+        2: 'Не совсем. Если бы молекулы разгонялись, температура бы росла — а она стоит. Энергия идёт на разрыв связей кристаллической решётки.'
+    };
+
+    function checkAnswer(quizNum, optionIdx, isCorrect) {
+        const options = document.querySelectorAll(`#quiz${quizNum} .quiz-option`);
+        options.forEach((o, i) => {
+            o.classList.add('disabled');
+            if (i === optionIdx) o.classList.add(isCorrect ? 'correct' : 'wrong');
+        });
+        const fb = document.getElementById(`feedback${quizNum}`);
+        document.getElementById(`feedback${quizNum}-text`).textContent = isCorrect ? feedbackCorrect[quizNum] : feedbackWrong[quizNum];
+        fb.classList.add('show', isCorrect ? 'correct-fb' : 'wrong-fb');
+        if (isCorrect) {
+            theoryScore++;
+            addPoint();
+            sfx.correct();
+            confettiBurst(22, 0.5, 0.4);
+        } else {
+            sfx.wrong();
+        }
+        document.getElementById(`nextQ${quizNum}`).disabled = false;
+    }
+
+    // ══════════════════ FINAL QUIZ (screen 10) ══════════════════
+    const fqCorrectTexts = {
+        1: 'Точно! Кристаллизация — зеркальный процесс: идёт при той же температуре 0 °C, только теперь энергия выделяется, а не поглощается.',
+        2: 'Да! Пока в стакане есть лёд, всё приходящее тепло тратится на его плавление — и температура держится на 0 °C. Загадка из начала разгадана!'
+    };
+    const fqWrongTexts = {
+        1: 'Не совсем. Кристаллизация идёт при ТОЙ ЖЕ температуре, что и плавление — 0 °C, и при этом энергия выделяется, а не поглощается.',
+        2: 'Не совсем. Дело в плавлении: всё приходящее тепло уходит на разрушение решётки льда, поэтому температура стоит на 0 °C, пока лёд не растает.'
+    };
+
+    function checkFinal(qNum, optIdx, isCorrect) {
+        const options = document.querySelectorAll(`#fq${qNum} .quiz-option`);
+        options.forEach((o, i) => {
+            o.classList.add('disabled');
+            if (i === optIdx) o.classList.add(isCorrect ? 'correct' : 'wrong');
+        });
+        const fb = document.getElementById(`fqFb${qNum}`);
+        document.getElementById(`fqFb${qNum}-text`).textContent = isCorrect ? fqCorrectTexts[qNum] : fqWrongTexts[qNum];
+        fb.classList.add('show', isCorrect ? 'correct-fb' : 'wrong-fb');
+        if (isCorrect) { finalScore++; addPoint(); sfx.correct(); } else { sfx.wrong(); }
+        finalAnswered++;
+
+        if (qNum < 2) {
+            setTimeout(() => {
+                const nextBlock = document.getElementById(`fqBlock${qNum + 1}`);
+                nextBlock.style.display = 'block';
+                nextBlock.style.animation = 'fadeIn 0.4s ease';
+                nextBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 600);
+        }
+        if (finalAnswered === 2) {
+            setTimeout(() => {
+                const btn = document.getElementById('toResultsBtn');
+                btn.style.display = '';
+                btn.disabled = false;
+                btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 800);
+        }
+    }
+
+    // ══════════════════ NAVIGATION ══════════════════
+    const renderers = {
+        0: drawHero, 1: drawHook, 2: drawHeat, 3: drawMelt,
+        4: drawLattice, 7: drawSubst, 8: drawGuess, 9: drawOge
+    };
+
+    function goTo(n) {
+        document.getElementById(`screen-${currentScreen}`).classList.remove('active');
+        currentScreen = n;
+        const el = document.getElementById(`screen-${n}`);
+        el.classList.add('active');
+        updateProgress();
+        if (n !== 3) { melt.running = false; melt.prevT = null; updateMeltBtn(); }
+        if (n === 3) melt.prevT = null;
+        if (n === 4) latPrevT = null;
+        if (n === 2) heatPrevT = null;
+        if (n === 7) { substAnimStart = performance.now() / 1000; }
+        if (n === 8 && gRoundIdx < guessRounds.length && document.getElementById('gOptions').children.length === 0) renderGuessRound();
+        if (n === 9 && chalIdx < chalQs.length && document.getElementById('chalOptions').children.length === 0) renderChal();
+        if (n === 11) showResults();
+        window.scrollTo(0, 0);
+    }
+
+    function updateProgress() {
+        const pct = (currentScreen / (TOTAL_SCREENS - 1)) * 100;
+        document.getElementById('progressFill').style.width = pct + '%';
+        const indicator = document.getElementById('stepsIndicator');
+        indicator.innerHTML = '';
+        for (let i = 0; i < TOTAL_SCREENS; i++) {
+            const dot = document.createElement('div');
+            dot.className = 'step-dot';
+            if (i === currentScreen) dot.classList.add('active');
+            if (i < currentScreen) dot.classList.add('completed');
+            indicator.appendChild(dot);
+        }
+    }
+
+    // ══════════════════ RESULTS ══════════════════
+    function showResults() {
+        document.getElementById('resultTheory').textContent = theoryScore + '/2';
+        document.getElementById('resultGame').textContent = gameScore + '/4';
+        document.getElementById('resultChal').textContent = chalScore + '/5';
+        document.getElementById('resultFinal').textContent = finalScore + '/2';
+        const total = theoryScore + gameScore + chalScore + finalScore;
+        document.getElementById('resultTotal').textContent = total + ' / ' + MAX_SCORE;
+
+        const title = document.getElementById('resultTitle');
+        let starsCount;
+        if (total >= 12) { title.textContent = '🔥 Мастер агрегатных состояний!'; starsCount = 3; }
+        else if (total >= 9) { title.textContent = 'Почти мастер — отличный результат!'; starsCount = 3; }
+        else if (total >= 5) { title.textContent = 'Хорошая работа!'; starsCount = 2; }
+        else { title.textContent = 'Тренажёр пройден!'; starsCount = 1; }
+
+        [1, 2, 3].forEach(i => document.getElementById('star' + i).classList.remove('lit'));
+        for (let i = 1; i <= starsCount; i++) {
+            setTimeout(() => {
+                document.getElementById('star' + i).classList.add('lit');
+                tone({ freq: 660 + i * 160, type: 'sine', gain: 0.1, dur: 0.3, attack: 0.01, release: 0.18 });
+            }, 500 + i * 420);
+        }
+        sfx.fanfare();
+        confettiRain(150);
+        setTimeout(() => confettiRain(80), 1200);
+    }
+
+    function restart() {
+        score = 0; theoryScore = 0; gameScore = 0; chalScore = 0;
+        finalScore = 0; finalAnswered = 0;
+        document.getElementById('hudScore').textContent = '0';
+
+        // theory quizzes
+        for (let i = 1; i <= 2; i++) {
+            document.querySelectorAll(`#quiz${i} .quiz-option`).forEach(o => o.classList.remove('correct', 'wrong', 'disabled'));
+            document.getElementById(`feedback${i}`).classList.remove('show', 'correct-fb', 'wrong-fb');
+            document.getElementById(`nextQ${i}`).disabled = true;
+        }
+        // final
+        for (let i = 1; i <= 2; i++) {
+            document.querySelectorAll(`#fq${i} .quiz-option`).forEach(o => o.classList.remove('correct', 'wrong', 'disabled'));
+            document.getElementById(`fqFb${i}`).classList.remove('show', 'correct-fb', 'wrong-fb');
+            if (i > 1) document.getElementById(`fqBlock${i}`).style.display = 'none';
+        }
+        document.getElementById('toResultsBtn').disabled = true;
+        document.getElementById('toResultsBtn').style.display = 'none';
+
+        // game
+        gRoundIdx = 0; gAnswered = false;
+        document.getElementById('gNextBtn').disabled = true;
+        document.getElementById('gOptions').innerHTML = '';
+        document.getElementById('gFeedback').textContent = '';
+        document.getElementById('gRound').textContent = 'Раунд 1 из 4';
+
+        // challenge
+        chalIdx = 0; chalAnswered = 0; chalBusy = false;
+        document.getElementById('chalBox').classList.remove('success');
+        document.getElementById('chalNextBtn').disabled = true;
+        document.getElementById('chalOptions').innerHTML = '';
+        document.getElementById('chalFeedback').classList.remove('show', 'correct-fb', 'wrong-fb');
+        document.querySelectorAll('#chalProgress .cp-dot').forEach(d => d.classList.remove('done', 'miss'));
+
+        // sims
+        resetMelt(false);
+        setMeltSpeed(1, document.getElementById('spd1'));
+        powerSlider.value = 3;
+        powerSlider.dispatchEvent(new Event('input'));
+        heatT = 20; heatCaptionBucket = -1;
+        energySlider.value = 0;
+        latMsgBucket = -1;
+        energySlider.dispatchEvent(new Event('input'));
+        setSubst(0, document.getElementById('subst0'));
+
+        goTo(0);
+    }
+
+    // ══════════════════ MASTER LOOP ══════════════════
+    function masterLoop() {
+        const t = performance.now() / 1000;
+        drawBg(t);
+        const fn = renderers[currentScreen];
+        if (fn) fn(t);
+        drawConfetti();
+        requestAnimationFrame(masterLoop);
+    }
+
+    // roundRect polyfill for older browsers
+    if (!CanvasRenderingContext2D.prototype.roundRect) {
+        CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+            if (typeof r === 'number') r = [r, r, r, r];
+            this.moveTo(x + r[0], y);
+            this.lineTo(x + w - r[1], y);
+            this.arcTo(x + w, y, x + w, y + r[1], r[1]);
+            this.lineTo(x + w, y + h - r[2]);
+            this.arcTo(x + w, y + h, x + w - r[2], y + h, r[2]);
+            this.lineTo(x + r[3], y + h);
+            this.arcTo(x, y + h, x, y + h - r[3], r[3]);
+            this.lineTo(x, y + r[0]);
+            this.arcTo(x, y, x + r[0], y, r[0]);
+            this.closePath();
+            return this;
+        };
+    }
+
+    // ══════════════════ INIT ══════════════════
+    updateProgress();
+    setMeltPhaseLabel();
+    masterLoop();
+    </script>
+</body>
+</html>

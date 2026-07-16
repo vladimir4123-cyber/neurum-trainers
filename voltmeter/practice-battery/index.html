@@ -6,91 +6,52 @@
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
 <title>Аккумулятор авто · Практика</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>">
-<link rel="stylesheet" href="../../assets/tokens.css">
-<link rel="stylesheet" href="../../assets/lesson/lesson.css">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/lesson/lesson.css?v=3">
+<link rel="stylesheet" href="/assets/lesson/practice.css?v=4">
 <style>
-  body{ --mascot-bottom: 108px; }
+  /* ---------- сцена: машина + аккумулятор + прибор ---------- */
+  .car-glow{ opacity: 0; }
 
-  .hint-link{
-    border: 0; background: none; cursor: pointer;
-    font-family: var(--font-sans); font-size: 16px; font-weight: 500;
-    color: var(--purple-1); padding: 6px 10px; border-radius: 9999px;
-    display: inline-flex; align-items: center; gap: 6px;
-    transition: background-color 120ms var(--ease-standard);
+  /* клеммы-цели: пульсирующее кольцо приглашает нажать */
+  .term{ cursor: pointer; }
+  .term-ring{
+    transform-box: fill-box; transform-origin: center;
+    animation: ringPulse 1.6s ease-in-out infinite;
+    pointer-events: none;
   }
-  .hint-link:hover{ background: var(--purple-4); }
-  .hint-link:active{ transform: scale(0.96); }
+  @keyframes ringPulse{
+    0%, 100%{ opacity: .9; transform: scale(1); }
+    50%    { opacity: .35; transform: scale(1.18); }
+  }
 
-  main.m-stage{
-    max-width: 720px; margin: 0 auto;
-    padding: 8px 20px 160px;
-    display: flex; flex-direction: column; align-items: center; gap: 22px;
-    text-align: center;
+  /* тряска машины, пока крутится стартёр */
+  #carGroup.crank{ animation: carShake .12s linear infinite; }
+  @keyframes carShake{
+    0%, 100%{ transform: translateY(0); }
+    50%     { transform: translateY(1.6px); }
   }
-  .m-h1{
-    font-family: var(--font-display); font-weight: 500;
-    font-size: clamp(26px, 5vw, 38px); line-height: 1.12;
-    color: var(--fg-1); letter-spacing: -0.02em; text-wrap: balance;
-  }
-  .m-lead{
-    font-size: var(--t-md); line-height: 1.45; color: var(--fg-2);
-    max-width: 34ch; text-wrap: pretty;
-  }
-  .m-lead b{ color: var(--purple-1); font-weight: 500; }
 
-  .scene-card{
-    width: 100%;
-    background: #fff; border-radius: var(--radius-2xl);
-    box-shadow: 0 8px 26px rgba(24,12,34,.08);
-    padding: 20px 16px 12px;
-  }
-  .scene-svg{ width: 100%; max-width: 620px; height: auto; display: block; margin: 0 auto; }
-
-  /* приборная стрелка */
-  #needle{ transition: none; }
-
-  /* вердикт-панель */
-  .verdict{
+  /* кнопка «держи стартёр» */
+  .hold-btn{
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 10px 18px; border-radius: 9999px;
-    font-family: var(--font-sans); font-size: 18px; font-weight: 500;
-    font-variant-numeric: tabular-nums;
+    margin-top: 14px; padding: 14px 28px;
+    border: 0; border-radius: var(--radius-md);
+    background: var(--purple-1); color: #fff;
+    font-family: var(--font-sans); font-size: 16px; font-weight: 500;
+    cursor: pointer; box-shadow: var(--shadow-purple);
+    user-select: none; -webkit-user-select: none; touch-action: none;
+    transition: background-color 120ms var(--ease-standard), transform 120ms var(--ease-standard);
   }
-  .verdict.idle{ background: var(--purple-4); color: var(--fg-3); }
-  .verdict.ok{ background: var(--success-surface); color: var(--success); }
-  .verdict.warn{ background: var(--warning-surface); color: var(--warning-ink); }
-  .verdict.bad{ background: var(--danger-surface); color: var(--danger); }
+  .hold-btn.is-on{ background: #4A2FD9; transform: scale(0.97); }
 
-  .act-btn{
-    font-family: var(--font-sans); font-size: var(--t-md); font-weight: 500;
-    color: #fff; background: var(--purple-1);
-    border: 0; border-radius: 9999px; cursor: pointer;
-    padding: 14px 30px;
-    box-shadow: 0 6px 16px rgba(101,31,255,.28);
-    transition: transform 120ms var(--ease-standard), box-shadow 120ms var(--ease-standard), opacity 150ms;
+  /* сводка замеров на шаге диагноза */
+  .diag-sum{ display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .diag-chip{
+    padding: 12px 20px; border-radius: 9999px;
+    background: var(--purple-4); color: var(--fg-2); font-size: 16px;
   }
-  .act-btn:hover{ box-shadow: 0 8px 22px rgba(101,31,255,.34); }
-  .act-btn:active{ transform: scale(0.96); }
-  .act-btn:disabled{ opacity: .5; cursor: default; box-shadow: none; }
-
-  /* фары/двигатель */
-  .car-glow{ opacity: 0; transition: opacity .5s var(--ease-standard); }
-  .car.on .car-glow{ opacity: 1; }
-  .car.crank{ animation: shake .12s linear 6; }
-  @keyframes shake{ 0%,100%{ transform: translateY(0) } 50%{ transform: translateY(1.5px) } }
-
-  /* финал */
-  .m-stats{ display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
-  .m-stat{
-    background: #fff; border-radius: var(--radius-xl);
-    box-shadow: 0 4px 14px rgba(24,12,34,.06);
-    padding: 16px 22px; min-width: 120px;
-  }
-  .m-stat__val{
-    font-family: var(--font-display); font-weight: 500; font-size: 32px;
-    color: var(--purple-1); font-variant-numeric: tabular-nums;
-  }
-  .m-stat__lbl{ font-size: 15px; color: var(--fg-3); margin-top: 2px; }
+  .diag-chip b{ color: var(--fg-1); font-weight: 500; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
@@ -98,58 +59,31 @@
 <div class="top">
   <a class="close-btn" href="../demo/" aria-label="Выйти">✕</a>
   <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">3</span></span>
+  <span class="step-counter"><span id="stepNow">1</span> / <span id="stepTotal">4</span></span>
 </div>
 
-<main class="m-stage" id="stage"></main>
+<main id="stage"></main>
 
 <div class="bottom" id="bottom"></div>
 
 <script type="module">
+import { runPractice } from '/assets/lesson/practice-engine.js?v=4';
 
 /* ============================================================
    ПРАКТИКА «Аккумулятор авто» — проверка под нагрузкой.
-   Автомобильный вольтметр 0–15 В (у авто-аккумулятора 12 В —
-   6-вольтовый прибор не подошёл бы).
-   Физика: у слабого (подсевшего) аккумулятора в покое напряжение
-   выглядит почти нормальным (~12,5 В), но при пуске стартёра
-   (большой ток) оно резко проседает (до ~8,6 В) — так его и ловят.
-   Хороший аккумулятор под нагрузкой держит выше ~10,5 В.
+   Ученик всё делает сам: подключает щупы (полярность!), читает
+   шкалу в покое и под нагрузкой, вписывает значения и ставит
+   диагноз. Состояние батареи случайное — каждый запуск другой.
+   Физика: у изношенной батареи напряжение в покое выглядит
+   нормальным, но при пуске стартёра (большой ток) резко проседает.
    ============================================================ */
 
-const V_REST = 12.5;   // напряжение в покое (на глаз норм)
-const V_LOAD = 8.6;    // под нагрузкой (проседает в красную зону)
-const V_MIN = 8, V_MAX = 16;   // шкала авто-вольтметра
-const STORAGE_KEY = 'voltmeter-progress';
-const XP = 50;
+/* ---------- авто-вольтметр: шкала 8–16 В ---------- */
+const V_MIN = 8, V_MAX = 16;
+const GX = 430, GY = 322, GR = 92;
+const angle = v => -120 + (v - V_MIN) / (V_MAX - V_MIN) * 240;
+const fmt = v => String(v).replace('.', ',');
 
-// Помощник-маскот на практике убран — остаётся только в уроках.
-const mascot = { say(){}, setEmotion(){}, hide(){} };
-const stageEl = document.getElementById('stage');
-const bottomEl = document.getElementById('bottom');
-const progressFill = document.getElementById('progressFill');
-const stepNow = document.getElementById('stepNow');
-
-const STEP_TOTAL = 3;   // интро · в покое · под нагрузкой
-function setProgress(i) {
-  progressFill.style.width = (i / STEP_TOTAL) * 100 + '%';
-  stepNow.textContent = Math.min(i + 1, STEP_TOTAL);
-}
-
-let hintIdx = 0;
-const HINTS = [
-  'Сначала снимай показания в покое — двигатель заглушен.',
-  'В покое напряжение может выглядеть нормальным. Главная проверка — под нагрузкой.',
-  'Проверни стартёр и смотри: если напряжение резко падает — аккумулятор слабый.',
-];
-function showHint() {
-  mascot.say(HINTS[hintIdx % HINTS.length], { emotion: 'think', duration: 5000 });
-  hintIdx++;
-}
-
-/* ---------- геометрия авто-вольтметра ---------- */
-const GX = 430, GY = 322, GR = 92;                 // центр и радиус циферблата
-const angle = v => -120 + (v - V_MIN) / (V_MAX - V_MIN) * 240;   // 0° = вверх
 function arcPath(a0, a1, r) {
   const p0 = [GX + r * Math.sin(a0 * Math.PI / 180), GY - r * Math.cos(a0 * Math.PI / 180)];
   const p1 = [GX + r * Math.sin(a1 * Math.PI / 180), GY - r * Math.cos(a1 * Math.PI / 180)];
@@ -158,16 +92,13 @@ function arcPath(a0, a1, r) {
 }
 
 function gaugeSVG() {
-  // цветные зоны
   const zones = `
     <path d="${arcPath(angle(8), angle(11), GR - 6)}" stroke="#E5484D" stroke-width="10" fill="none" stroke-linecap="round"/>
     <path d="${arcPath(angle(11), angle(12.4), GR - 6)}" stroke="#F5A623" stroke-width="10" fill="none"/>
     <path d="${arcPath(angle(12.4), angle(15), GR - 6)}" stroke="#07BE7E" stroke-width="10" fill="none" stroke-linecap="round"/>`;
-  // деления и числа
   let ticks = '';
   for (let v = V_MIN; v <= V_MAX; v++) {
-    const a = angle(v);
-    const major = v % 2 === 0;
+    const a = angle(v), major = v % 2 === 0;
     const rOut = GR - 14, rIn = rOut - (major ? 15 : 9);
     const s = [GX + rOut * Math.sin(a * Math.PI / 180), GY - rOut * Math.cos(a * Math.PI / 180)];
     const e = [GX + rIn * Math.sin(a * Math.PI / 180), GY - rIn * Math.cos(a * Math.PI / 180)];
@@ -179,67 +110,90 @@ function gaugeSVG() {
     }
   }
   return `
-    <g>
-      <circle cx="${GX}" cy="${GY}" r="${GR + 10}" fill="#20242E"/>
-      <circle cx="${GX}" cy="${GY}" r="${GR + 4}" fill="#2E323C"/>
-      <circle cx="${GX}" cy="${GY}" r="${GR}" fill="#171A21"/>
-      ${zones}
-      ${ticks}
-      <text x="${GX}" y="${GY + 44}" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-weight="700" font-size="22" fill="#8B90A0">V</text>
-      <!-- стрелка -->
-      <g id="needle" transform="rotate(${angle(V_MIN)} ${GX} ${GY})">
-        <line x1="${GX}" y1="${GY}" x2="${GX}" y2="${GY - (GR - 20)}" stroke="#E5484D" stroke-width="4" stroke-linecap="round"/>
-        <line x1="${GX}" y1="${GY}" x2="${GX}" y2="${GY + 16}" stroke="#E5484D" stroke-width="5" stroke-linecap="round"/>
-      </g>
-      <circle cx="${GX}" cy="${GY}" r="9" fill="#EDEFF5"/>
-      <circle cx="${GX}" cy="${GY}" r="4" fill="#20242E"/>
-    </g>`;
+    <circle cx="${GX}" cy="${GY}" r="${GR + 10}" fill="#20242E"/>
+    <circle cx="${GX}" cy="${GY}" r="${GR + 4}" fill="#2E323C"/>
+    <circle cx="${GX}" cy="${GY}" r="${GR}" fill="#171A21"/>
+    ${zones}
+    ${ticks}
+    <text x="${GX}" y="${GY + 44}" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-weight="700" font-size="22" fill="#8B90A0">V</text>
+    <g id="needle" transform="rotate(${angle(curV)} ${GX} ${GY})">
+      <line x1="${GX}" y1="${GY}" x2="${GX}" y2="${GY - (GR - 20)}" stroke="#E5484D" stroke-width="4" stroke-linecap="round"/>
+      <line x1="${GX}" y1="${GY}" x2="${GX}" y2="${GY + 16}" stroke="#E5484D" stroke-width="5" stroke-linecap="round"/>
+    </g>
+    <circle cx="${GX}" cy="${GY}" r="9" fill="#EDEFF5"/>
+    <circle cx="${GX}" cy="${GY}" r="4" fill="#20242E"/>`;
 }
 
-/* ---------- машина + аккумулятор + клеммы ---------- */
-function carBatterySVG() {
-  return `
-    <!-- машина (спит / заводится) -->
-    <g class="car" id="car">
-      <!-- свечение фары -->
-      <ellipse class="car-glow" cx="332" cy="92" rx="46" ry="30" fill="url(#headGlow)"/>
-      <!-- кузов -->
-      <path d="M70 118 Q78 118 84 108 L118 74 Q126 64 142 64 L228 64 Q244 64 252 76 L272 104 L318 110 Q330 112 330 124 L330 128 Q330 138 320 138 L92 138 Q70 138 70 122 Z"
-            fill="url(#carBody)"/>
-      <!-- крыша-стекло -->
-      <path d="M124 78 L142 74 L214 74 Q226 74 232 84 L246 104 L150 104 Q132 104 132 92 Z" fill="#BFE0F5"/>
-      <line x1="188" y1="74" x2="196" y2="104" stroke="#8Fb8d6" stroke-width="2.5"/>
-      <!-- фара -->
-      <circle class="car-glow" cx="322" cy="112" r="9" fill="#FFF3C9"/>
-      <circle cx="322" cy="112" r="9" fill="none" stroke="#7B8090" stroke-width="2"/>
-      <!-- колёса -->
-      <circle cx="130" cy="140" r="22" fill="#20242E"/><circle cx="130" cy="140" r="9" fill="#9AA0AA"/>
-      <circle cx="268" cy="140" r="22" fill="#20242E"/><circle cx="268" cy="140" r="9" fill="#9AA0AA"/>
-    </g>
+/* ---------- состояние сцены ---------- */
+let scen = null;            // {kind, rest, load, plusLeft}
+let redOn = null;           // 'L' | 'R' — куда встал красный щуп
+let blackOn = null;
+let curV = V_MIN;
+let animId = 0;
 
-    <!-- аккумулятор 12 В -->
-    <g id="battery">
-      <rect x="96" y="250" width="150" height="86" rx="12" fill="url(#battBody)"/>
-      <rect x="96" y="250" width="150" height="26" rx="12" fill="#2B2F39"/>
-      <!-- клеммы -->
-      <rect x="120" y="238" width="20" height="18" rx="4" fill="#C9402F"/>
-      <circle cx="130" cy="238" r="9" fill="#E5484D"/>
-      <text x="130" y="243" text-anchor="middle" font-family="var(--font-display)" font-weight="500" font-size="15" fill="#fff">+</text>
-      <rect x="202" y="238" width="20" height="18" rx="4" fill="#2B2F39"/>
-      <circle cx="212" cy="238" r="9" fill="#3B3F4A"/>
-      <text x="212" y="244" text-anchor="middle" font-family="var(--font-display)" font-weight="500" font-size="17" fill="#fff">−</text>
-      <text x="171" y="304" text-anchor="middle" font-family="var(--font-display)" font-weight="500" font-size="26" fill="#EDEFF5">12 В</text>
-      <text x="171" y="324" text-anchor="middle" font-family="var(--font-sans)" font-size="13" fill="#9AA0AA">аккумулятор</text>
-    </g>
+const TERM_X = { L: 130, R: 212 }, TERM_Y = 238;
+const termPol = t => ((t === 'L') === scen.plusLeft ? '+' : '-');
 
-    <!-- провода-щупы к прибору -->
-    <path d="M130 238 Q150 180 ${GX - 34} 250" fill="none" stroke="#E5484D" stroke-width="4.5" stroke-linecap="round"/>
-    <path d="M212 238 Q300 200 ${GX + 30} 246" fill="none" stroke="#2B2B33" stroke-width="4.5" stroke-linecap="round"/>`;
+function setNeedleNow(v) {
+  curV = v;
+  const nd = document.getElementById('needle');
+  if (nd) nd.setAttribute('transform', `rotate(${angle(v)} ${GX} ${GY})`);
+}
+function animateNeedle(toV, dur = 700) {
+  cancelAnimationFrame(animId);
+  const from = curV, t0 = performance.now();
+  const ease = t => 1 - Math.pow(1 - t, 3);
+  const frame = now => {
+    const k = Math.min(1, (now - t0) / dur);
+    setNeedleNow(from + (toV - from) * ease(k));
+    if (k < 1) animId = requestAnimationFrame(frame);
+  };
+  animId = requestAnimationFrame(frame);
 }
 
-function sceneSVG() {
+function batterySVG() {
+  const plusX = scen.plusLeft ? TERM_X.L : TERM_X.R;
+  const minusX = scen.plusLeft ? TERM_X.R : TERM_X.L;
   return `
-    <svg class="scene-svg" viewBox="0 0 600 440" xmlns="http://www.w3.org/2000/svg">
+    <rect x="96" y="250" width="150" height="86" rx="12" fill="url(#battBody)"/>
+    <rect x="96" y="250" width="150" height="26" rx="12" fill="#2B2F39"/>
+    <rect x="${plusX - 10}" y="238" width="20" height="18" rx="4" fill="#C9402F"/>
+    <circle cx="${plusX}" cy="${TERM_Y}" r="9" fill="#E5484D"/>
+    <text x="${plusX}" y="${TERM_Y + 5}" text-anchor="middle" font-family="var(--font-display)" font-weight="500" font-size="15" fill="#fff">+</text>
+    <rect x="${minusX - 10}" y="238" width="20" height="18" rx="4" fill="#2B2F39"/>
+    <circle cx="${minusX}" cy="${TERM_Y}" r="9" fill="#3B3F4A"/>
+    <text x="${minusX}" y="${TERM_Y + 6}" text-anchor="middle" font-family="var(--font-display)" font-weight="500" font-size="17" fill="#fff">−</text>
+    <text x="171" y="304" text-anchor="middle" font-family="var(--font-display)" font-weight="500" font-size="26" fill="#EDEFF5">12 В</text>
+    <text x="171" y="324" text-anchor="middle" font-family="var(--font-sans)" font-size="13" fill="#9AA0AA">аккумулятор</text>`;
+}
+
+/* щупы: висят свободно или подключены к клеммам */
+function leadsSVG(withTargets) {
+  const RED_OX = 398, BLK_OX = 462;
+  const parts = [];
+  const lead = (ox, t, color) => `
+    <path d="M${ox} 420 Q ${(ox + TERM_X[t]) / 2} 455, ${TERM_X[t]} 248" fill="none" stroke="${color}" stroke-width="4.5" stroke-linecap="round"/>
+    <circle cx="${TERM_X[t]}" cy="${TERM_Y}" r="8" fill="${color}"/>
+    <circle cx="${TERM_X[t]}" cy="${TERM_Y}" r="3" fill="#fff"/>`;
+  const tip = (ox, color) => `
+    <line x1="${ox}" y1="430" x2="${ox}" y2="414" stroke="${color}" stroke-width="4.5" stroke-linecap="round"/>
+    <circle cx="${ox}" cy="410" r="6" fill="${color}"/>`;
+  parts.push(redOn ? lead(RED_OX, redOn, '#E5484D') : tip(RED_OX, '#E5484D'));
+  parts.push(blackOn ? lead(BLK_OX, blackOn, '#2B2B33') : tip(BLK_OX, '#2B2B33'));
+  if (withTargets) {
+    ['L', 'R'].forEach(t => {
+      if (redOn === t || blackOn === t) return;
+      parts.push(`
+        <circle class="term-ring" cx="${TERM_X[t]}" cy="${TERM_Y}" r="16" fill="none" stroke="#6240FF" stroke-width="2.5" stroke-dasharray="4 5"/>
+        <circle class="term" data-t="${t}" cx="${TERM_X[t]}" cy="${TERM_Y}" r="22" fill="transparent"/>`);
+    });
+  }
+  return parts.join('');
+}
+
+function sceneSVG(opts = {}) {
+  return `
+    <svg viewBox="0 0 600 440" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="carBody" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stop-color="#7C5CFF"/><stop offset="1" stop-color="#5A3FE0"/>
@@ -247,167 +201,195 @@ function sceneSVG() {
         <linearGradient id="battBody" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stop-color="#3B3F4A"/><stop offset="1" stop-color="#20242E"/>
         </linearGradient>
-        <radialGradient id="headGlow" cx=".5" cy=".5" r=".5">
-          <stop offset="0" stop-color="#FFE89C" stop-opacity=".9"/><stop offset="1" stop-color="#FFE89C" stop-opacity="0"/>
-        </radialGradient>
       </defs>
-      ${carBatterySVG()}
+      <g id="carGroup">
+        <path d="M70 118 Q78 118 84 108 L118 74 Q126 64 142 64 L228 64 Q244 64 252 76 L272 104 L318 110 Q330 112 330 124 L330 128 Q330 138 320 138 L92 138 Q70 138 70 122 Z" fill="url(#carBody)"/>
+        <path d="M124 78 L142 74 L214 74 Q226 74 232 84 L246 104 L150 104 Q132 104 132 92 Z" fill="#BFE0F5"/>
+        <line x1="188" y1="74" x2="196" y2="104" stroke="#8Fb8d6" stroke-width="2.5"/>
+        <circle cx="322" cy="112" r="9" fill="none" stroke="#7B8090" stroke-width="2"/>
+        <circle cx="130" cy="140" r="22" fill="#20242E"/><circle cx="130" cy="140" r="9" fill="#9AA0AA"/>
+        <circle cx="268" cy="140" r="22" fill="#20242E"/><circle cx="268" cy="140" r="9" fill="#9AA0AA"/>
+      </g>
+      ${batterySVG()}
       ${gaugeSVG()}
+      ${leadsSVG(opts.targets)}
     </svg>`;
 }
 
-/* плавно двигаем стрелку от текущего значения к value */
-let curV = V_MIN;
-function animateNeedle(toV, dur = 850) {
-  const from = curV, to = toV, t0 = performance.now();
-  const ease = t => 1 - Math.pow(1 - t, 3);
-  function frame(now) {
-    const k = Math.min(1, (now - t0) / dur);
-    const v = from + (to - from) * ease(k);
-    const nd = document.getElementById('needle');
-    if (nd) nd.setAttribute('transform', `rotate(${angle(v)} ${GX} ${GY})`);
-    if (k < 1) requestAnimationFrame(frame);
-    else curV = to;
-  }
-  requestAnimationFrame(frame);
+/* ---------- сценарий (случайный при каждом запуске) ---------- */
+function makeScenario(level, rnd) {
+  // easy — целые вольты, medium/hard — половинки
+  const snap = level === 'easy' ? (v => Math.round(v)) : (v => Math.round(v * 2) / 2);
+  const kinds = level === 'easy' ? ['good', 'dead'] : ['good', 'dead', 'surface'];
+  const kind = kinds[Math.floor(rnd() * kinds.length)];
+  let rest, load;
+  if (kind === 'good')    { rest = snap(12.5 + rnd() * 0.5); load = snap(10.6 + rnd() * 0.9); }
+  if (kind === 'dead')    { rest = snap(11.0 + rnd() * 0.8); load = snap(8.0 + rnd() * 1.0);  }
+  if (kind === 'surface') { rest = snap(12.5 + rnd() * 0.3); load = snap(8.8 + rnd() * 0.7);  }
+  const plusLeft = level === 'hard' ? rnd() < 0.5 : true;
+  return { kind, rest, load, plusLeft };
 }
 
-/* ---------- ЭКРАНЫ ---------- */
-function renderIntro() {
-  setProgress(0);
-  curV = V_MIN;
-  stageEl.innerHTML = `
-    <div class="scene-card">${sceneSVG()}</div>
-    <h1 class="m-h1">Машина не заводится</h1>
-    <p class="m-lead">Утро, мороз — машина молчит. Подозрение на <b>аккумулятор</b>. Проверим его автомобильным вольтметром: заряжен он или сел?</p>`;
-  bottomEl.innerHTML = `<button class="btn-continue" id="go">Взять вольтметр →</button>`;
-  document.getElementById('go').onclick = renderRest;
-  mascot.say('Проверим аккумулятор — как настоящий механик!', { emotion: 'idle', duration: 4500 });
-}
-
-function renderRest() {
-  setProgress(1);
-  curV = V_MIN;
-  stageEl.innerHTML = `
-    <div class="scene-card">${sceneSVG()}</div>
-    <div class="m-lead" id="restText">Двигатель заглушен. Сними показания — <b>напряжение в покое</b>.</div>
-    <span class="verdict idle" id="restVerdict">жду замера</span>
-    <button class="act-btn" id="measureBtn">🔌 Снять показания</button>
-    <button class="hint-link" id="hintBtn">💡 Нужна подсказка?</button>`;
-  bottomEl.innerHTML = `
-    <button class="btn-back" id="toHub">← К темам</button>
-    <button class="btn-continue" id="next" disabled>Дальше →</button>`;
-  document.getElementById('toHub').onclick = () => { location.href = '../demo/'; };
-  document.getElementById('next').onclick = renderLoad;
-  document.getElementById('hintBtn').onclick = showHint;
-  document.getElementById('measureBtn').onclick = () => {
-    animateNeedle(V_REST);
-    const v = document.getElementById('restVerdict');
-    v.className = 'verdict ok';
-    v.textContent = '≈ 12,5 В — на глаз заряжен';
-    document.getElementById('restText').innerHTML = 'Странно: <b>12,5 В</b> — почти как заряженный. Но машина не заводится… Проверим под нагрузкой.';
-    document.getElementById('measureBtn').disabled = true;
-    document.getElementById('next').disabled = false;
-    mascot.say('12,5 В — вроде норм. Но настоящая проверка — под нагрузкой!', { emotion: 'think', duration: 5000 });
+/* ---------- рендеры сцен по шагам ---------- */
+function renderConnect(host, ctx) {
+  let locked = false;
+  const draw = () => {
+    host.innerHTML = sceneSVG({ targets: true }) + `<div class="p-hintline" id="phaseHint"></div>`;
+    setNeedleNow(curV);
+    const hint = host.querySelector('#phaseHint');
+    hint.innerHTML = !redOn
+      ? 'Сначала <b>красный</b> щуп: нажми на клемму «+».'
+      : (!blackOn ? 'Теперь <b>чёрный</b> щуп — на вторую клемму.' : 'Прибор подключён.');
+    if (!locked) {
+      host.querySelectorAll('.term').forEach(el =>
+        el.addEventListener('click', () => onTerm(el.dataset.t)));
+    }
   };
-  mascot.say('Приложи прибор к аккумулятору — двигатель заглушен.', { emotion: 'idle', duration: 4500 });
-}
-
-function renderLoad() {
-  setProgress(2);
-  curV = V_REST;
-  stageEl.innerHTML = `
-    <div class="scene-card">${sceneSVG()}</div>
-    <div class="m-lead" id="loadText">Теперь <b>проверни стартёр</b> — при пуске мотор тянет большой ток. Смотри на прибор.</div>
-    <span class="verdict ok" id="loadVerdict">сейчас: 12,5 В</span>
-    <button class="act-btn" id="crankBtn">🔑 Проверни стартёр</button>
-    <button class="hint-link" id="hintBtn">💡 Нужна подсказка?</button>`;
-  // стрелка стоит на 12,5 из прошлого шага
-  requestAnimationFrame(() => {
-    const nd = document.getElementById('needle');
-    if (nd) nd.setAttribute('transform', `rotate(${angle(V_REST)} ${GX} ${GY})`);
-  });
-  bottomEl.innerHTML = `
-    <button class="btn-back" id="toHub">← К темам</button>
-    <button class="btn-continue" id="next" disabled>Поставить диагноз →</button>`;
-  document.getElementById('toHub').onclick = () => { location.href = '../demo/'; };
-  document.getElementById('next').onclick = renderFinale;
-  document.getElementById('hintBtn').onclick = showHint;
-  document.getElementById('crankBtn').onclick = () => {
-    const car = document.getElementById('car');
-    car.classList.add('crank');
-    setTimeout(() => car.classList.remove('crank'), 800);
-    animateNeedle(V_LOAD, 700);
-    const v = document.getElementById('loadVerdict');
-    v.className = 'verdict bad';
-    v.textContent = '⚡ просело до 8,6 В — красная зона!';
-    document.getElementById('loadText').innerHTML = 'Вот в чём дело! Под нагрузкой напряжение <b>рухнуло до 8,6 В</b> — в красную зону. Аккумулятор слабый и не тянет запуск.';
-    document.getElementById('crankBtn').disabled = true;
-    document.getElementById('next').disabled = false;
-    mascot.say('Видишь? Под нагрузкой напряжение провалилось. Аккумулятор сел!', { emotion: 'wow', duration: 6000 });
+  const onTerm = t => {
+    if (locked) return;
+    if (!redOn) { redOn = t; draw(); return; }
+    if (blackOn || t === redOn) return;
+    blackOn = t;
+    locked = true;
+    draw();
+    if (termPol(redOn) === '+') {
+      ctx.fb('✓ Полярность верная — вольтметр в цепи, стрелка ожила.', 'ok');
+      animateNeedle(scen.rest, 900);
+      ctx.done();
+    } else {
+      ctx.miss();
+      ctx.fb('Стрелка легла влево за ноль — полярность перепутана! Красный щуп должен стоять на «+».', 'err');
+      animateNeedle(V_MIN - 0.5, 400);
+      setTimeout(() => {
+        redOn = null; blackOn = null; locked = false; curV = V_MIN;
+        draw();
+        ctx.fb('Попробуй ещё раз: сначала красный — на «+».', 'hint');
+      }, 1400);
+    }
   };
-  mascot.say('Проверни стартёр и следи за стрелкой!', { emotion: 'idle', duration: 4500 });
+  draw();
 }
 
-function renderFinale() {
-  progressFill.style.width = '100%';
-  stepNow.textContent = STEP_TOTAL;
-  saveProgress();
-  fireConfetti();
-  curV = 12.5;
-  mascot.say('Диагноз верный! Зарядили — и машина ожила. С ветерком! 🚗', { emotion: 'wow', duration: 7000 });
+function renderRest(host) {
+  host.innerHTML = sceneSVG();
+  setNeedleNow(scen.rest);
+}
 
-  stageEl.innerHTML = `
-    <div class="scene-card">${sceneSVG()}</div>
-    <h1 class="m-h1">Диагноз поставлен! 🚗</h1>
-    <div class="m-lead">
-      В покое аккумулятор показывал <b>12,5 В</b> — почти норма. Но <b>под нагрузкой</b> напряжение рухнуло до <b>8,6 В</b>. Значит, аккумулятор сел — его надо зарядить или заменить.
-    </div>
-    <p class="m-lead" style="color:var(--fg-1);">Главное правило: <b>слабый аккумулятор выдаёт себя под нагрузкой</b> — в покое он может выглядеть нормально.</p>
-    <div class="m-stats">
-      <div class="m-stat"><div class="m-stat__val">2</div><div class="m-stat__lbl">замера сделано</div></div>
-      <div class="m-stat"><div class="m-stat__val">+${XP}</div><div class="m-stat__lbl">XP за практику</div></div>
+function renderCrank(host) {
+  host.innerHTML = sceneSVG() + `
+    <div style="text-align:center">
+      <button class="hold-btn" id="crankBtn">🔑 Держи — стартёр крутит</button>
     </div>`;
-  // машина завелась — фары горят, стрелка на «заряжен под зарядкой»
-  requestAnimationFrame(() => {
-    document.getElementById('car').classList.add('on');
-    const nd = document.getElementById('needle');
-    if (nd) nd.setAttribute('transform', `rotate(${angle(13.8)} ${GX} ${GY})`);
-  });
-
-  bottomEl.innerHTML = `<button class="btn-continue" id="toHub">К темам →</button>`;
-  document.getElementById('toHub').onclick = () => { location.href = '../demo/'; };
+  setNeedleNow(scen.rest);
+  const btn = host.querySelector('#crankBtn');
+  const down = e => {
+    e.preventDefault();
+    try { btn.setPointerCapture(e.pointerId); } catch (err) {}
+    btn.classList.add('is-on');
+    const car = host.querySelector('#carGroup');
+    if (car) car.classList.add('crank');
+    animateNeedle(scen.load, 450);
+  };
+  const up = () => {
+    if (!btn.isConnected) return;
+    btn.classList.remove('is-on');
+    const car = host.querySelector('#carGroup');
+    if (car) car.classList.remove('crank');
+    animateNeedle(scen.rest, 900);
+  };
+  btn.addEventListener('pointerdown', down);
+  btn.addEventListener('pointerup', up);
+  btn.addEventListener('pointercancel', up);
 }
 
-/* ---------- прогресс + конфетти ---------- */
-function saveProgress() {
-  // ⏸ Сохранение прогресса временно отключено (сбрасывается при обновлении).
-  //    Чтобы вернуть — раскомментировать блок ниже.
-  // const st = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  // if (typeof st.xp !== 'number') st.xp = 0;
-  // if (!st.completed) st.completed = [];
-  // if (!st.completed.includes('battery')) { st.completed.push('battery'); st.xp += XP; }
-  // localStorage.setItem(STORAGE_KEY, JSON.stringify(st));
+function renderSummary(host) {
+  host.innerHTML = `
+    <div class="diag-sum">
+      <span class="diag-chip">В покое: <b>${fmt(scen.rest)} В</b></span>
+      <span class="diag-chip">Под нагрузкой: <b>${fmt(scen.load)} В</b></span>
+    </div>`;
 }
 
-function fireConfetti() {
-  const box = document.createElement('div');
-  box.className = 'confetti';
-  const colors = ['#6240FF', '#CDFE00', '#FFD769', '#07BE7E', '#FF6B9D', '#149ECA'];
-  for (let i = 0; i < 70; i++) {
-    const p = document.createElement('span');
-    p.style.left = Math.random() * 100 + '%';
-    p.style.background = colors[i % colors.length];
-    p.style.animationDuration = (2.4 + Math.random() * 1.8) + 's';
-    p.style.animationDelay = (Math.random() * 0.5) + 's';
-    box.appendChild(p);
-  }
-  document.body.appendChild(box);
-  setTimeout(() => box.remove(), 5000);
+/* ---------- шаги миссии ---------- */
+function buildSteps(level, rnd) {
+  scen = makeScenario(level, rnd);
+  redOn = null; blackOn = null; curV = V_MIN;
+  const tol = level === 'easy' ? 0.45 : 0.3;
+
+  const near = v => Number.isInteger(v)
+    ? `Стрелка стоит ровно на делении <b>${fmt(v)}</b>.`
+    : `Стрелка замерла между <b>${Math.floor(v)}</b> и <b>${Math.floor(v) + 1}</b> — посередине.`;
+
+  const explain = scen.kind === 'good'
+    ? `в покое ${fmt(scen.rest)} В и под нагрузкой ${fmt(scen.load)} В — выше 10,5 В. Батарея заряжена и держит.`
+    : scen.kind === 'dead'
+      ? `в покое всего ${fmt(scen.rest)} В, а под нагрузкой ${fmt(scen.load)} В. Батарея разряжена — на зарядку.`
+      : `в покое ${fmt(scen.rest)} В — как у заряженной, но под нагрузкой рухнуло до ${fmt(scen.load)} В. Это износ.`;
+
+  return [
+    {
+      type: 'action',
+      title: 'Подключи вольтметр',
+      text: level === 'hard'
+        ? 'Красный щуп — на «+», чёрный — на «−». Внимательно: клеммы могут стоять с любой стороны.'
+        : 'Красный щуп — на «+», чёрный — на «−». Нажимай на клеммы аккумулятора.',
+      render: renderConnect,
+    },
+    {
+      type: 'reading',
+      title: 'Замер в покое',
+      text: 'Двигатель заглушен. Прочитай, что показывает стрелка, и впиши значение.',
+      render: renderRest,
+      answer: scen.rest, tolerance: tol,
+      right: `✓ Точно: в покое ${fmt(scen.rest)} В.`,
+      hints: [
+        'Цена деления — 1 В: между подписанными числами два деления. Если стрелка встала между делениями — это половина, 0,5.',
+        near(scen.rest),
+      ],
+    },
+    {
+      type: 'reading',
+      title: 'Замер под нагрузкой',
+      text: 'Держи кнопку стартёра и следи за стрелкой. Отпусти — и впиши, до скольких вольт она проседала.',
+      render: renderCrank,
+      answer: scen.load, tolerance: tol,
+      right: `✓ Записали: под нагрузкой ${fmt(scen.load)} В.`,
+      hints: [
+        'Смотри на стрелку, пока держишь кнопку, — нужно самое низкое значение. Можно подержать ещё раз.',
+        near(scen.load),
+      ],
+    },
+    {
+      type: 'choice',
+      title: 'Поставь диагноз',
+      text: 'Правило механика: заряженный аккумулятор в покое даёт около <b>12,6 В</b>, а под нагрузкой исправный не проседает ниже <b>10,5 В</b>.',
+      render: renderSummary,
+      options: [
+        { text: 'Заряжен и держит нагрузку — всё в порядке', correct: scen.kind === 'good' },
+        { text: 'Разряжен — нужно зарядить', correct: scen.kind === 'dead' },
+        { text: 'В покое как заряженный, но под нагрузкой проседает — изношен', correct: scen.kind === 'surface' },
+        { text: 'Вольтметр подключён с неправильной полярностью', correct: false },
+      ],
+      right: '✓ Верно: ' + explain,
+      wrong: 'Смотри на числа: ' + explain,
+    },
+  ];
 }
 
-/* ---------- старт ---------- */
-renderIntro();
+/* ---------- запуск ---------- */
+runPractice({
+  practiceId: 'battery',
+  storageKey: 'voltmeter-progress',
+  homeHref: '../demo/',
+  title: 'Аккумулятор авто',
+  subtitle: 'Утро, мороз — машина не заводится. Проверь аккумулятор вольтметром и поставь диагноз, как настоящий механик.',
+  levels: {
+    easy:   { label: 'Разминка',  desc: 'Целые значения на шкале и подсказки на каждом шагу.', xp: 30 },
+    medium: { label: 'Уверенный', desc: 'Значения с половинками — и случай-ловушка в диагнозе.', xp: 50 },
+    hard:   { label: 'Механик',   desc: 'Клеммы стоят как попало, допуск строже, диагноз хитрее.', xp: 80 },
+  },
+  buildSteps,
+});
 </script>
 
 </body>

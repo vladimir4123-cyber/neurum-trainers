@@ -4,46 +4,61 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Пиццерия дробей 🍕</title>
+<link rel="stylesheet" href="/assets/tokens.css">
 <style>
   :root{
-    --bg:#0b1130; --panel:#141b40; --panel2:#1a2150; --accent:#ffd166;
-    --tomato:#e17055; --cheese:#fdcb6e; --ink:#eef1ff; --muted:#8892c9;
+    /* Light Neuroom theme */
+    --bg:#ffffff; --panel:#ffffff; --panel2:#F2F6F8; --accent:#6240FF;
+    --accent-hover:#7455FF;
+    --tomato:#e17055; --cheese:#fdcb6e;
+    --ink:#232323; --muted:#6B7180;
+    --stroke:#EEF0FF;
+    --shadow-soft:0 8px 24px rgba(20,20,30,.07);
+    --shadow-purple:0 8px 16px rgba(101,31,255,.20);
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0;padding:0;}
   body{
     background:var(--bg); color:var(--ink);
-    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-    min-height:100vh; display:flex; justify-content:center;
+    font-family:var(--font-sans,"Aeonik Pro",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif);
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    min-height:100vh; display:flex;
     padding:14px; user-select:none; -webkit-user-select:none;
   }
-  .wrap{width:100%; max-width:880px;}
-  .panel{background:var(--panel); border-radius:20px; padding:18px; box-shadow:0 8px 30px rgba(0,0,0,.35);}
+  /* margin:auto центрирует .wrap по обеим осям на ЛЮБОМ экране
+     (старт / игра / финал) и позволяет скроллить, если контент выше вьюпорта */
+  .wrap{width:100%; max-width:880px; margin:auto;}
+  .panel{background:var(--panel); border-radius:var(--radius-2xl,24px); padding:18px; box-shadow:var(--shadow-soft);}
   .hidden{display:none !important;}
 
   /* ---------- buttons ---------- */
   .btn{
-    background:var(--accent); color:#3a2a00; border:none; border-radius:14px;
-    padding:13px 20px; font-size:17px; font-weight:700; cursor:pointer;
-    font-family:inherit; touch-action:manipulation;
-    box-shadow:0 4px 0 #b78a2e; transition:transform .08s, box-shadow .08s;
+    background:var(--accent); color:#fff; border:none; border-radius:10px;
+    padding:13px 20px; font-size:17px; font-weight:500; cursor:pointer;
+    font-family:inherit; touch-action:manipulation; letter-spacing:-0.01em;
+    min-height:44px; box-shadow:var(--shadow-purple);
+    transition:background-color .14s var(--ease-standard,cubic-bezier(.2,.7,.2,1)), transform .1s var(--ease-standard,cubic-bezier(.2,.7,.2,1)), box-shadow .14s ease;
   }
-  .btn:active{transform:translateY(3px); box-shadow:0 1px 0 #b78a2e;}
-  .btn.sec{background:var(--panel2); color:var(--ink); box-shadow:0 4px 0 #0d1233; border:1px solid #2b3573;}
+  .btn:hover{background:var(--accent-hover);}
+  .btn:active{transform:scale(.96);}
+  .btn.sec{background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(35,35,35,.05), 0 4px 12px rgba(35,35,35,.08), inset 0 0 0 1px var(--stroke);}
+  .btn.sec:hover{background:var(--purple-3,#FBF8FF);}
   .btn.big{font-size:20px; padding:16px 30px;}
   #controls{display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:14px; min-height:52px;}
 
   /* ---------- HUD ---------- */
   #hud{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:10px;}
-  #hud .dots{font-size:20px; letter-spacing:4px;}
-  #hud .tips{font-size:18px; font-weight:700; color:var(--accent); background:var(--panel2); padding:6px 14px; border-radius:12px;}
-  #sndBtn{background:none; border:1px solid #2b3573; border-radius:10px; font-size:18px; padding:5px 9px; cursor:pointer;}
+  #hud .dots{font-size:20px; letter-spacing:4px; font-variant-numeric:tabular-nums;}
+  #hud .tips{font-size:18px; font-weight:500; color:var(--accent); background:var(--purple-4,#EEF0FF); padding:6px 14px; border-radius:12px; font-variant-numeric:tabular-nums;}
+  #sndBtn{background:#fff; border:none; box-shadow:inset 0 0 0 1px var(--stroke); border-radius:10px; font-size:18px; padding:5px 9px; cursor:pointer; min-height:40px; min-width:40px; transition:background-color .14s ease, transform .1s ease;}
+  #sndBtn:active{transform:scale(.96);}
 
   /* ---------- clients & bubble ---------- */
   #bubble{
-    background:#fff; color:#20242e; border-radius:16px; padding:12px 16px;
+    background:#fff; color:var(--ink); border-radius:var(--radius-xl,16px); padding:12px 16px;
     font-size:17px; line-height:1.45; max-width:640px; margin:0 auto 6px;
     position:relative; animation:popin .25s ease-out; text-align:center;
+    text-wrap:pretty; box-shadow:var(--shadow-soft);
   }
   #bubble::after{
     content:""; position:absolute; bottom:-10px; left:50%; transform:translateX(-50%);
@@ -53,62 +68,64 @@
   .client{text-align:center;}
   .client .face{font-size:52px; line-height:1; transition:transform .15s;}
   .client .cap{font-size:15px; color:var(--muted); margin-top:4px;}
-  .client.pick{cursor:pointer; background:var(--panel2); border:2px solid #2b3573; border-radius:16px; padding:12px 22px;}
+  .client.pick{cursor:pointer; background:#fff; box-shadow:var(--shadow-soft), inset 0 0 0 1px var(--stroke); border-radius:var(--radius-xl,16px); padding:12px 22px; transition:box-shadow .14s ease, transform .1s ease;}
   .client.pick:hover .face, .client.pick:active .face{transform:scale(1.15);}
-  .client.pick:hover{border-color:var(--accent);}
+  .client.pick:hover{box-shadow:var(--shadow-soft), inset 0 0 0 2px var(--accent);}
+  .client.pick:active{transform:scale(.96);}
   .client.shake{animation:shake .5s;}
   @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
   @keyframes popin{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
 
   /* ---------- canvas ---------- */
-  #cv{display:block; width:100%; height:auto; touch-action:manipulation; border-radius:14px;}
+  #cv{display:block; width:100%; height:auto; touch-action:manipulation; border-radius:var(--radius-xl,16px); background:var(--purple-3,#FBF8FF);}
 
   /* ---------- strip (guests fed) ---------- */
   #strip{display:flex; justify-content:center; align-items:center; gap:6px; flex-wrap:wrap; min-height:34px; font-size:26px; margin-top:4px;}
   #strip .fed{animation:popin .3s ease-out;}
-  #strip .cnt{font-size:17px; color:var(--accent); font-weight:700; margin-left:8px;}
+  #strip .cnt{font-size:17px; color:var(--accent); font-weight:500; margin-left:8px; font-variant-numeric:tabular-nums;}
   #strip .guest{opacity:.9; position:relative;}
   #strip .guest.done::after{content:"🍕"; position:absolute; font-size:14px; bottom:-4px; right:-6px;}
 
   /* ---------- hint ---------- */
   #hint{
-    background:rgba(225,112,85,.15); border:1px solid rgba(225,112,85,.5);
-    color:#ffd9cd; border-radius:12px; padding:10px 14px; margin-top:12px;
-    font-size:16px; line-height:1.45; text-align:center; animation:popin .25s;
+    background:#FFF1EC; color:#B4451F; border-radius:12px; padding:10px 14px; margin-top:12px;
+    font-size:16px; line-height:1.45; text-align:center; text-wrap:pretty;
+    box-shadow:0 4px 14px rgba(225,112,85,.14); animation:popin .25s;
   }
 
   /* ---------- fraction rendering ---------- */
-  .frac{display:inline-flex; flex-direction:column; align-items:center; vertical-align:middle; margin:0 3px; line-height:1.1; font-weight:700;}
+  .frac{display:inline-flex; flex-direction:column; align-items:center; vertical-align:middle; margin:0 3px; line-height:1.1; font-weight:500; font-variant-numeric:tabular-nums;}
   .frac .fn{padding:0 5px;}
   .frac .fd{padding:0 5px; border-top:2px solid currentColor;}
 
   /* ---------- bridge overlay ---------- */
-  #bridge{position:fixed; inset:0; background:rgba(5,8,25,.75); display:flex; align-items:center; justify-content:center; z-index:50; padding:16px;}
+  #bridge{position:fixed; inset:0; background:rgba(35,35,55,.45); -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px); display:flex; align-items:center; justify-content:center; z-index:50; padding:16px;}
   .bridge-panel{
-    background:var(--panel); border:2px solid var(--accent); border-radius:22px;
+    background:var(--panel); border-radius:var(--radius-2xl,24px);
     max-width:560px; width:100%; padding:24px; text-align:center;
     animation:popin .3s ease-out; max-height:92vh; overflow-y:auto;
+    box-shadow:0 20px 60px rgba(20,20,30,.18);
   }
-  .bridge-panel h2{margin:0 0 6px; color:var(--accent); font-size:24px;}
-  .tip-earn{font-size:19px; color:var(--accent); margin:8px 0; font-weight:700;}
+  .bridge-panel h2{margin:0 0 6px; color:var(--accent); font-size:24px; font-weight:500; text-wrap:balance;}
+  .tip-earn{font-size:19px; color:var(--green-1,#07BE7E); margin:8px 0; font-weight:500;}
   .tip-none{font-size:16px; color:var(--muted); margin:8px 0;}
   .bridge-math{
-    background:var(--panel2); border-radius:14px; padding:16px; margin:14px 0;
-    font-size:18px; line-height:1.7;
+    background:var(--panel2); border-radius:var(--radius-lg,12px); padding:16px; margin:14px 0;
+    font-size:18px; line-height:1.7; text-wrap:pretty;
   }
   .bridge-math .lead{color:var(--muted); font-size:14px; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;}
-  .big-eq{font-size:30px; font-weight:800; color:var(--accent); margin:10px 0;}
+  .big-eq{font-size:30px; font-weight:500; color:var(--accent); margin:10px 0; font-variant-numeric:tabular-nums;}
   .pies{display:flex; justify-content:center; gap:24px; margin:10px 0; flex-wrap:wrap;}
   .pies .pie{text-align:center; font-size:17px;}
 
   /* ---------- start / final ---------- */
   .hero{text-align:center; padding:40px 20px;}
-  .hero h1{font-size:38px; margin:0 0 10px; color:var(--accent);}
+  .hero h1{font-size:38px; margin:0 0 10px; color:var(--accent); font-weight:500; letter-spacing:-0.01em; text-wrap:balance;}
   .hero .pizza-big{font-size:80px; margin-bottom:8px; display:inline-block; animation:sway 3s ease-in-out infinite;}
   @keyframes sway{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}
-  .hero p{font-size:19px; line-height:1.6; color:var(--ink); max-width:460px; margin:0 auto 24px;}
+  .hero p{font-size:19px; line-height:1.6; color:var(--ink); max-width:460px; margin:0 auto 24px; text-wrap:pretty;}
   .hero .stars-final{font-size:34px; margin:14px 0; letter-spacing:6px;}
-  .hero .rank{font-size:27px; font-weight:800; margin:8px 0 4px;}
+  .hero .rank{font-size:27px; font-weight:500; margin:8px 0 4px;}
 
   .confetti{position:fixed; top:-50px; z-index:99; pointer-events:none; animation:fall linear forwards;}
   @keyframes fall{to{transform:translateY(112vh) rotate(720deg); opacity:.7;}}
@@ -122,7 +139,7 @@
 </style>
 </head>
 <body>
-<a href="../" style="position:fixed;top:12px;left:12px;z-index:400;background:rgba(11,17,48,.85);border:1px solid rgba(255,255,255,.18);color:#eef1fb;text-decoration:none;font:600 13px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:7px 13px;border-radius:999px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);">⚡ Все тренажёры</a>
+<a href="../" style="position:fixed;top:16px;left:16px;z-index:400;display:inline-flex;align-items:center;gap:6px;background:#fff;box-shadow:0 1px 2px rgba(35,35,35,.05),0 4px 12px rgba(35,35,35,.06),inset 0 0 0 1px rgba(35,35,35,.05);color:#232323;text-decoration:none;font:500 14px 'Aeonik Pro',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:10px 16px;border-radius:9999px;">← Все тренажёры</a>
 
 <div class="wrap">
 
@@ -178,11 +195,11 @@
 const $ = s => document.querySelector(s);
 const TAU = Math.PI * 2;
 const COL = {
-  bg:'#0b1130', panel:'#141b40', accent:'#ffd166',
+  bg:'#ffffff', panel:'#ffffff', accent:'#6240FF',
   tomato:'#e17055', cheese:'#fdcb6e',
   crust:'#c98a3d', outline:'#5a3a1a',
-  board:'#3a2a17', boardRing:'#2c1f10',
-  plate:'#dfe4ea', plateRing:'#b9c2cc'
+  board:'#F3E7D6', boardRing:'#E4D2BC',
+  plate:'#EEF0FF', plateRing:'#D8DCF2'
 };
 const EMOJIS = ['👧','👦','👨','👩','🧑‍🦱','👵','👴','🧔','👱‍♀️'];
 function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
@@ -337,13 +354,13 @@ function rrect(x,y,w,h,r){
 }
 function drawPlate(pl){
   ctx.beginPath(); ctx.ellipse(pl.cx, pl.cy+pl.r*0.06, pl.r*1.04, pl.r*1.0, 0, 0, TAU);
-  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fill();
+  ctx.fillStyle = 'rgba(20,20,30,.10)'; ctx.fill();
   ctx.beginPath(); ctx.arc(pl.cx, pl.cy, pl.r, 0, TAU);
   ctx.fillStyle = COL.plate; ctx.fill();
   ctx.beginPath(); ctx.arc(pl.cx, pl.cy, pl.r*0.82, 0, TAU);
   ctx.strokeStyle = COL.plateRing; ctx.lineWidth = 2; ctx.stroke();
   if(pl.caption){
-    ctx.fillStyle = '#8892c9'; ctx.font = '14px system-ui'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#6B7180'; ctx.font = '14px "Aeonik Pro",system-ui'; ctx.textAlign = 'center';
     ctx.fillText(pl.caption, pl.cx, pl.cy - pl.r - 12);
   }
 }
@@ -356,11 +373,11 @@ function drawBoard(p){
 function drawWindow(){
   const b = scene.windowBox;
   rrect(b.x, b.y, b.w, b.h, 14);
-  ctx.fillStyle = '#1a2150'; ctx.fill();
-  ctx.strokeStyle = '#2b3573'; ctx.lineWidth = 2; ctx.stroke();
-  ctx.fillStyle = COL.accent; ctx.font = '22px system-ui'; ctx.textAlign = 'center';
+  ctx.fillStyle = '#F2F6F8'; ctx.fill();
+  ctx.strokeStyle = '#EEF0FF'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = COL.accent; ctx.font = '22px "Aeonik Pro",system-ui'; ctx.textAlign = 'center';
   ctx.fillText('🛎', b.x+b.w/2, b.y+30);
-  ctx.fillStyle = '#8892c9'; ctx.font = '13px system-ui';
+  ctx.fillStyle = '#6B7180'; ctx.font = '13px "Aeonik Pro",system-ui';
   ctx.fillText('выдача', b.x+b.w/2, b.y+50);
 }
 function drawGhost(s){
@@ -371,7 +388,7 @@ function drawGhost(s){
   ctx.arc(p.cx, p.cy, p.r, s.a0, s.a1);
   ctx.closePath();
   ctx.setLineDash([6,6]);
-  ctx.strokeStyle = 'rgba(136,146,201,.4)'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.strokeStyle = 'rgba(98,64,255,.30)'; ctx.lineWidth = 1.5; ctx.stroke();
   ctx.restore();
 }
 function drawSlice(s){
@@ -417,7 +434,7 @@ function drawCutFlash(p){
   const alpha = (1 - p.sepT) * 0.9;
   if(alpha <= 0 || p.cuts < 2) return;
   ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,' + alpha.toFixed(2) + ')';
+  ctx.strokeStyle = 'rgba(98,64,255,' + alpha.toFixed(2) + ')';
   ctx.lineWidth = 2.5;
   const span = TAU/p.cuts;
   for(let i=0;i<p.cuts;i++){
@@ -474,8 +491,8 @@ function render(){
   ctx.textAlign = 'center';
   for(let i=0;i<scene.labels.length;i++){
     const L = scene.labels[i];
-    ctx.fillStyle = L.color || '#8892c9';
-    ctx.font = (L.bold?'700 ':'') + (L.size||16) + 'px system-ui';
+    ctx.fillStyle = L.color || '#6B7180';
+    ctx.font = (L.bold?'500 ':'') + (L.size||16) + 'px "Aeonik Pro",system-ui';
     ctx.fillText(L.text, L.x, L.y);
   }
 }
@@ -519,22 +536,37 @@ let clientEls = [];
 
 function genShift(){
   return {
-    o1: pick([{n:3,d:8},{n:5,d:8}]),
+    // o1 — простые доли: ¼, ½, ¾, ⅓ (самые мелкие знаменатели из доступных резов)
+    o1: pick([
+      {n:1,d:4},   // ¼
+      {n:2,d:4},   // ½
+      {n:3,d:4},   // ¾
+      {n:2,d:6}    // ⅓
+    ]),
+    // o2 — сравнение: небольшие, но РАЗНЫЕ знаменатели (2,3,4,5,6); winner = индекс большей
     o2: pick([
-      {a:{n:1,d:4}, b:{n:2,d:6}, winner:1},
-      {a:{n:1,d:2}, b:{n:3,d:8}, winner:0},
-      {a:{n:2,d:3}, b:{n:3,d:4}, winner:1}
+      {a:{n:1,d:2}, b:{n:1,d:3}, winner:0},  // ½ > ⅓
+      {a:{n:1,d:4}, b:{n:1,d:3}, winner:1},  // ¼ < ⅓
+      {a:{n:2,d:3}, b:{n:3,d:4}, winner:1},  // ⅔ < ¾
+      {a:{n:3,d:5}, b:{n:1,d:2}, winner:0},  // 0.6 > 0.5
+      {a:{n:3,d:4}, b:{n:4,d:5}, winner:1},  // 0.75 < 0.8
+      {a:{n:5,d:6}, b:{n:3,d:4}, winner:0}   // 0.833 > 0.75
     ]),
+    // o3 — сложение с приведением к восьмушкам: a.d ∈ {2,4} (реально надо переводить), сумма ≤ 8
     o3: pick([
-      {a:{n:1,d:4}, b:{n:2,d:8}},
-      {a:{n:1,d:2}, b:{n:2,d:8}},
-      {a:{n:1,d:4}, b:{n:3,d:8}}
+      {a:{n:1,d:4}, b:{n:3,d:8}},  // 2/8 + 3/8 = 5/8
+      {a:{n:1,d:2}, b:{n:3,d:8}},  // 4/8 + 3/8 = 7/8
+      {a:{n:3,d:4}, b:{n:1,d:8}},  // 6/8 + 1/8 = 7/8
+      {a:{n:1,d:2}, b:{n:2,d:8}}   // 4/8 + 2/8 = 6/8 = 3/4
     ]),
-    o4: { pizzas:2, por: pick([4,8]) },
+    // o4 — деление: порции покрупнее (по ⅙ и ⅛), до 16 гостей (por чётное — для честных вариантов)
+    o4: { pizzas:2, por: pick([6,8]) },
+    // o5 — босс-заказ: больше гостей, нетривиальные порции; ans ∈ {2,3}, guests = ans*por
     o5: pick([
-      {guests:6, por:3, ans:2},
-      {guests:8, por:4, ans:2},
-      {guests:9, por:3, ans:3}
+      {guests:9,  por:3, ans:3},   // 9 × ⅓ = 3
+      {guests:10, por:5, ans:2},   // 10 × ⅕ = 2
+      {guests:12, por:6, ans:2},   // 12 × ⅙ = 2
+      {guests:12, por:4, ans:3}    // 12 × ¼ = 3
     ])
   };
 }
@@ -644,7 +676,7 @@ function pieSVG(total, filled, color){
     const a0 = -Math.PI/2 + i*TAU/total, a1 = a0 + TAU/total;
     const x0 = (C+R*Math.cos(a0)).toFixed(1), y0 = (C+R*Math.sin(a0)).toFixed(1);
     const x1 = (C+R*Math.cos(a1)).toFixed(1), y1 = (C+R*Math.sin(a1)).toFixed(1);
-    paths += '<path d="M' + C + ',' + C + ' L' + x0 + ',' + y0 + ' A' + R + ',' + R + ' 0 0 1 ' + x1 + ',' + y1 + ' Z" fill="' + (i<filled ? color : '#232b5c') + '" stroke="#0b1130" stroke-width="1.5"/>';
+    paths += '<path d="M' + C + ',' + C + ' L' + x0 + ',' + y0 + ' A' + R + ',' + R + ' 0 0 1 ' + x1 + ',' + y1 + ' Z" fill="' + (i<filled ? color : '#EEF0FF') + '" stroke="#ffffff" stroke-width="1.5"/>';
   }
   return '<svg width="120" height="120" viewBox="0 0 120 120">' + paths + '</svg>';
 }
@@ -742,8 +774,8 @@ function order2(){
   const p2 = addPizza(545, 205, 120, v.b.d);
   p1.slices.forEach(function(s,i){ if(i >= v.a.n) s.state = 'ghost'; });
   p2.slices.forEach(function(s,i){ if(i >= v.b.n) s.state = 'ghost'; });
-  scene.labels.push({x:215, y:372, text:'порция: ' + v.a.n + '/' + v.a.d, size:18, color:'#ffd166', bold:true});
-  scene.labels.push({x:545, y:372, text:'порция: ' + v.b.n + '/' + v.b.d, size:18, color:'#ffd166', bold:true});
+  scene.labels.push({x:215, y:372, text:'порция: ' + v.a.n + '/' + v.a.d, size:18, color:'#6240FF', bold:true});
+  scene.labels.push({x:545, y:372, text:'порция: ' + v.b.n + '/' + v.b.d, size:18, color:'#6240FF', bold:true});
   setBtns([]);
 }
 
